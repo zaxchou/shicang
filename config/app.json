@@ -1,0 +1,8 @@
+{
+  "app": "myinfobase",
+  "contentSource": "Z:/BaiduNetdiskWorkspace/mynote/mynote/RedNote",
+  "host": "127.0.0.1",
+  "port": 4317,
+  "timezone": "Asia/Shanghai",
+  "publicOrigin": ""
+}

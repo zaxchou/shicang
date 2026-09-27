@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.local/
+runtime/
+logs/
+releases/
+shots/
+.playwright-mcp/
+deploy/production/
+*.log
+.DS_Store
+Thumbs.db

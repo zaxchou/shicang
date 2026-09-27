@@ -1,0 +1,72 @@
+# 验收记录（verification）
+
+日期：2026-09-27。执行环境：Windows 11（win32 10.0.26200）、Git Bash、Node v24.18.0、npm 11.16.0；内容源 `Z:\BaiduNetdiskWorkspace\mynote\mynote\RedNote`（Baidu 同步盘，项目与源同盘）。每条记录标注「通过 / 失败 / 未验证」，未验证不冒充通过。
+
+## 运行环境与依赖
+
+- Node ≥ 22（engines 声明）；开发实际使用 v24.18.0。
+- 关键依赖（lockfile 锁定）：express 4.22.3、gray-matter 4.0.3、marked 15.0.12、sanitize-html 2.17.7、zod 3.25.76、vite 6.4.3、vitest 3.2.7、react 18.3.1、typescript 5.9.3。
+- 启动方式：生产 `node dist/server/index.js`（环境变量见 deploy/compose.yaml）；开发 `start.cmd` / `scripts/start.ps1`（127.0.0.1:4317，独立 `.local/data`）。
+
+## 首批数据
+
+- Bookmarks 598 篇全部解析入库：scanned=598 added=598 errors=0；598 个 resourceId 唯一、无重复。
+- 每篇笔记均有 H1 标题、至少一张本地图片；本地媒体 1,980 张 WebP 全部登记且全部读取到宽高（封面无缺失尺寸）。
+- 402 篇包含远程 `<video>` 引用（sns-bak-v1 / sns-bak-v6.xhscdn.com，HTTP 协议）；当前库内无本地视频文件。
+- 字段统计与计划一致：likedCount 591 / shareCount 589 / commentCount 574 / tags 541，缺失字段以 null 入库不影响展示。
+
+## 首批分类
+
+- 6 大类：书画 272 / AI 与编程 107 / 设计与 AIGC 55 / 语言与学习 53 / 生活 70 / 3D 打印与数码 41，合计 598，全覆盖无重复、无非法类别 ID。
+- 执行方式与边界判定见 `docs/category-taxonomy.md`；逐条理由存于 `data-seed/categories-seed.json` 的 rationale 字段。
+- 全量 598 条规则输出经逐条人工审查，29 条人工复核修正（含 23 条规则未命中 + 6 处规则误判，清单在 `scripts/classify.mjs` 的 MANUAL 段）。
+
+## 自动化测试（vitest，35 个用例全部通过）
+
+覆盖：frontmatter/正文解析（BOM、CRLF、缺日期、缺 tags、坏 YAML、缺 resourceId、H1 回退）；媒体路径（vault 前缀映射、中文与空格文件名、目录穿越拒绝、源外嵌入拒绝、缺失媒体标记不可用）；XSS 消毒（script/javascript: 链接）；WebP 尺寸解析；上海时区边界（UTC 跨午夜、不存在日期如 6/31、最近 7 天自然日、自定义区间）；JsonStore（回读、损坏后备份恢复且保留损坏文件、校验失败不覆盖、串行写入、备份保留上限）；幂等刷新（二扫新增 0、新增一篇只出现一次、文件变更更新、消失标记 missing、重启保留）；重复 resourceId 冲突保留先入记录；查询（多词 AND、覆盖标题/正文/作者/tags、desc/asc 排序、null 恒排末尾、同时间按 id 稳定、上海日历日过滤、同步时间过滤独立于排序、分页）；分类优先级（initial → override → 刷新 → 重启全部保留、人工置 null 不被 seed 恢复、expectedRevision 冲突、非法类别拒绝、刷新期间改分类两项结果都保留、未分类计数）。
+
+## 浏览器实测（Chromium via Playwright，1280×800 / 1440×900 / 1920×900）
+
+- 2026-09-27 用户反馈后卡片改为「无框缩略图 + 标题 + 作者 + 分类标签」样式（用户参考图），瀑布流列距 16px / 行距 22px，卡片自然比例限高 520px；日期与摘要移出卡片（详情中仍可见）。
+- 新增动效：详情弹层开合（缩放+淡入淡出，关闭时先播退出动画再卸载并暂停视频）、卡片入场 stagger（每批新卡片依次浮现，筛选切换重播）、图片加载淡入、悬停图片轻微放大+投影、按钮按压反馈、瀑布流窗口变宽度平滑重排；全部尊重 `prefers-reduced-motion`。
+- 2026-09-27 二轮反馈后新增：①亮色主题 + 亮/深/跟随系统三档切换（localStorage 持久化、首帧内联脚本防闪烁、跟随系统实时响应 matchMedia 变化，全站颜色收敛为 CSS 变量）；②标签总览页（侧栏「发现 → 标签」，`GET /api/tags` 返回 872 个标签按热度排序，点标签以 `tag` 参数过滤内容并与搜索/时间筛选叠加，标题栏带返回按钮）。标签过滤与计数有自动化测试覆盖。
+- 首页三尺寸截图对照参考图检查通过：`docs/screenshots/home-1280.png`、`home-1440.png`、`home-1920.png`；1440 宽 4 列、1920 宽 6 列，无横向溢出、无控件截断。亮色首页与标签页见 `home-light-1440.png`、`tags-light-1440.png`。
+- 分类筛选「书画」：标题与计数变为 272，结果全部为书画内容（`shuhua-1440.png`）；侧栏计数为全库口径、主区计数为筛选结果口径。
+- 详情弹层（`detail-1440.png`）：遮罩居中、作者栏、查看原文、分类选择、发布/同步时间（上海时区）正确；Esc 关闭；关闭后焦点回到原卡片。
+- 分类修改：详情内改「书画 → 生活」成功，`overrides.json` 落盘（revision 递增），侧栏计数即时更新（书画 271 / 生活 71），随后改回验证双向可用。
+- 搜索：书画内搜「千里江山」精确返回 1 篇，与分类条件交集正确；清除筛选可一键重置。
+- 刷新：点击刷新按钮 → 完成提示「新增 0 篇」（幂等），列表与计数保留；请求进行中按钮禁用防重复提交。
+- 视频笔记：详情内 `<video controls poster=本地封面>` 元素正常，远程源 readyState=4、videoWidth=1280（可解析加载）；关闭详情即卸载播放器。
+- 图片懒加载：卡片 `loading="lazy"`，瀑布流按 ResizeObserver 实测高度布局，滚动无跳动、无重叠。
+
+## 只读边界验证
+
+- 开发开始前对源目录 2,578 个文件（598 md + 1,980 webp + base 文件）生成 SHA-256 清单（`.local/source-hash.json`）；全部开发与测试结束后复查：added=0 / removed=0 / changed=0，**应用未写入源目录**。
+- 自动化测试一律使用 `os.tmpdir()` 夹具，未向源目录写任何文件（早期测试脚本临时目录泄漏问题已修复并清理，发布包重建确认干净）。
+
+## NAS 实际部署（2026-09-27 已完成，此前为未验证项）
+
+- 环境（现场核实）：DSM 7.3.1、x86_64、docker 位于 `/usr/local/bin`（需 sudo + 显式 PATH）、Compose v2.20.1；项目与源库路径 `/volume2/Media/BaiduNetdiskWorkspace/...`；端口 4317 空闲；共享目录属主 uid=1026/gid=100。
+- 部署结果：镜像 `myinfobase:0.1.3`（NAS 上构建，容器内 npm ci + 全量构建成功）；容器 `myinfobase` 运行中，`0.0.0.0:4317->4317`；`restart: unless-stopped` + healthcheck。
+- 验证：NAS 本机 health `{"ready":true,"version":"0.1.3"}`；**局域网**（Windows → 192.168.31.246:4317）首页 598 篇、六个分类计数与本地一致、媒体 200 image/webp、浏览器整页截图（`nas-deployed-1440.png`）正常。
+- 持久化验证：LAN 上 PATCH 分类 → `runtime/data/overrides.json` 落盘；`docker restart` 后计数与覆盖保留、未重复导入 seed（NO-RESEED）。测试数据已复原（该笔记 override 恢复为 seed 的 life）。
+- 首次扫描记录：scanned=598 added=598 errors=0（与本地一致）。
+- 更新/回滚入口：`deploy/nas-update.sh`（构建+换 tag+重建+健康检查+版本校验）、`deploy/nas-rollback.sh`（本地镜像秒级切回）；旧 `update.sh`/`rollback.sh`（releases/current 方案）已废弃删除。SSH 助手 `scripts/nas-deploy.mjs`（凭据走环境变量）。
+- 未验证项更新：~~NAS 实际部署~~ 已验证；~~容器重启恢复~~ 已验证；**整机断电重启恢复**仍未实测（restart 策略与 Docker 开机自启待观察一次真实重启）；NAS 文件系统 rename/replace 行为未单独验证（应用有 copy+replace 回退）。
+
+## 已知限制（如实说明）
+
+1. **远程视频可用性未全量保证**：402 篇视频均为小红书 CDN 的 HTTP 直链，实测样本可加载；防盗链、链接失效或网络策略都可能导致个别不可播，届时详情页显示「视频暂时无法播放」与原文入口。未实现下载/转码/登录（按计划范围排除）。
+2. **NAS 部署参数待现场核实**：DSM/套件版本、CPU 架构、RedNote 在 NAS 上的本机路径、端口占用均需在部署时确认；`deploy/.env.example` 中路径为占位示例。NAS 上的首次部署、容器重启恢复、整机开机恢复为**未验证**（需要实际 NAS 操作窗口），部署步骤与回滚脚本已按 Container Manager Project 流程准备。
+3. **NAS rename/replace 行为**：JsonStore 在 rename 失败时自动退化为 copy+replace，本地 Windows 实测通过；NAS 文件系统上的行为将在首次部署时验证。
+4. **搜索为子串匹配**：中文按包含匹配，无语义检索或拼音模糊匹配（首版范围）。
+5. **瀑布流视觉顺序**：DOM 与数据严格按发布时间排序，交错的瀑布流布局不保证同屏视觉行序完全等同时间序（计划已声明）。
+6. 每篇详情的正文为服务端消毒后的 HTML；原始 wiki 嵌入路径已规范化，源外引用显示为不支持。
+
+## 证据清单
+
+- 截图：`docs/screenshots/`（home-1280 / home-1440 / home-1920 / shuhua-1440 / detail-1440）。
+- 测试：`npm test` 35/35 通过（vitest 运行日志见会话记录）。
+- 源哈希清单：`.local/source-hash.json`（基线与复查一致）。
+- 发布包：`releases/0.1.0/`（59 个文件，含 manifest.json 与逐文件 SHA-256）。
+- 分类 seed：`data-seed/categories-seed.json`；人工覆盖：`<DATA_DIR>/overrides.json`。

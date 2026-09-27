@@ -1,0 +1,443 @@
+// 收藏库核心服务：内存索引、查询、详情、刷新任务、分类入口。
+import crypto from 'node:crypto';
+import path from 'node:path';
+import type {
+  Category,
+  LibraryInfo,
+  NoteDetail,
+  NoteListResult,
+  NoteQuery,
+  NoteSummary,
+  RefreshJobInfo,
+  TagCount,
+} from '../../shared/types.js';
+import { lastNDaysRangeMs, customRangeMs } from '../../shared/time.js';
+import { projectRoot, type AppConfig } from '../config.js';
+import { log } from '../log.js';
+import { scanLibrary } from '../reader/scan.js';
+import type { NoteRecord } from '../reader/parse.js';
+import { JsonStore } from '../storage/json-store.js';
+import {
+  CategoriesService,
+  CategoryConflictError,
+  CategoryValidationError,
+} from './categories.js';
+
+interface IndexDoc {
+  schemaVersion: number;
+  revision: number;
+  generatedAt: string;
+  contentSource: string;
+  notes: NoteRecord[];
+  diagnostics: string[];
+  lastScan: {
+    finishedAt: string;
+    scanned: number;
+    added: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  } | null;
+}
+
+interface InternalRefreshJob extends RefreshJobInfo {
+  cancelled: boolean;
+}
+
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NotFoundError';
+  }
+}
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+function validateIndexDoc(data: unknown): IndexDoc | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const d = data as IndexDoc;
+  if (d.schemaVersion !== 1 || !Array.isArray(d.notes) || typeof d.revision !== 'number') return null;
+  const notes = d.notes.filter(
+    (n): n is NoteRecord =>
+      typeof n === 'object' &&
+      n !== null &&
+      typeof (n as NoteRecord).id === 'string' &&
+      typeof (n as NoteRecord).title === 'string'
+  );
+  if (notes.length !== d.notes.length) return null;
+  return { ...d, notes };
+}
+
+export class LibraryService {
+  readonly cfg: AppConfig;
+  private categories: CategoriesService;
+  private indexStore: JsonStore<IndexDoc>;
+  private doc: IndexDoc;
+  private byId = new Map<string, NoteRecord>();
+  private byPath = new Map<string, NoteRecord>();
+  private job: InternalRefreshJob | null = null;
+  /** 扫描串行链：初始扫描与手动刷新互斥，避免并发全盘扫描 */
+  private scanChain: Promise<void> = Promise.resolve();
+  private bootDiagnostics: string[] = [];
+
+  constructor(cfg: AppConfig) {
+    this.cfg = cfg;
+    this.categories = new CategoriesService(cfg.dataDir, cfg.backupDir);
+    this.indexStore = new JsonStore<IndexDoc>(
+      path.join(cfg.dataDir, 'library-index.json'),
+      cfg.backupDir,
+      validateIndexDoc
+    );
+    this.doc = {
+      schemaVersion: 1,
+      revision: 0,
+      generatedAt: '',
+      contentSource: cfg.contentSource,
+      notes: [],
+      diagnostics: [],
+      lastScan: null,
+    };
+  }
+
+  get indexRevision(): number {
+    return this.doc.revision;
+  }
+
+  get categoriesService(): CategoriesService {
+    return this.categories;
+  }
+
+  get sourceRoot(): string {
+    return this.cfg.contentSource;
+  }
+
+  async init(): Promise<void> {
+    const diagnostics: string[] = [];
+    const seedPath = path.join(projectRoot(), 'data-seed', 'categories-seed.json');
+    diagnostics.push(...(await this.categories.init(seedPath)));
+
+    const loaded = this.indexStore.load();
+    if (loaded.doc) {
+      this.doc = loaded.doc;
+      this.rebuildMaps();
+      if (loaded.recoveredFrom) {
+        diagnostics.push(`library-index.json 损坏，已从备份恢复: ${path.basename(loaded.recoveredFrom)}`);
+      }
+    } else if (loaded.corruptedFile) {
+      diagnostics.push('library-index.json 损坏且无可用备份，已重建索引（分类覆盖不受影响）');
+    }
+    this.bootDiagnostics = diagnostics;
+
+    // 无索引缓存：首次启动自动全量扫描
+    if (!loaded.doc) {
+      await this.runScan('initial');
+    }
+  }
+
+  private rebuildMaps(): void {
+    this.byId.clear();
+    this.byPath.clear();
+    for (const r of this.doc.notes) {
+      this.byId.set(r.id, r);
+      this.byPath.set(r.sourceRelativePath, r);
+    }
+  }
+
+  // ---------- 查询 ----------
+
+  query(params: NoteQuery): NoteListResult {
+    let items = this.doc.notes.filter((r) => r.sourceStatus === 'available');
+
+    const q = (params.q ?? '').trim().toLowerCase();
+    if (q) {
+      const terms = q.split(/\s+/).filter(Boolean);
+      items = items.filter((r) => terms.every((t) => r.searchText.includes(t)));
+    }
+
+    if (params.categoryId === 'uncategorized') {
+      items = items.filter((r) => this.categories.effective(r.id).categoryId === null);
+    } else if (params.categoryId) {
+      items = items.filter((r) => this.categories.effective(r.id).categoryId === params.categoryId);
+    }
+
+    if (params.tag) {
+      const tag = params.tag;
+      items = items.filter((r) => r.tags.includes(tag));
+    }
+
+    if (params.range !== 'all') {
+      let rangeMs: [number, number] | null;
+      if (params.range === '7d') rangeMs = lastNDaysRangeMs(7);
+      else if (params.range === '30d') rangeMs = lastNDaysRangeMs(30);
+      else {
+        if (!params.from) throw new ValidationError('自定义时间范围需要 from 参数');
+        rangeMs = customRangeMs(params.from, params.to);
+        if (!rangeMs) throw new ValidationError('日期格式无效，应为 YYYY-MM-DD');
+      }
+      const [start, end] = rangeMs;
+      items = items.filter((r) => {
+        const iso = params.timeField === 'published' ? r.publishedAt : r.syncedAt;
+        if (!iso) return false;
+        const t = Date.parse(iso);
+        return Number.isFinite(t) && t >= start && t < end;
+      });
+    }
+
+    const dir = params.order === 'asc' ? 1 : -1;
+    items = items.slice().sort((a, b) => {
+      const ta = a.publishedAt ? Date.parse(a.publishedAt) : null;
+      const tb = b.publishedAt ? Date.parse(b.publishedAt) : null;
+      if (ta === null && tb === null) return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      if (ta === null) return 1; // null 恒排末尾
+      if (tb === null) return -1;
+      if (ta !== tb) return ta < tb ? -dir : dir;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+
+    const total = items.length;
+    const page = items.slice(params.offset, params.offset + params.limit);
+    return {
+      items: page.map((r) => this.toSummary(r)),
+      total,
+      indexRevision: this.doc.revision,
+    };
+  }
+
+  detail(id: string): NoteDetail {
+    const r = this.byId.get(id);
+    if (!r) throw new NotFoundError(`未找到笔记 ${id}`);
+    return { ...this.toSummary(r), ...this.detailFields(r) };
+  }
+
+  hasNote(id: string): boolean {
+    return this.byId.has(id);
+  }
+
+  private detailFields(r: NoteRecord): Pick<NoteDetail, 'bodyHtml' | 'media' | 'originalUrl' | 'sourceRelativePath'> {
+    return {
+      bodyHtml: r.bodyHtml,
+      media: r.media,
+      originalUrl: r.originalUrl,
+      sourceRelativePath: r.sourceRelativePath,
+    };
+  }
+
+  private toSummary(r: NoteRecord): NoteSummary {
+    const eff = this.categories.effective(r.id);
+    let cover: NoteSummary['cover'] = null;
+    if (r.coverMediaId) {
+      const m = r.media.find((x) => x.id === r.coverMediaId);
+      if (m) {
+        cover = {
+          mediaId: m.id,
+          url: mediaUrl(r.id, m.id),
+          width: m.width ?? null,
+          height: m.height ?? null,
+          available: m.available !== false,
+        };
+      }
+    }
+    return {
+      id: r.id,
+      title: r.title,
+      excerpt: r.excerpt,
+      author: r.author,
+      tags: r.tags,
+      publishedAt: r.publishedAt,
+      syncedAt: r.syncedAt,
+      categoryId: eff.categoryId,
+      categorySource: eff.source,
+      mediaCount: r.media.filter((m) => m.kind === 'image').length,
+      hasVideo: r.media.some((m) => m.kind === 'video'),
+      cover,
+      sourceStatus: r.sourceStatus,
+    };
+  }
+
+  libraryInfo(): LibraryInfo {
+    const noteIds = this.doc.notes.map((n) => n.id);
+    const { counts, uncategorized } = this.categories.countEffective(noteIds);
+    const cats: Category[] = this.categories.categories;
+    return {
+      app: this.cfg.app,
+      version: this.cfg.version,
+      total: this.doc.notes.length,
+      uncategorized,
+      categories: cats
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((c) => ({ id: c.id, name: c.name, count: counts[c.id] ?? 0 })),
+      lastScan: this.doc.lastScan,
+      indexRevision: this.doc.revision,
+      categoryRevision: this.categories.revision,
+      indexStatus: this.job?.state === 'running' ? 'scanning' : this.doc.notes.length > 0 ? 'ready' : 'empty',
+      diagnostics: [...this.bootDiagnostics, ...this.doc.diagnostics].slice(0, 50),
+    };
+  }
+
+  listCategories(): Category[] {
+    return this.categories.categories.slice().sort((a, b) => a.order - b.order);
+  }
+
+  private tagCountCache: { revision: number; tags: TagCount[] } | null = null;
+
+  /** 全部标签与使用次数（按次数降序），按 indexRevision 缓存 */
+  tagCounts(): TagCount[] {
+    if (this.tagCountCache && this.tagCountCache.revision === this.doc.revision) {
+      return this.tagCountCache.tags;
+    }
+    const m = new Map<string, number>();
+    for (const r of this.doc.notes) {
+      if (r.sourceStatus !== 'available') continue;
+      for (const t of r.tags) m.set(t, (m.get(t) ?? 0) + 1);
+    }
+    const tags = [...m.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh-Hans-CN'));
+    this.tagCountCache = { revision: this.doc.revision, tags };
+    return tags;
+  }
+
+  // ---------- 分类修改 ----------
+
+  async setCategory(
+    noteId: string,
+    categoryId: string | null,
+    expectedRevision: number
+  ): Promise<{ revision: number; categoryId: string | null; source: 'override' | 'initial' | 'none' }> {
+    if (!this.byId.has(noteId)) throw new NotFoundError(`未找到笔记 ${noteId}`);
+    const revision = await this.categories.setOverride(noteId, categoryId, expectedRevision);
+    const eff = this.categories.effective(noteId);
+    return { revision, categoryId: eff.categoryId, source: eff.source };
+  }
+
+  // ---------- 刷新 ----------
+
+  startRefresh(): RefreshJobInfo {
+    if (this.job && this.job.state === 'running') return this.toJobInfo(this.job);
+    const job: InternalRefreshJob = {
+      jobId: crypto.randomUUID(),
+      state: 'running',
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      scanned: 0,
+      added: 0,
+      updated: 0,
+      skipped: 0,
+      errors: 0,
+      diagnostics: [],
+      cancelled: false,
+    };
+    this.job = job;
+    void this.runScan('refresh', job).catch((e) => {
+      job.state = 'failed';
+      job.finishedAt = new Date().toISOString();
+      job.diagnostics.push(`刷新失败: ${(e as Error).message}`);
+    });
+    return this.toJobInfo(job);
+  }
+
+  getRefreshJob(jobId: string): RefreshJobInfo | null {
+    if (!this.job || this.job.jobId !== jobId) return null;
+    return this.toJobInfo(this.job);
+  }
+
+  get latestJob(): RefreshJobInfo | null {
+    return this.job ? this.toJobInfo(this.job) : null;
+  }
+
+  private toJobInfo(j: InternalRefreshJob): RefreshJobInfo {
+    const { cancelled: _c, ...info } = j;
+    void _c;
+    return { ...info, diagnostics: info.diagnostics.slice(0, 50) };
+  }
+
+  /** 扫描并在成功持久化后切换内存索引。initial 模式用于首次启动。所有扫描经 scanChain 串行。 */
+  private async runScan(mode: 'initial' | 'refresh', job?: InternalRefreshJob): Promise<void> {
+    const p = this.scanChain.then(() => this.doScan(mode, job));
+    this.scanChain = p.catch(() => undefined);
+    return p;
+  }
+
+  private async doScan(mode: 'initial' | 'refresh', job?: InternalRefreshJob): Promise<void> {
+    const startedAt = new Date();
+    if (mode === 'refresh') log.info(`刷新开始: ${startedAt.toISOString()}`);
+    const outcome = await scanLibrary(this.cfg.contentSource, this.byPath, (done, total) => {
+      if (job && done % 100 === 0) {
+        job.scanned = done;
+        job.diagnostics.push(`扫描进度 ${done}/${total}`);
+      }
+    });
+
+    const nextDoc: IndexDoc = {
+      schemaVersion: 1,
+      revision: this.doc.revision + 1,
+      generatedAt: new Date().toISOString(),
+      contentSource: this.cfg.contentSource,
+      notes: outcome.records,
+      diagnostics: outcome.diagnostics.slice(0, 200),
+      lastScan: {
+        finishedAt: new Date().toISOString(),
+        scanned: outcome.counts.scanned,
+        added: outcome.counts.added,
+        updated: outcome.counts.updated,
+        skipped: outcome.counts.skipped,
+        errors: outcome.counts.errors,
+      },
+    };
+
+    // 枚举成功但零笔记且旧库非空 → 视为异常，不覆盖旧索引
+    if (outcome.records.length === 0 && this.doc.notes.length > 0) {
+      const msg = '扫描结果为空而旧库非空，拒绝覆盖旧索引';
+      if (job) {
+        job.state = 'failed';
+        job.finishedAt = new Date().toISOString();
+        job.diagnostics.push(msg);
+      }
+      log.error(msg);
+      return;
+    }
+
+    try {
+      await this.indexStore.save(nextDoc);
+    } catch (e) {
+      const msg = `索引持久化失败: ${(e as Error).message}`;
+      if (job) {
+        job.state = 'failed';
+        job.finishedAt = new Date().toISOString();
+        job.diagnostics.push(msg);
+      }
+      log.error(msg);
+      return;
+    }
+
+    // 提交成功后才切换内存
+    this.doc = nextDoc;
+    this.rebuildMaps();
+
+    if (job) {
+      job.state = outcome.counts.errors > 0 ? 'partial' : 'completed';
+      job.finishedAt = new Date().toISOString();
+      job.scanned = outcome.counts.scanned;
+      job.added = outcome.counts.added;
+      job.updated = outcome.counts.updated;
+      job.skipped = outcome.counts.skipped;
+      job.errors = outcome.counts.errors;
+      job.diagnostics.push(...outcome.diagnostics.slice(0, 20));
+    }
+    log.info(
+      `扫描完成: scanned=${outcome.counts.scanned} added=${outcome.counts.added} updated=${outcome.counts.updated} errors=${outcome.counts.errors}`
+    );
+    void startedAt;
+  }
+}
+
+function mediaUrl(noteId: string, mediaId: string): string {
+  return `/api/media/${encodeURIComponent(noteId)}/${encodeURIComponent(mediaId)}`;
+}
+
+export { CategoryConflictError, CategoryValidationError };

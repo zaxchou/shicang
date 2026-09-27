@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF7A93"/>
+      <stop offset="0.55" stop-color="#F43F6B"/>
+      <stop offset="1" stop-color="#D9265A"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="228" fill="url(#gloss)"/>
+  <text x="512" y="552" text-anchor="middle" dominant-baseline="central" font-family="'PingFang SC','Microsoft YaHei','Heiti SC',sans-serif" font-weight="700" font-size="580" fill="#ffffff">拾</text>
+</svg>

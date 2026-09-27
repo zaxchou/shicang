@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Category, LibraryInfo, NoteSummary, RefreshJobInfo, TagCount } from '../shared/types';
+import type { LibraryInfo, NoteSummary, RefreshJobInfo, TagCount } from '../shared/types';
 import { api, ApiError, type QueryParams } from './api/client';
 import { Sidebar } from './components/Sidebar';
 import { Toolbar, type QueryState } from './components/Toolbar';
 import { Masonry } from './components/Masonry';
 import { DetailDialog } from './components/DetailDialog';
 import { TagsDirectory } from './components/TagsDirectory';
+import { DataTable } from './components/Table';
 import { IconRefresh } from './components/Icons';
 
 const PAGE_SIZE = 60;
+const TABLE_LIMIT = 1000;
 
 const INITIAL_QUERY: QueryState = {
   q: '',
@@ -21,13 +23,31 @@ const INITIAL_QUERY: QueryState = {
 };
 
 type View = 'library' | 'tags';
+type ViewMode = 'masonry' | 'table';
+
+function readViewMode(cid: string): ViewMode {
+  try {
+    return localStorage.getItem(`mb-view-${cid}`) === 'table' ? 'table' : 'masonry';
+  } catch {
+    return 'masonry';
+  }
+}
+function writeViewMode(cid: string, v: ViewMode): void {
+  try {
+    localStorage.setItem(`mb-view-${cid}`, v);
+  } catch {
+    /* ignore */
+  }
+}
 
 export default function App() {
   const [library, setLibrary] = useState<LibraryInfo | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [libraryError, setLibraryError] = useState<string | null>(null);
 
-  const [view, setView] = useState<View>('library');
+  // 收藏库与视图
+  const [collection, setCollection] = useState<string>('rednote');
+  const [viewMode, setViewModeState] = useState<ViewMode>('masonry');
+  const [view, setView] = useState<View>('library'); // library | tags
   const [tags, setTags] = useState<TagCount[] | null>(null);
   const [tagsError, setTagsError] = useState<string | null>(null);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -47,7 +67,7 @@ export default function App() {
   const seqRef = useRef(0);
   const composingRef = useRef(false);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const focusedCardRef = useRef<HTMLElement | null>(null);
+  const focusedElRef = useRef<HTMLElement | null>(null);
   const cardElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const pollingRef = useRef<number | null>(null);
   const queryRef = useRef(query);
@@ -56,8 +76,16 @@ export default function App() {
   viewRef.current = view;
   const activeTagRef = useRef(activeTag);
   activeTagRef.current = activeTag;
+  const collectionRef = useRef(collection);
+  collectionRef.current = collection;
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
   const revisionRef = useRef(indexRevision);
   revisionRef.current = indexRevision;
+
+  const infos = library?.collections ?? [];
+  const curInfo = infos.find((c) => c.id === collection) ?? null;
+  const curCategories = curInfo?.categories ?? [];
 
   const showToast = useCallback((msg: string, kind: 'info' | 'error' = 'info') => {
     setToast({ msg, kind });
@@ -66,9 +94,8 @@ export default function App() {
 
   const loadLibrary = useCallback(async () => {
     try {
-      const [lib, cats] = await Promise.all([api.library(), api.categories()]);
+      const lib = await api.library();
       setLibrary(lib);
-      setCategories(cats.categories);
       setLibraryError(null);
     } catch (e) {
       setLibraryError(e instanceof ApiError ? e.message : '加载收藏库信息失败');
@@ -77,7 +104,7 @@ export default function App() {
 
   const loadTags = useCallback(async () => {
     try {
-      const r = await api.tags();
+      const r = await api.tags(collectionRef.current);
       setTags(r.tags);
       setTagsError(null);
     } catch (e) {
@@ -97,6 +124,7 @@ export default function App() {
     else setListLoading(true);
     try {
       const params: QueryParams = {
+        collection: collectionRef.current,
         q: q.q,
         categoryId: viewRef.current === 'library' ? q.categoryId : null,
         tag: viewRef.current === 'tags' ? activeTagRef.current : null,
@@ -106,7 +134,7 @@ export default function App() {
         to: q.range === 'custom' && q.to ? q.to : undefined,
         order: q.order,
         offset,
-        limit: PAGE_SIZE,
+        limit: append ? PAGE_SIZE : PAGE_SIZE,
       };
       const res = await api.notes(params);
       if (seq !== seqRef.current) return; // 过期响应丢弃
@@ -132,10 +160,73 @@ export default function App() {
     }
   }, []);
 
+  /** 表格模式：一次取全量（≤1000，列排序在前端做） */
+  const loadAll = useCallback(async () => {
+    const q = queryRef.current;
+    const seq = ++seqRef.current;
+    setListLoading(true);
+    try {
+      const res = await api.notes({
+        collection: collectionRef.current,
+        q: q.q,
+        categoryId: viewRef.current === 'library' ? q.categoryId : null,
+        tag: viewRef.current === 'tags' ? activeTagRef.current : null,
+        timeField: q.timeField,
+        range: q.range,
+        from: q.range === 'custom' && q.from ? q.from : undefined,
+        to: q.range === 'custom' && q.to ? q.to : undefined,
+        order: q.order,
+        offset: 0,
+        limit: TABLE_LIMIT,
+      });
+      if (seq !== seqRef.current) return;
+      setItems(res.items);
+      setTotal(res.total);
+      setIndexRevision(res.indexRevision);
+      setListError(null);
+    } catch (e) {
+      if (seq === seqRef.current) setListError(e instanceof ApiError ? e.message : '加载列表失败');
+    } finally {
+      if (seq === seqRef.current) setListLoading(false);
+    }
+  }, []);
+
   // 首次加载
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary]);
+
+  // 查询/视图/标签/收藏库变化 → 重新加载第一页（搜索防抖 200ms）
+  useEffect(() => {
+    if (viewModeRef.current === 'table') {
+      const t = window.setTimeout(() => {
+        if (!composingRef.current) void loadAll();
+      }, 200);
+      return () => window.clearTimeout(t);
+    }
+    const t = window.setTimeout(() => {
+      if (!composingRef.current) void fetchPage(0);
+    }, 200);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, view, activeTag, collection]);
+
+  // 进入标签视图时按收藏库加载标签
+  useEffect(() => {
+    if (view === 'tags') void loadTags();
+  }, [view, collection, indexRevision, loadTags]);
+
+  // 筛选/视图/库变化滚动回顶部
+  useEffect(() => {
+    resultsRef.current?.scrollTo({ top: 0 });
+  }, [query.categoryId, query.range, query.timeField, query.order, query.from, query.to, view, activeTag, collection]);
+
+  // 库就绪轮询（首次启动自动扫描可能延迟）
+  useEffect(() => {
+    if (library && library.indexStatus !== 'scanning' && libraryError === null) return;
+    const t = window.setInterval(() => void loadLibrary(), 2000);
+    return () => window.clearInterval(t);
+  }, [library, libraryError, loadLibrary]);
 
   // 玻璃表面的鼠标跟随高光（rAF 节流，更新根级 CSS 变量）
   useEffect(() => {
@@ -160,36 +251,23 @@ export default function App() {
     };
   }, []);
 
-  // 查询/视图/标签变化 → 重新加载第一页（搜索防抖 200ms；输入法组合中延迟提交）
-  useEffect(() => {
-    const t = window.setTimeout(
-      () => {
-        if (!composingRef.current) void fetchPage(0);
-      },
-      200
-    );
-    return () => window.clearTimeout(t);
-  }, [query, view, activeTag, fetchPage]);
-
-  // 进入标签视图时加载标签目录
-  useEffect(() => {
-    if (view === 'tags') void loadTags();
-  }, [view, indexRevision, loadTags]);
-
-  // 筛选/视图变化滚动回顶部
-  useEffect(() => {
-    resultsRef.current?.scrollTo({ top: 0 });
-  }, [query.categoryId, query.range, query.timeField, query.order, query.from, query.to, view, activeTag]);
-
-  // 库就绪后（首次启动服务端自动扫描可能延迟）轮询刷新 library
-  useEffect(() => {
-    if (library && library.indexStatus !== 'scanning' && libraryError === null) return;
-    const t = window.setInterval(() => void loadLibrary(), 2000);
-    return () => window.clearInterval(t);
-  }, [library, libraryError, loadLibrary]);
-
   const patchQuery = useCallback((patch: Partial<QueryState>) => {
     setQuery((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const selectCollection = useCallback((cid: string) => {
+    setCollection((prev) => {
+      if (prev === cid) return prev;
+      setViewModeState(readViewMode(cid));
+      viewModeRef.current = readViewMode(cid);
+      return cid;
+    });
+    setView('library');
+    setActiveTag(null);
+    setQuery((q) => ({ ...q, categoryId: null, q: '' }));
+    setItems([]);
+    setTotal(null);
+    setListLoading(true);
   }, []);
 
   const selectCategory = useCallback(
@@ -212,15 +290,22 @@ export default function App() {
     setTotal(null);
   }, []);
 
+  const setViewMode = useCallback((v: ViewMode) => {
+    setViewModeState(v);
+    viewModeRef.current = v;
+    writeViewMode(collectionRef.current, v);
+  }, []);
+
   const hasMore = total !== null && items.length < total;
   const loadMore = useCallback(() => {
     if (!hasMore || loadingMore || listLoading) return;
     void fetchPage(items.length, true);
   }, [hasMore, loadingMore, listLoading, fetchPage, items.length]);
 
-  // 触底自动加载
+  // 触底自动加载（仅瀑布流）
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (viewMode === 'table') return;
     const el = sentinelRef.current;
     const root = resultsRef.current;
     if (!el || !root) return;
@@ -232,7 +317,7 @@ export default function App() {
     );
     ob.observe(el);
     return () => ob.disconnect();
-  }, [loadMore]);
+  }, [loadMore, viewMode]);
 
   // ---- 刷新收藏库 ----
   const startRefresh = useCallback(async () => {
@@ -279,13 +364,13 @@ export default function App() {
 
   // ---- 详情与分类 ----
   const openDetail = useCallback((note: NoteSummary, el: HTMLElement) => {
-    focusedCardRef.current = el;
+    focusedElRef.current = el;
     setDetailSummary(note);
   }, []);
 
   const closeDetail = useCallback(() => {
     setDetailSummary(null);
-    const el = focusedCardRef.current;
+    const el = focusedElRef.current;
     window.setTimeout(() => {
       if (el && el.isConnected) el.focus();
     }, 0);
@@ -299,15 +384,13 @@ export default function App() {
   const onCategoryChanged = useCallback(
     (noteId: string, categoryId: string | null, revision: number) => {
       setItems((prev) =>
-        prev.map((n) =>
-          n.id === noteId ? { ...n, categoryId, categorySource: 'override' as const } : n
-        )
+        prev.map((n) => (n.id === noteId ? { ...n, categoryId, categorySource: 'override' as const } : n))
       );
       setDetailSummary((prev) =>
         prev && prev.id === noteId ? { ...prev, categoryId, categorySource: 'override' as const } : prev
       );
       setLibrary((prev) => (prev ? { ...prev, categoryRevision: revision } : prev));
-      void loadLibrary(); // 刷新计数
+      void loadLibrary();
       showToast('分类已保存');
     },
     [loadLibrary, showToast]
@@ -316,14 +399,18 @@ export default function App() {
   const onCategoryError = useCallback(
     (msg: string) => {
       showToast(msg, 'error');
-      void loadLibrary(); // 拿到最新 revision 便于重试
+      void loadLibrary();
     },
     [loadLibrary, showToast]
   );
 
   const categoryName = useCallback(
-    (id: string) => categories.find((c) => c.id === id)?.name ?? null,
-    [categories]
+    (id: string | null) => {
+      if (!id) return null;
+      const hit = curCategories.find((c) => c.id === id);
+      return hit ? hit.name : id; // 派生分类 id 即名称
+    },
+    [curCategories]
   );
 
   // ---- 标题与视图状态 ----
@@ -333,33 +420,36 @@ export default function App() {
     ? '标签'
     : inTagResult
       ? `#${activeTag}`
-      : query.categoryId === null
-        ? '全部收藏'
-        : query.categoryId === 'uncategorized'
-          ? '未分类'
-          : (categories.find((c) => c.id === query.categoryId)?.name ?? '收藏');
+      : query.categoryId === 'uncategorized'
+        ? '未分类'
+        : query.categoryId
+          ? (categoryName(query.categoryId) ?? '收藏')
+          : (curInfo?.name ?? '收藏');
   const scopeCount = inDirectory
     ? (tags?.length ?? null)
     : inTagResult
       ? (tags?.find((t) => t.tag === activeTag)?.count ?? null)
-      : query.categoryId === null
-        ? (library?.total ?? null)
-        : query.categoryId === 'uncategorized'
-          ? (library?.uncategorized ?? null)
-          : (library?.categories.find((c) => c.id === query.categoryId)?.count ?? null);
+      : query.categoryId === 'uncategorized'
+        ? (curInfo?.uncategorized ?? null)
+        : query.categoryId
+          ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
+          : (curInfo?.total ?? null);
 
   const bootLoading = !library && !libraryError;
-  const emptyLibrary = library !== null && library.total === 0 && library.indexStatus !== 'scanning';
+  const emptyLibrary = (curInfo?.total ?? 0) === 0 && view === 'library' && !libraryError && library !== null;
   const noResult = !listLoading && !listError && total === 0 && !inDirectory;
-  const listSwitching = listLoading && items.length === 0; // 筛选/标签切换时的加载骨架
-  const showList = !inDirectory && !libraryError && !emptyLibrary && items.length > 0;
+  const listSwitching = listLoading && items.length === 0;
+  const showNotes = !inDirectory && !libraryError && !emptyLibrary && items.length > 0;
+  const showTableView = showNotes && viewMode === 'table';
 
   return (
     <div className="app">
       <Sidebar
         library={library}
+        collection={collection}
         activeCategoryId={query.categoryId}
         tagsView={view === 'tags'}
+        onSelectCollection={selectCollection}
         onSelectCategory={selectCategory}
         onSelectTags={selectTagsView}
       />
@@ -372,19 +462,22 @@ export default function App() {
           refreshing={refreshing || library?.indexStatus === 'scanning'}
           title={headerTitle}
           scopeCount={scopeCount}
-          countUnit={inDirectory ? '个' : '篇'}
+          countUnit="篇"
           showFilters={!inDirectory}
+          showViewToggle={!inDirectory}
+          viewMode={viewMode}
+          onViewMode={setViewMode}
           showBack={inTagResult}
           onBack={selectTagsView}
           resultCount={total}
           listError={listError}
-          onRetry={() => void fetchPage(0)}
+          onRetry={() => (viewModeRef.current === 'table' ? void loadAll() : void fetchPage(0))}
           onCompositionStart={() => {
             composingRef.current = true;
           }}
           onCompositionEnd={() => {
             composingRef.current = false;
-            void fetchPage(0);
+            void (viewModeRef.current === 'table' ? loadAll() : fetchPage(0));
           }}
         />
 
@@ -410,16 +503,16 @@ export default function App() {
                   </button>
                 </div>
               )}
-              {emptyLibrary && !libraryError && (
+              {emptyLibrary && (
                 <div className="results-state">
-                  <div className="state-title">收藏库是空的</div>
-                  <div>点击「刷新收藏库」读取 Obsidian 收藏内容；若持续为空，请检查内容源路径配置。</div>
+                  <div className="state-title">这个收藏库是空的</div>
+                  <div>点击「刷新收藏库」读取 Obsidian 中的笔记；若持续为空，请检查内容源路径配置。</div>
                   <button className="btn-refresh" onClick={() => void startRefresh()}>
                     <IconRefresh size={14} /> 刷新收藏库
                   </button>
                 </div>
               )}
-              {noResult && !libraryError && (
+              {noResult && !libraryError && !bootLoading && (
                 <div className="results-state">
                   <div className="state-title">没有匹配的收藏</div>
                   <div>
@@ -428,7 +521,7 @@ export default function App() {
                       ? `标签 #${activeTag}`
                       : query.categoryId === 'uncategorized'
                         ? '未分类'
-                        : (categoryName(query.categoryId ?? '') ?? '全部分类')}
+                        : (categoryName(query.categoryId ?? null) ?? curInfo?.name ?? '全部')}
                     {query.q.trim() ? `，搜索“${query.q.trim()}”` : ''}
                     {query.range !== 'all'
                       ? `，时间范围 ${query.range === 'custom' ? `${query.from} 至 ${query.to}` : query.range === '7d' ? '最近 7 天' : '最近 30 天'}`
@@ -445,7 +538,7 @@ export default function App() {
                   </button>
                 </div>
               )}
-              {listError && items.length === 0 && !libraryError && (
+              {listError && items.length === 0 && !libraryError && !bootLoading && (
                 <div className="results-state">
                   <div className="state-title">列表加载失败</div>
                   <div>{listError}</div>
@@ -455,7 +548,16 @@ export default function App() {
                 </div>
               )}
 
-              {showList && (
+              {showNotes && showTableView && curInfo && (
+                <DataTable
+                  notes={items}
+                  info={curInfo}
+                  categoryName={categoryName}
+                  onOpen={openDetail}
+                  registerEl={registerEl}
+                />
+              )}
+              {showNotes && !showTableView && (
                 <>
                   <Masonry items={items} categoryName={categoryName} onOpen={openDetail} registerEl={registerEl} />
                   <div ref={sentinelRef} style={{ height: 1 }} />
@@ -476,8 +578,9 @@ export default function App() {
       {detailSummary && library && (
         <DetailDialog
           summary={detailSummary}
-          categories={categories}
+          categories={categoriesOf(infos, detailSummary.collection)}
           categoryRevision={library.categoryRevision}
+          showCategoryPicker={detailSummary.collection === 'rednote'}
           onCategoryChanged={onCategoryChanged}
           onCategoryError={onCategoryError}
           onClose={closeDetail}
@@ -491,6 +594,11 @@ export default function App() {
       )}
     </div>
   );
+}
+
+/** 详情里的分类选择器选项：rednote 用 seed 类目，其它库用派生分类（仅展示） */
+function categoriesOf(infos: LibraryInfo['collections'], cid: string): { id: string; name: string }[] {
+  return infos.find((c) => c.id === cid)?.categories ?? [];
 }
 
 function SkeletonGrid() {

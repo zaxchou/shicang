@@ -12,7 +12,7 @@ services:
     environment:
       NODE_ENV: production
       # 容器内约定路径
-      SOURCE_ROOT: /source/RedNote
+      SOURCE_ROOT: /source
       DATA_DIR: /app/data
       BACKUP_DIR: /app/backups
       LOG_DIR: /app/data/logs
@@ -22,8 +22,8 @@ services:
       PUBLIC_ORIGIN: "http://${NAS_IP:-192.168.31.246}:${MYINFOBASE_PORT:-4317}"
       EXTRA_ALLOWED_ORIGINS: "http://localhost:${MYINFOBASE_PORT:-4317},http://${NAS_IP:-192.168.31.246}:${MYINFOBASE_PORT:-4317}"
     volumes:
-      # Obsidian 收藏内容：只读挂载（NAS 本机真实路径，写在 .env）
-      - ${SOURCE_ROOT}:/source/RedNote:ro
+      # Obsidian vault 根（含 RedNote / 我的收藏品 / flomo）：只读挂载（NAS 本机真实路径，写在 .env）
+      - ${SOURCE_ROOT}:/source:ro
       # 生产数据与备份：固定在项目 runtime 目录，不随版本切换
       - ../../runtime/data:/app/data
       - ../../runtime/backups:/app/backups

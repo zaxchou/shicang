@@ -9,6 +9,9 @@ import type {
   Category,
 } from '../../shared/types.js';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../shared/types.js';
+
+/** 表格模式一次取全量（列排序在前端做） */
+const MAX_PAGE_SIZE_TABLE = 1000;
 import type { LibraryService } from '../services/library.js';
 import {
   CategoryConflictError,
@@ -36,6 +39,7 @@ export interface ApiDeps {
 }
 
 const noteQuerySchema = z.object({
+  collection: z.string().max(32).optional(),
   q: z.string().max(200).optional(),
   category: z.string().max(64).optional(),
   tag: z.string().trim().min(1).max(40).optional(),
@@ -51,7 +55,7 @@ const noteQuerySchema = z.object({
     .optional(),
   order: z.enum(['desc', 'asc']).default('desc'),
   offset: z.coerce.number().int().min(0).default(0),
-  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE_TABLE).default(DEFAULT_PAGE_SIZE),
 });
 
 const patchCategorySchema = z.object({
@@ -131,7 +135,8 @@ export function apiRouter(deps: ApiDeps): express.Router {
   router.get(
     '/tags',
     wrap((req, res) => {
-      res.json({ tags: deps.library().tagCounts() });
+      const cid = typeof req.query.collection === 'string' ? req.query.collection : undefined;
+      res.json({ tags: deps.library().tagCounts(cid) });
     })
   );
 
@@ -144,6 +149,7 @@ export function apiRouter(deps: ApiDeps): express.Router {
       }
       const p = parsed.data;
       const result: NoteListResult = deps.library().query({
+        collection: p.collection,
         q: p.q,
         categoryId: p.category ?? null,
         tag: p.tag ?? null,

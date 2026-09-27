@@ -1,5 +1,5 @@
 
-import { IconArrowLeft, IconChevronDown, IconClose, IconRefresh, IconSearch } from './Icons';
+import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconRefresh, IconSearch } from './Icons';
 import LiquidGlass from 'liquid-glass-react';
 import { useEffectiveTheme } from '../theme';
 
@@ -31,6 +31,10 @@ interface Props {
   onRetry(): void;
   onCompositionStart(): void;
   onCompositionEnd(): void;
+  /** 展示模式（仅在显示内容时展示切换器） */
+  showViewToggle?: boolean;
+  viewMode?: 'masonry' | 'table';
+  onViewMode?(v: 'masonry' | 'table'): void;
 }
 
 const isFiltered = (q: QueryState) =>
@@ -53,6 +57,9 @@ export function Toolbar({
   onRetry,
   onCompositionStart,
   onCompositionEnd,
+  showViewToggle,
+  viewMode,
+  onViewMode,
 }: Props) {
   const effectiveTheme = useEffectiveTheme();
   const onRangeChange = (range: QueryState['range']) => {
@@ -111,6 +118,31 @@ export function Toolbar({
           </button>
         )}
       </div>
+
+      {showViewToggle && (
+        <div className="view-toggle" role="tablist" aria-label="展示模式">
+          <button
+            role="tab"
+            aria-selected={viewMode === 'masonry'}
+            className={viewMode === 'masonry' ? 'active' : ''}
+            onClick={() => onViewMode?.('masonry')}
+            title="瀑布流"
+          >
+            <IconGrid size={14} />
+            瀑布流
+          </button>
+          <button
+            role="tab"
+            aria-selected={viewMode === 'table'}
+            className={viewMode === 'table' ? 'active' : ''}
+            onClick={() => onViewMode?.('table')}
+            title="列表（表格）"
+          >
+            <IconList size={14} />
+            列表
+          </button>
+        </div>
+      )}
 
       {showFilters && (
         <>

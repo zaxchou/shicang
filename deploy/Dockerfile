@@ -3,7 +3,9 @@
 FROM node:22-alpine AS build
 WORKDIR /build
 COPY package.json package-lock.json ./
-RUN npm ci --no-fund --no-audit
+# 使用国内镜像源避免 npmjs 直连超时（npm10 会自动把 lockfile 中的 registry 主机替换为镜像）
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN npm config set registry "$NPM_REGISTRY" && npm ci --no-fund --no-audit
 COPY tsconfig.server.json tsconfig.web.json vite.config.ts index.html ./
 COPY shared ./shared
 COPY server ./server
@@ -16,7 +18,8 @@ FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-fund --no-audit && npm cache clean --force
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+RUN npm config set registry "$NPM_REGISTRY" && npm ci --omit=dev --no-fund --no-audit && npm cache clean --force
 COPY --from=build /build/dist ./dist
 COPY config ./config
 COPY data-seed ./data-seed

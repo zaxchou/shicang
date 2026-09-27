@@ -3,14 +3,25 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { parseNote } from '../server/reader/parse';
+import type { CollectionDef } from '../shared/types';
 import { createFixture, tinyWebp, type FixtureNoteOptions } from './helpers/fixture';
+
+const RN: CollectionDef = { id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' };
 
 function parse(o: FixtureNoteOptions) {
   const fx = createFixture();
   fx.writeNote(o);
   const file = fs.readdirSync(path.join(fx.sourceRoot, 'Bookmarks'))[0];
   const abs = path.join(fx.sourceRoot, 'Bookmarks', file);
-  return parseNote({ absolutePath: abs, relativePath: file, sourceRoot: fx.sourceRoot, mtimeMs: 1, size: 1 });
+  return parseNote({
+    vaultRoot: fx.sourceRoot,
+    collection: RN,
+    absolutePath: abs,
+    relativePath: file,
+    sourceRelativePath: `RedNote/Bookmarks/${file}`,
+    mtimeMs: 1,
+    size: 1,
+  });
 }
 
 describe('parseNote 基础解析', () => {
@@ -56,7 +67,9 @@ describe('parseNote 基础解析', () => {
     const out = parseNote({
       absolutePath: path.join(fx.sourceRoot, 'Bookmarks', 'no-id-note.md'),
       relativePath: 'no-id-note.md',
-      sourceRoot: fx.sourceRoot,
+      vaultRoot: fx.sourceRoot,
+      collection: RN,
+      sourceRelativePath: 'RedNote/Bookmarks/no-id-note.md',
       mtimeMs: 0,
       size: 0,
     });
@@ -94,8 +107,10 @@ describe('媒体路径安全', () => {
     );
     const out = parseNote({
       absolutePath: path.join(fx.sourceRoot, 'Bookmarks', `missing-media-${'bbbb0002'}.md`),
-      relativePath: `missing-media-${'bbbb0002'}.md`,
-      sourceRoot: fx.sourceRoot,
+      relativePath: `missing-media-bbbb0002.md`,
+      vaultRoot: fx.sourceRoot,
+      collection: RN,
+      sourceRelativePath: 'RedNote/Bookmarks/missing-media-bbbb0002.md',
       mtimeMs: 0,
       size: 0,
     });
@@ -114,7 +129,9 @@ describe('媒体路径安全', () => {
     const out = parseNote({
       absolutePath: path.join(dir, 'trav-1.md'),
       relativePath: 'trav-1.md',
-      sourceRoot: fx.sourceRoot,
+      vaultRoot: fx.sourceRoot,
+      collection: RN,
+      sourceRelativePath: 'RedNote/Bookmarks/trav-1.md',
       mtimeMs: 0,
       size: 0,
     });
@@ -134,7 +151,9 @@ describe('媒体路径安全', () => {
     const out = parseNote({
       absolutePath: path.join(dir, 'cn-1.md'),
       relativePath: 'cn-1.md',
-      sourceRoot: fx.sourceRoot,
+      vaultRoot: fx.sourceRoot,
+      collection: RN,
+      sourceRelativePath: 'RedNote/Bookmarks/cn-1.md',
       mtimeMs: 0,
       size: 0,
     });
@@ -161,7 +180,9 @@ describe('媒体路径安全', () => {
     const out = parseNote({
       absolutePath: path.join(dir, 'xss-1.md'),
       relativePath: 'xss-1.md',
-      sourceRoot: fx.sourceRoot,
+      vaultRoot: fx.sourceRoot,
+      collection: RN,
+      sourceRelativePath: 'RedNote/Bookmarks/xss-1.md',
       mtimeMs: 0,
       size: 0,
     });

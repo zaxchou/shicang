@@ -3,6 +3,10 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import type {
   Category,
+  CollectionDef,
+  CollectionInfo,
+  DerivedCategory,
+  ExtraFieldInfo,
   LibraryInfo,
   NoteDetail,
   NoteListResult,
@@ -14,7 +18,7 @@ import type {
 import { lastNDaysRangeMs, customRangeMs } from '../../shared/time.js';
 import { projectRoot, type AppConfig } from '../config.js';
 import { log } from '../log.js';
-import { scanLibrary } from '../reader/scan.js';
+import { scanVault } from '../reader/scan.js';
 import type { NoteRecord } from '../reader/parse.js';
 import { JsonStore } from '../storage/json-store.js';
 import {
@@ -28,6 +32,8 @@ interface IndexDoc {
   revision: number;
   generatedAt: string;
   contentSource: string;
+  /** 收藏库配置指纹（结构变化 → 索引作废重建） */
+  collectionsSig?: string;
   notes: NoteRecord[];
   diagnostics: string[];
   lastScan: {
@@ -84,8 +90,11 @@ export class LibraryService {
   private scanChain: Promise<void> = Promise.resolve();
   private bootDiagnostics: string[] = [];
 
+  private colMap = new Map<string, CollectionDef>();
+
   constructor(cfg: AppConfig) {
     this.cfg = cfg;
+    for (const c of cfg.collections) this.colMap.set(c.id, c);
     this.categories = new CategoriesService(cfg.dataDir, cfg.backupDir);
     this.indexStore = new JsonStore<IndexDoc>(
       path.join(cfg.dataDir, 'library-index.json'),
@@ -96,7 +105,7 @@ export class LibraryService {
       schemaVersion: 1,
       revision: 0,
       generatedAt: '',
-      contentSource: cfg.contentSource,
+      contentSource: cfg.vaultRoot,
       notes: [],
       diagnostics: [],
       lastScan: null,
@@ -112,7 +121,12 @@ export class LibraryService {
   }
 
   get sourceRoot(): string {
-    return this.cfg.contentSource;
+    return this.cfg.vaultRoot;
+  }
+
+  /** 收藏库配置指纹：结构（id/root/exclude）变化时索引作废 */
+  private collectionsSig(): string {
+    return JSON.stringify(this.cfg.collections.map((c) => ({ id: c.id, root: c.root, exclude: c.exclude ?? [] })));
   }
 
   async init(): Promise<void> {
@@ -121,6 +135,12 @@ export class LibraryService {
     diagnostics.push(...(await this.categories.init(seedPath)));
 
     const loaded = this.indexStore.load();
+    const sig = this.collectionsSig();
+    if (loaded.doc && loaded.doc.collectionsSig !== sig) {
+      diagnostics.push('收藏库结构已变化（新增/调整 collection），索引作废并重建');
+      this.doc = { ...this.doc, revision: loaded.doc.revision }; // 保留 revision 序号
+      loaded.doc = null as never;
+    }
     if (loaded.doc) {
       this.doc = loaded.doc;
       this.rebuildMaps();
@@ -132,8 +152,8 @@ export class LibraryService {
     }
     this.bootDiagnostics = diagnostics;
 
-    // 无索引缓存：首次启动自动全量扫描
-    if (!loaded.doc) {
+    // 无索引缓存（或结构失效）：自动全量扫描
+    if (this.doc.notes.length === 0) {
       await this.runScan('initial');
     }
   }
@@ -150,7 +170,8 @@ export class LibraryService {
   // ---------- 查询 ----------
 
   query(params: NoteQuery): NoteListResult {
-    let items = this.doc.notes.filter((r) => r.sourceStatus === 'available');
+    const cid = params.collection || 'rednote';
+    let items = this.doc.notes.filter((r) => r.sourceStatus === 'available' && r.collection === cid);
 
     const q = (params.q ?? '').trim().toLowerCase();
     if (q) {
@@ -159,9 +180,18 @@ export class LibraryService {
     }
 
     if (params.categoryId === 'uncategorized') {
-      items = items.filter((r) => this.categories.effective(r.id).categoryId === null);
+      // rednote 走 seed/override；其它库按派生分类（无派生值 = 未分类）
+      items = items.filter((r) =>
+        r.collection === 'rednote'
+          ? this.categories.effective(r.id).categoryId === null
+          : !r.derivedCategory
+      );
     } else if (params.categoryId) {
-      items = items.filter((r) => this.categories.effective(r.id).categoryId === params.categoryId);
+      items = items.filter((r) =>
+        r.collection === 'rednote'
+          ? this.categories.effective(r.id).categoryId === params.categoryId
+          : r.derivedCategory === params.categoryId
+      );
     }
 
     if (params.tag) {
@@ -241,32 +271,83 @@ export class LibraryService {
         };
       }
     }
+    const derived = r.collection !== 'rednote';
     return {
       id: r.id,
+      collection: r.collection,
       title: r.title,
       excerpt: r.excerpt,
       author: r.author,
       tags: r.tags,
       publishedAt: r.publishedAt,
       syncedAt: r.syncedAt,
-      categoryId: eff.categoryId,
-      categorySource: eff.source,
+      categoryId: derived ? r.derivedCategory ?? null : eff.categoryId,
+      categorySource: derived ? 'derived' : eff.source,
       mediaCount: r.media.filter((m) => m.kind === 'image').length,
       hasVideo: r.media.some((m) => m.kind === 'video'),
       cover,
       sourceStatus: r.sourceStatus,
+      extra: r.extra,
     };
   }
 
+  /** 单个收藏库信息（分类：rednote 走 seed，其余按派生值计数；表格字段按 extra 出现率） */
+  collectionInfo(cid: string): CollectionInfo | null {
+    const def = this.colMap.get(cid);
+    if (!def) return null;
+    const recs = this.doc.notes.filter((r) => r.collection === cid && r.sourceStatus === 'available');
+    const catMap = new Map<string, number>();
+    let uncategorized = 0;
+    const extraCount = new Map<string, number>();
+    if (cid === 'rednote') {
+      const { counts, uncategorized: u } = this.categories.countEffective(recs.map((r) => r.id));
+      for (const [k, v] of Object.entries(counts)) catMap.set(k, v);
+      uncategorized = u;
+    } else {
+      for (const r of recs) {
+        const c = r.derivedCategory;
+        if (c) catMap.set(c, (catMap.get(c) ?? 0) + 1);
+        else uncategorized++;
+      }
+    }
+    if (def.type === 'treasures') {
+      for (const r of recs) {
+        for (const k of Object.keys(r.extra ?? {})) extraCount.set(k, (extraCount.get(k) ?? 0) + 1);
+      }
+    }
+    const categories: CollectionInfo['categories'] =
+      cid === 'rednote'
+        ? this.categories.categories
+            .slice()
+            .sort((a, b) => a.order - b.order)
+            .map((c) => ({ id: c.id, name: c.name, count: catMap.get(c.id) ?? 0 }))
+        : [...catMap.entries()]
+            .map(([name, count]) => ({ id: name, name, count }))
+            .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'));
+    const extraFields: ExtraFieldInfo[] = [...extraCount.entries()]
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count);
+    return { id: def.id, name: def.name, total: recs.length, uncategorized, categories, extraFields };
+  }
+
+  /** 全部收藏库信息 */
+  collectionInfos(): CollectionInfo[] {
+    return this.cfg.collections
+      .map((c) => this.collectionInfo(c.id))
+      .filter((x): x is CollectionInfo => x !== null);
+  }
+
   libraryInfo(): LibraryInfo {
-    const noteIds = this.doc.notes.map((n) => n.id);
-    const { counts, uncategorized } = this.categories.countEffective(noteIds);
+    // 顶层字段保持 rednote 口径（兼容）；前端以 collections 为准
+    const rnIds = this.doc.notes.filter((n) => n.collection === 'rednote').map((n) => n.id);
+    const { counts, uncategorized } = this.categories.countEffective(rnIds);
     const cats: Category[] = this.categories.categories;
     return {
       app: this.cfg.app,
       version: this.cfg.version,
       total: this.doc.notes.length,
       uncategorized,
+      collections: this.collectionInfos(),
       categories: cats
         .slice()
         .sort((a, b) => a.order - b.order)
@@ -283,22 +364,21 @@ export class LibraryService {
     return this.categories.categories.slice().sort((a, b) => a.order - b.order);
   }
 
-  private tagCountCache: { revision: number; tags: TagCount[] } | null = null;
+  private tagCountCache: Map<string, { revision: number; tags: TagCount[] }> = new Map();
 
-  /** 全部标签与使用次数（按次数降序），按 indexRevision 缓存 */
-  tagCounts(): TagCount[] {
-    if (this.tagCountCache && this.tagCountCache.revision === this.doc.revision) {
-      return this.tagCountCache.tags;
-    }
+  /** 指定收藏库的标签与使用次数（按次数降序），按 indexRevision 缓存 */
+  tagCounts(cid = 'rednote'): TagCount[] {
+    const cached = this.tagCountCache.get(cid);
+    if (cached && cached.revision === this.doc.revision) return cached.tags;
     const m = new Map<string, number>();
     for (const r of this.doc.notes) {
-      if (r.sourceStatus !== 'available') continue;
+      if (r.sourceStatus !== 'available' || r.collection !== cid) continue;
       for (const t of r.tags) m.set(t, (m.get(t) ?? 0) + 1);
     }
     const tags = [...m.entries()]
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh-Hans-CN'));
-    this.tagCountCache = { revision: this.doc.revision, tags };
+    this.tagCountCache.set(cid, { revision: this.doc.revision, tags });
     return tags;
   }
 
@@ -309,7 +389,11 @@ export class LibraryService {
     categoryId: string | null,
     expectedRevision: number
   ): Promise<{ revision: number; categoryId: string | null; source: 'override' | 'initial' | 'none' }> {
-    if (!this.byId.has(noteId)) throw new NotFoundError(`未找到笔记 ${noteId}`);
+    const rec = this.byId.get(noteId);
+    if (!rec) throw new NotFoundError(`未找到笔记 ${noteId}`);
+    if (rec.collection !== 'rednote') {
+      throw new ValidationError('仅小红书收藏支持在网页中修改分类（其它库的分类以 Obsidian 笔记为准）');
+    }
     const revision = await this.categories.setOverride(noteId, categoryId, expectedRevision);
     const eff = this.categories.effective(noteId);
     return { revision, categoryId: eff.categoryId, source: eff.source };
@@ -366,7 +450,7 @@ export class LibraryService {
   private async doScan(mode: 'initial' | 'refresh', job?: InternalRefreshJob): Promise<void> {
     const startedAt = new Date();
     if (mode === 'refresh') log.info(`刷新开始: ${startedAt.toISOString()}`);
-    const outcome = await scanLibrary(this.cfg.contentSource, this.byPath, (done, total) => {
+    const outcome = await scanVault(this.cfg.vaultRoot, this.cfg.collections, this.byPath, (done, total) => {
       if (job && done % 100 === 0) {
         job.scanned = done;
         job.diagnostics.push(`扫描进度 ${done}/${total}`);
@@ -377,7 +461,8 @@ export class LibraryService {
       schemaVersion: 1,
       revision: this.doc.revision + 1,
       generatedAt: new Date().toISOString(),
-      contentSource: this.cfg.contentSource,
+      contentSource: this.cfg.vaultRoot,
+      collectionsSig: this.collectionsSig(),
       notes: outcome.records,
       diagnostics: outcome.diagnostics.slice(0, 200),
       lastScan: {

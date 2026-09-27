@@ -1,6 +1,17 @@
 {
   "app": "myinfobase",
-  "contentSource": "Z:/BaiduNetdiskWorkspace/mynote/mynote/RedNote",
+  "vaultRoot": "Z:/BaiduNetdiskWorkspace/mynote/mynote",
+  "collections": [
+    { "id": "rednote", "name": "小红书收藏", "root": "RedNote/Bookmarks", "type": "rednote" },
+    {
+      "id": "treasures",
+      "name": "我的宝贝",
+      "root": "我的收藏品",
+      "type": "treasures",
+      "exclude": ["-索引\\.md$", "^MOC\\.md$", "^未命名页面\\.md$"]
+    },
+    { "id": "diary", "name": "日记", "root": "flomo", "type": "diary", "exclude": ["^闪念笔记概览\\.md$"] }
+  ],
   "host": "127.0.0.1",
   "port": 4317,
   "timezone": "Asia/Shanghai",

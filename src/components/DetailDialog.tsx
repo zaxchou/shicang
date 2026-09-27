@@ -1,19 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Category, NoteDetail, NoteSummary } from '../../shared/types';
+import type { NoteDetail, NoteSummary } from '../../shared/types';
+
+interface CategoryOption {
+  id: string;
+  name: string;
+}
 import { formatShanghai } from '../../shared/time';
 import { api, ApiError } from '../api/client';
 import { IconChevronDown, IconCheck, IconClose, IconExternal } from './Icons';
 
+/** 详情中附加字段展示顺序（与表格一致） */
+const EXTRA_DISPLAY_ORDER = [
+  '价格', '购买时间', '作者品牌', '作者', '器型', '制作年份', '拓年份', '朝代', '时代',
+  '书风', '画风', '撰写', '装裱', '尺寸', '工艺', '泥料', '艺术家', '价格区间', '说明',
+];
+
 interface Props {
   summary: NoteSummary;
-  categories: Category[];
+  categories: CategoryOption[];
   categoryRevision: number;
+  /** 仅 rednote 显示可编辑的分类选择；其它库显示只读派生分类 */
+  showCategoryPicker?: boolean;
   onCategoryChanged(noteId: string, categoryId: string | null, revision: number): void;
   onCategoryError(message: string): void;
   onClose(): void;
 }
 
-export function DetailDialog({ summary, categories, categoryRevision, onCategoryChanged, onCategoryError, onClose }: Props) {
+export function DetailDialog({
+  summary,
+  categories,
+  categoryRevision,
+  showCategoryPicker = true,
+  onCategoryChanged,
+  onCategoryError,
+  onClose,
+}: Props) {
   const [detail, setDetail] = useState<NoteDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -172,8 +193,19 @@ export function DetailDialog({ summary, categories, categoryRevision, onCategory
           {detail && (
             <div className="detail-inner">
               <h2 className="detail-title">{detail.title}</h2>
+              {detail.extra && Object.keys(detail.extra).length > 0 && (
+                <div className="detail-extras">
+                  {EXTRA_DISPLAY_ORDER.filter((k) => k in detail.extra!).map((k) => (
+                    <div key={k} className="extra-item">
+                      <span className="extra-label">{k}</span>
+                      <span className="extra-value">{String(detail.extra![k])}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="detail-meta">
-                <div className="cat-picker" ref={menuRef}>
+                {showCategoryPicker ? (
+                  <div className="cat-picker" ref={menuRef}>
                   <button
                     className={`cat-picker-btn${saving ? ' saving' : ''}`}
                     onClick={() => setMenuOpen((v) => !v)}
@@ -218,6 +250,9 @@ export function DetailDialog({ summary, categories, categoryRevision, onCategory
                     </div>
                   )}
                 </div>
+                ) : (
+                  <span className="cat-static">{summary.categoryId ?? '未分类'}</span>
+                )}
                 <span>发布：{formatShanghai(detail.publishedAt) ?? '未知'}</span>
                 <span>同步：{formatShanghai(detail.syncedAt) ?? '未知'}</span>
                 {detail.sourceStatus === 'missing' && <span style={{ color: 'var(--accent)' }}>源文件暂不可用</span>}

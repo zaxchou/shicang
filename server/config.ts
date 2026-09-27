@@ -1,17 +1,19 @@
 // 配置加载：环境变量 > config/app.json > 内置默认值。
-// 生产缺 SOURCE_ROOT / DATA_DIR 时启动报错，不静默回退到开发路径。
+// 生产缺 SOURCE_ROOT / DATA_DIR 时启动报错，不自动回退到开发路径。
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { CollectionDef } from '../shared/types.js';
 
 export interface AppConfig {
   app: string;
-  contentSource: string;
+  /** Obsidian vault 根（含 RedNote / 我的收藏品 / flomo） */
+  vaultRoot: string;
+  collections: CollectionDef[];
   host: string;
   port: number;
   timezone: string;
   publicOrigin: string;
-  /** 生产模式下允许的额外 Origin（逗号分隔 env） */
   extraAllowedOrigins: string[];
   dataDir: string;
   backupDir: string;
@@ -23,7 +25,6 @@ export interface AppConfig {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function projectRoot(): string {
-  // 编译后为 dist/server/config.js，开发与测试从源码运行；统一向上找 package.json
   let dir = __dirname;
   for (let i = 0; i < 6; i++) {
     if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
@@ -33,6 +34,18 @@ export function projectRoot(): string {
   }
   throw new Error('cannot locate project root (package.json not found)');
 }
+
+const DEFAULT_COLLECTIONS: CollectionDef[] = [
+  { id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' },
+  {
+    id: 'treasures',
+    name: '我的宝贝',
+    root: '我的收藏品',
+    type: 'treasures',
+    exclude: ['-索引\\.md$', '^MOC\\.md$', '^未命名页面\\.md$'],
+  },
+  { id: 'diary', name: '日记', root: 'flomo', type: 'diary', exclude: ['^闪念笔记概览\\.md$'] },
+];
 
 function readConfigFile(): Record<string, unknown> {
   const p = path.join(projectRoot(), 'config', 'app.json');
@@ -47,9 +60,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const file = readConfigFile();
   const isProduction = env.NODE_ENV === 'production';
 
-  const contentSource = normalizeDir(
-    env.SOURCE_ROOT ?? (file['contentSource'] as string | undefined) ?? ''
-  );
+  const vaultRoot = normalizeDir(env.SOURCE_ROOT ?? (file['vaultRoot'] as string | undefined) ?? '');
   const dataDirEnv = env.DATA_DIR ? normalizeDir(env.DATA_DIR) : null;
   const dataDir =
     dataDirEnv ??
@@ -57,9 +68,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   // 默认与数据目录同级：开发 .local/backups，生产 runtime/backups
   const backupDir = env.BACKUP_DIR ? normalizeDir(env.BACKUP_DIR) : path.join(dataDir, '..', 'backups');
 
+  const collections = Array.isArray(file['collections'])
+    ? (file['collections'] as CollectionDef[])
+    : DEFAULT_COLLECTIONS;
+
   const cfg: AppConfig = {
     app: (file['app'] as string) ?? 'myinfobase',
-    contentSource,
+    vaultRoot,
+    collections,
     host: env.HOST ?? (file['host'] as string | undefined) ?? '127.0.0.1',
     port: Number(env.PORT ?? (file['port'] as number | undefined) ?? 4317),
     timezone: env.TZ ?? (file['timezone'] as string | undefined) ?? 'Asia/Shanghai',
@@ -75,8 +91,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     version: readVersion(),
   };
 
-  if (isProduction && !cfg.contentSource) {
-    throw new Error('生产环境必须设置 SOURCE_ROOT（RedNote 目录）');
+  if (isProduction && !cfg.vaultRoot) {
+    throw new Error('生产环境必须设置 SOURCE_ROOT（Obsidian vault 根目录）');
   }
   if (isProduction && !dataDirEnv) {
     throw new Error('生产环境必须设置 DATA_DIR，禁止使用开发默认数据目录');
@@ -105,8 +121,7 @@ export function allowedOrigins(cfg: AppConfig): string[] {
   list.add(`http://localhost:${cfg.port}`);
   list.add(`http://127.0.0.1:${cfg.port}`);
   if (cfg.publicOrigin) list.add(cfg.publicOrigin);
-  if (cfg.contentSource && !cfg.isProduction) {
-    // 开发：vite 默认端口来源
+  if (cfg.vaultRoot && !cfg.isProduction) {
     list.add('http://localhost:5173');
     list.add('http://127.0.0.1:5173');
   }

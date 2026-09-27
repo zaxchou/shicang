@@ -47,6 +47,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export interface QueryParams {
+  collection?: string;
   q: string;
   categoryId: string | null; // null=全部, 'uncategorized', 或分类 id
   tag?: string | null; // 精确标签过滤
@@ -61,6 +62,7 @@ export interface QueryParams {
 
 export function buildQuery(p: QueryParams): string {
   const sp = new URLSearchParams();
+  if (p.collection) sp.set('collection', p.collection);
   if (p.q.trim()) sp.set('q', p.q.trim());
   if (p.categoryId) sp.set('category', p.categoryId);
   if (p.tag) sp.set('tag', p.tag);
@@ -79,7 +81,8 @@ export function buildQuery(p: QueryParams): string {
 export const api = {
   library: () => request<LibraryInfo>('/api/library'),
   categories: () => request<{ categories: Category[] }>('/api/categories'),
-  tags: () => request<{ tags: TagCount[] }>('/api/tags'),
+  tags: (collection?: string) =>
+    request<{ tags: TagCount[] }>(`/api/tags${collection ? `?collection=${encodeURIComponent(collection)}` : ''}`),
   notes: (p: QueryParams) => request<NoteListResult>(`/api/notes?${buildQuery(p)}`),
   note: (id: string) => request<NoteDetail>(`/api/notes/${encodeURIComponent(id)}`),
   setCategory: (id: string, categoryId: string | null, expectedRevision: number) =>

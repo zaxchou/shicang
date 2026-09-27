@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const cfg = loadConfig();
   initLogFile(cfg.logDir);
   log.info(`启动 myinfobase v${cfg.version} (NODE_ENV=${process.env.NODE_ENV ?? 'development'})`);
-  log.info(`内容源: ${cfg.contentSource}`);
+  log.info(`内容源(vault): ${cfg.vaultRoot}`);
   log.info(`数据目录: ${cfg.dataDir}`);
 
   fs.mkdirSync(cfg.dataDir, { recursive: true });

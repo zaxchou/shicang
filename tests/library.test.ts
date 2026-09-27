@@ -8,7 +8,8 @@ import { createFixture, type Fixture } from './helpers/fixture';
 function makeCfg(fx: Fixture): AppConfig {
   return {
     app: 'myinfobase-test',
-    contentSource: fx.sourceRoot.replace(/\\/g, '/'),
+    vaultRoot: fx.root.replace(/\\/g, '/'),
+    collections: [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' }],
     host: '127.0.0.1',
     port: 0,
     timezone: 'Asia/Shanghai',

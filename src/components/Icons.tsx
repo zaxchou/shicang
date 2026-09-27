@@ -172,6 +172,45 @@ export const IconArrowLeft = ({ size, className }: IconProps) => (
   </svg>
 );
 
+export const IconGrid = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <rect x="4" y="4" width="7" height="9" rx="1.6" />
+    <rect x="13" y="4" width="7" height="5.5" rx="1.6" />
+    <rect x="4" y="15" width="7" height="5" rx="1.6" />
+    <rect x="13" y="11.5" width="7" height="7.5" rx="1.6" />
+  </svg>
+);
+
+export const IconList = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M8.5 6h11M8.5 12h11M8.5 18h11" />
+    <circle cx="4.6" cy="6" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="4.6" cy="12" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="4.6" cy="18" r="1.1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const IconGem = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M7 3.5h10l4 5.5L12 20.5 3 9l4-5.5Z" />
+    <path d="M3 9h18M9.5 3.5 8 9l4 11.5M14.5 3.5 16 9l-4 11.5" opacity="0.6" />
+  </svg>
+);
+
+export const IconBook = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5v-15Z" />
+    <path d="M5 17.7A1.8 1.8 0 0 1 6.8 15.9H19" opacity="0.6" />
+  </svg>
+);
+
+export const IconPen = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M4.5 19.5h15" />
+    <path d="m14.2 4.6 4.7 4.7L8.9 19.3l-5.4.7.7-5.4L14.2 4.6Z" />
+  </svg>
+);
+
 export const CATEGORY_ICONS: Record<string, (p: IconProps) => ReactElement> = {
   shuhua: IconBrush,
   'ai-programming': IconCpu,

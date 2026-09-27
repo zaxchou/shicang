@@ -52,6 +52,15 @@
 - 数据迁移：**分类 seed 仅在未初始化的库导入**，故对本地 `.local/data` 与 NAS `runtime/data` 删除 `categories.json`（旧分类文件已备份为 categories.json.bak-old）与测试遗留 `overrides.json`，重启后由 `data-seed/categories-seed.json` 重新导入；索引与媒体不动，扫描 skipped=598 无需重读。
 - 自动化测试 36/36 通过；本地与 NAS 计数经 /api/library 核对一致。
 
+## 多收藏库（2026-09-28，v0.4.0）
+
+- 新增两个内容源：`我的收藏品`（336 条，8 个「我的收藏-*」分类文件夹，CSV 导入的结构化字段）与 `flomo`（272 条日记/闪念，frontmatter 含 created_at/tags，附件在 attachments/YYYY/MM/DD）。
+- 架构：配置驱动 `collections[]`；SOURCE_ROOT 改为 vault 根、容器挂载 `/source`（一次挂载三库）；索引含 collections 指纹，结构变化自动作废重建；总入库 1206 篇（598+336+272），扫描零错误。
+- 解析器三类型：rednote（原逻辑回归）、treasures（封面图字段/本地相对与 vault 相对图片/表格 extra 字段/日期型 YAML 归一）、diary（标题=日期+摘要、附件图片转内联、音频走媒体路由）。
+- 前端：侧栏收藏库切换；每库记忆瀑布流/列表偏好；DataTable 动态列+表头排序（价格数值、日期、标签）；详情弹层对宝贝显示字段网格、其它库分类只读。
+- 修复过程：YAML 日期字段被 extra 过滤（购买时间 166 条丢失）→ 归一化 ISO；marked 对中文 URL 百分号编码导致 media:// 匹配失败、正文图片空 src → 解码后回查；文件夹回退仅认「我的收藏-*」避免垃圾分类。
+- 自动化测试 43/43（新增多源解析与三库集成 7 例）；浏览器实测三库瀑布流/表格/详情均正常。
+
 ## NAS 实际部署（2026-09-27 已完成，此前为未验证项）
 
 - 环境（现场核实）：DSM 7.3.1、x86_64、docker 位于 `/usr/local/bin`（需 sudo + 显式 PATH）、Compose v2.20.1；项目与源库路径 `/volume2/Media/BaiduNetdiskWorkspace/...`；端口 4317 空闲；共享目录属主 uid=1026/gid=100。

@@ -1,10 +1,15 @@
-// 目录枚举与增量扫描：并发受控、读写前后校验、失败保留旧记录。
+// 目录枚举与增量扫描（多收藏库）：并发受控、读写前后校验、失败保留旧记录。
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import type { CollectionDef } from '../../shared/types.js';
 import { parseNote, type NoteRecord } from './parse.js';
 
 export interface FileMeta {
+  /** 相对 vault 根（跨库唯一，作为索引键） */
   relPath: string;
+  /** 相对 collection 根（含 .md） */
+  relInCollection: string;
+  collection: string;
   mtimeMs: number;
   size: number;
 }
@@ -28,10 +33,15 @@ const CONCURRENCY = 6;
 const STAT_RETRY = 2;
 const RETRY_DELAY_MS = 150;
 
-/** 递归枚举 Bookmarks 下的 .md（排序保证确定性）；失败抛错 */
-export async function enumerateNotes(bookmarksDir: string): Promise<FileMeta[]> {
+/** 递归枚举一个 collection 下的 .md；排除 dot 项与 exclude 正则 */
+async function enumerateCollection(
+  rootAbs: string,
+  collection: CollectionDef,
+  vaultRoot: string
+): Promise<FileMeta[]> {
   const out: FileMeta[] = [];
-  const walk = async (dir: string, prefix: string): Promise<void> => {
+  const excludes = (collection.exclude ?? []).map((p) => new RegExp(p));
+  const walk = async (dir: string, relPrefix: string): Promise<void> => {
     let entries;
     try {
       entries = await fs.readdir(dir, { withFileTypes: true });
@@ -40,38 +50,59 @@ export async function enumerateNotes(bookmarksDir: string): Promise<FileMeta[]> 
     }
     for (const ent of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       if (ent.name.startsWith('.')) continue;
-      const rel = prefix ? `${prefix}/${ent.name}` : ent.name;
-      const abs = path.join(dir, ent.name);
+      const rel = relPrefix ? `${relPrefix}/${ent.name}` : ent.name;
       if (ent.isDirectory()) {
-        await walk(abs, rel);
+        if (ent.name === 'attachments') continue; // flomo 附件目录（只有媒体）
+        await walk(path.join(dir, ent.name), rel);
       } else if (ent.isFile() && ent.name.toLowerCase().endsWith('.md')) {
-        const st = await fs.stat(abs);
-        out.push({ relPath: rel, mtimeMs: st.mtimeMs, size: st.size });
+        if (excludes.some((re) => re.test(rel))) continue;
+        const st = await fs.stat(path.join(dir, ent.name));
+        out.push({
+          relPath: `${collection.root}/${rel}`,
+          relInCollection: rel,
+          collection: collection.id,
+          mtimeMs: st.mtimeMs,
+          size: st.size,
+        });
       }
     }
   };
-  await walk(bookmarksDir, '');
+  await walk(rootAbs, '');
+  void vaultRoot;
   return out;
 }
 
 /**
- * 全量枚举 + 增量解析。
- * @param existingByPath 旧索引按路径的记录
+ * 全量枚举所有收藏库 + 增量解析。
+ * 任一库根目录缺失即抛错（保留旧索引，不把缺挂载当空库）。
  */
-export async function scanLibrary(
-  sourceRoot: string,
+export async function scanVault(
+  vaultRoot: string,
+  collections: CollectionDef[],
   existingByPath: Map<string, NoteRecord>,
   onProgress?: (done: number, total: number) => void
 ): Promise<ScanOutcome> {
   const diagnostics: string[] = [];
   const counts: ScanCounts = { scanned: 0, added: 0, updated: 0, skipped: 0, errors: 0 };
-  const bookmarksDir = path.join(sourceRoot, 'Bookmarks');
-  const files = await enumerateNotes(bookmarksDir);
-  const enumerated = true;
+
+  const files: FileMeta[] = [];
+  for (const c of collections) {
+    const rootAbs = path.join(vaultRoot, c.root);
+    try {
+      await fs.access(rootAbs);
+    } catch {
+      throw new Error(`内容目录缺失或不可读: ${c.root}`);
+    }
+    const got = await enumerateCollection(rootAbs, c, vaultRoot);
+    files.push(...got);
+    diagnostics.push(`[${c.name}] 枚举 ${got.length} 篇`);
+  }
 
   const byPath = new Map<string, NoteRecord>();
   const records: NoteRecord[] = [];
+  const idOwner = new Map<string, NoteRecord>();
   let done = 0;
+  const colMap = new Map(collections.map((c) => [c.id, c]));
 
   const queue = files.slice();
   const workers = Array.from({ length: Math.min(CONCURRENCY, Math.max(1, queue.length)) }, async () => {
@@ -79,7 +110,7 @@ export async function scanLibrary(
       const meta = queue.shift();
       if (!meta) return;
       done++;
-      if (done % 50 === 0) onProgress?.(done, files.length);
+      if (done % 100 === 0) onProgress?.(done, files.length);
 
       const prev = existingByPath.get(meta.relPath);
       if (
@@ -94,64 +125,58 @@ export async function scanLibrary(
         continue;
       }
 
-      const abs = path.join(bookmarksDir, ...meta.relPath.split('/'));
-      const outcome = await readAndParseStable(abs, meta, sourceRoot);
-      if (outcome.error) {
+      const abs = path.join(vaultRoot, ...meta.relPath.split('/'));
+      const outcome = await readAndParseStable(abs, meta, vaultRoot, colMap.get(meta.collection)!);
+      if (outcome.error || !outcome.record) {
         counts.errors++;
         if (prev) {
           byPath.set(meta.relPath, prev);
           records.push(prev);
-          diagnostics.push(`${meta.relPath}: ${outcome.error}；保留旧记录`);
+          diagnostics.push(`${meta.relPath}: ${outcome.error ?? '解析为空'}；保留旧记录`);
         } else {
           counts.skipped++;
-          diagnostics.push(`${meta.relPath}: ${outcome.error}；跳过`);
+          diagnostics.push(`${meta.relPath}: ${outcome.error ?? '解析为空'}；跳过`);
         }
         continue;
       }
-      counts.scanned++;
-      if (outcome.record) {
-        const rec = outcome.record;
-        const dup = records.find((r) => r.id === rec.id);
-        if (dup) {
-          counts.errors++;
-          diagnostics.push(`${meta.relPath}: resourceId ${rec.id} 与 ${dup.sourceRelativePath} 冲突，保留先入索引记录`);
-          byPath.set(meta.relPath, prev ?? rec);
-          if (!prev) {
-            // 冲突记录不入结果，避免 ID 重复
-          } else {
-            records.push(prev);
-          }
-          continue;
-        }
-        byPath.set(meta.relPath, rec);
-        records.push(rec);
-        if (prev) counts.updated++;
-        else counts.added++;
-      } else {
-        counts.skipped++;
+      const rec = outcome.record;
+      // 重复 ID（仅 rednote 类有业务意义的 resourceId）：保留先入
+      const owner = idOwner.get(rec.id);
+      if (owner && owner.sourceRelativePath !== rec.sourceRelativePath) {
+        counts.errors++;
+        diagnostics.push(`${meta.relPath}: ID 与 ${owner.sourceRelativePath} 冲突，保留先入记录`);
+        if (prev) records.push(prev);
+        continue;
       }
+      idOwner.set(rec.id, rec);
+      counts.scanned++;
+      byPath.set(meta.relPath, rec);
+      records.push(rec);
+      if (prev) counts.updated++;
+      else counts.added++;
     }
   });
   await Promise.all(workers);
 
-  // 完整枚举成功后：旧索引中已从磁盘消失的文件标记 missing
+  // 完整枚举成功后：旧索引中已消失的文件标记 missing（保留记录与分类）
   for (const [rel, rec] of existingByPath) {
     if (!byPath.has(rel)) {
       const missing: NoteRecord = { ...rec, sourceStatus: 'missing' };
       byPath.set(rel, missing);
       records.push(missing);
-      diagnostics.push(`${rel}: 源文件已消失，标记为 missing（保留记录与分类）`);
+      diagnostics.push(`${rel}: 源文件已消失，标记为 missing（保留记录与人工分类）`);
     }
   }
 
-  return { records, diagnostics, counts, enumerated };
+  return { records, diagnostics, counts, enumerated: true };
 }
 
 async function readAndParseStable(
   abs: string,
   meta: FileMeta,
-  sourceRoot: string
-): Promise<{ record: import('./parse.js').NoteRecord | null; error: string | null }> {
+  vaultRoot: string,
+  collection: CollectionDef
+): Promise<{ record: NoteRecord | null; error: string | null }> {
   for (let attempt = 0; attempt <= STAT_RETRY; attempt++) {
     let before: { mtimeMs: number; size: number };
     try {
@@ -161,9 +186,11 @@ async function readAndParseStable(
       return { record: null, error: `stat 失败: ${(e as Error).message}` };
     }
     const outcome = parseNote({
+      vaultRoot,
+      collection,
       absolutePath: abs,
-      relativePath: meta.relPath,
-      sourceRoot,
+      relativePath: meta.relInCollection,
+      sourceRelativePath: meta.relPath,
       mtimeMs: before.mtimeMs,
       size: before.size,
     });
@@ -175,8 +202,8 @@ async function readAndParseStable(
       return { record: null, error: '读取后 stat 失败（文件可能被移走）' };
     }
     const stable = Math.abs(before.mtimeMs - after.mtimeMs) < 1 && before.size === after.size;
-    if (outcome.error) return outcome;
-    if (stable && outcome.record) return outcome;
+    if (outcome.error) return { record: null, error: outcome.error };
+    if (stable && outcome.record) return { record: outcome.record, error: null };
     if (attempt < STAT_RETRY) await sleep(RETRY_DELAY_MS);
     else return { record: null, error: '文件持续变化（可能正被写入），本次跳过' };
   }

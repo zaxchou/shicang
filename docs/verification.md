@@ -54,6 +54,14 @@
 - 更新/回滚入口：`deploy/nas-update.sh`（构建+换 tag+重建+健康检查+版本校验）、`deploy/nas-rollback.sh`（本地镜像秒级切回）；旧 `update.sh`/`rollback.sh`（releases/current 方案）已废弃删除。SSH 助手 `scripts/nas-deploy.mjs`（凭据走环境变量）。
 - 未验证项更新：~~NAS 实际部署~~ 已验证；~~容器重启恢复~~ 已验证；**整机断电重启恢复**仍未实测（restart 策略与 Docker 开机自启待观察一次真实重启）；NAS 文件系统 rename/replace 行为未单独验证（应用有 copy+replace 回退）。
 
+## Apple 风格改版与版本管理（2026-09-28，v0.2.0/0.2.1）
+
+- UI 改为 Apple Liquid Glass 风格：环境光色斑背景 + 全站玻璃表面（backdrop-filter blur/saturate、高光描边、大圆角）、SF Symbols 风格图标全套重绘、三档主题保留。
+- liquid-glass-react（要求 React ≥19，已升级 React 19.3）用于暗色主题「刷新收藏库」按钮：fixed 槽位 + `.liquid-slot` 绝对定位修正其层定位，Tailwind 工具类以 12 行垫片补齐（relative/opacity-0/pointer-events-none 等）；亮色下该库折射层偏暗，回退手写玻璃胶囊——两主题均经浏览器截图验证。
+- 命名「拾藏」：SVG 图标（渐变圆角方块 + 白色「拾」字）渲染为 icon.svg / icon-1024 / apple-touch-icon(180) / icon-32，接入 favicon 与侧栏品牌位。
+- v0.2.1 修复 Dockerfile 缺 `COPY public` 导致 NAS 容器图标 404；已部署验证 `GET /icon.svg → 200 image/svg+xml`。
+- GitHub 版本管理：仓库 https://github.com/zaxchou/shicang，main 分支首次提交 8cc0c35（v0.2.1 tag）；`.gitignore` 排除 node_modules/dist/.local/runtime/logs/releases/shots/deploy-production；本地 `core.autocrlf=false` 防止 .sh 变 CRLF 后在 NAS 执行失败。
+
 ## 已知限制（如实说明）
 
 1. **远程视频可用性未全量保证**：402 篇视频均为小红书 CDN 的 HTTP 直链，实测样本可加载；防盗链、链接失效或网络策略都可能导致个别不可播，届时详情页显示「视频暂时无法播放」与原文入口。未实现下载/转码/登录（按计划范围排除）。

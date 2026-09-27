@@ -1,6 +1,6 @@
-# MyInfobase — 小红书收藏库
+# 拾藏 Shícáng — 小红书收藏库（Apple Liquid Glass 风格）
 
-把 Obsidian 库中的小红书收藏（Markdown + 本地图片 + 远程视频）变成一个可以 24 小时常驻访问的深色网页收藏库：浏览、搜索、按分类与时间筛选、阅读详情、播放视频、手动刷新新增内容、调整分类。**Obsidian 库只读**；所有展示端数据保存在本项目目录内。
+[GitHub 仓库](https://github.com/zaxchou/shicang)（版本管理）。把 Obsidian 库中的小红书收藏（Markdown + 本地图片 + 远程视频）变成一个可以 24 小时常驻访问的深色网页收藏库：浏览、搜索、按分类与时间筛选、阅读详情、播放视频、手动刷新新增内容、调整分类。**Obsidian 库只读**；所有展示端数据保存在本项目目录内。
 
 ![首页](docs/screenshots/home-1440.png)
 

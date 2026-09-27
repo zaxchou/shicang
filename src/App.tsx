@@ -137,6 +137,29 @@ export default function App() {
     void loadLibrary();
   }, [loadLibrary]);
 
+  // 玻璃表面的鼠标跟随高光（rAF 节流，更新根级 CSS 变量）
+  useEffect(() => {
+    let raf = 0;
+    let px = -999;
+    let py = -999;
+    const flush = () => {
+      raf = 0;
+      const root = document.documentElement;
+      root.style.setProperty('--gx', `${px}px`);
+      root.style.setProperty('--gy', `${py}px`);
+    };
+    const onMove = (e: PointerEvent) => {
+      px = e.clientX;
+      py = e.clientY;
+      if (!raf) raf = requestAnimationFrame(flush);
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   // 查询/视图/标签变化 → 重新加载第一页（搜索防抖 200ms；输入法组合中延迟提交）
   useEffect(() => {
     const t = window.setTimeout(

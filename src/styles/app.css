@@ -15,20 +15,85 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
-/* 环境光：供玻璃折射的柔和色斑（跟随主题） */
-body::before {
+/* 环境光：两组色斑反向缓慢漂移，为玻璃提供持续变化的折射源（仅动画 transform，GPU 合成） */
+body::before,
+body::after {
   content: '';
   position: fixed;
-  inset: -20%;
+  inset: -30%;
   z-index: 0;
   pointer-events: none;
+  will-change: transform;
+}
+body::before {
   background:
-    radial-gradient(42% 38% at 82% 12%, var(--ambient-blob-1), transparent 70%),
-    radial-gradient(40% 36% at 10% 30%, var(--ambient-blob-2), transparent 70%),
-    radial-gradient(46% 40% at 55% 95%, var(--ambient-blob-3), transparent 72%);
-  filter: blur(46px);
+    radial-gradient(40% 36% at 78% 18%, var(--ambient-blob-1), transparent 70%),
+    radial-gradient(42% 38% at 12% 34%, var(--ambient-blob-2), transparent 70%),
+    radial-gradient(44% 40% at 58% 94%, var(--ambient-blob-3), transparent 72%);
+  filter: blur(48px);
+  animation: drift-a 46s ease-in-out infinite alternate;
+}
+body::after {
+  background:
+    radial-gradient(36% 34% at 30% 78%, var(--ambient-blob-4), transparent 72%),
+    radial-gradient(34% 32% at 88% 62%, var(--ambient-blob-5), transparent 72%);
+  filter: blur(56px);
+  animation: drift-b 34s ease-in-out infinite alternate;
+}
+@keyframes drift-a {
+  from {
+    transform: translate3d(-2.5%, -1.5%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2.5%, 0) scale(1.09);
+  }
+}
+@keyframes drift-b {
+  from {
+    transform: translate3d(2.5%, 2%, 0) scale(1.06);
+  }
+  to {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
 }
 #root {
+  position: relative;
+  z-index: 1;
+}
+
+/* 鼠标跟随高光：玻璃表面在指针附近泛起光泽（background-attachment: fixed 用视口坐标） */
+.glass-surface,
+.detail-panel {
+  position: relative;
+}
+.glass-surface::after,
+.detail-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    520px circle at var(--gx, 50%) var(--gy, 0%),
+    rgba(255, 255, 255, 0.07),
+    transparent 62%
+  );
+  background-attachment: fixed;
+}
+:root[data-theme='light'] .glass-surface::after,
+:root[data-theme='light'] .detail-panel::after {
+  background: radial-gradient(
+    520px circle at var(--gx, 50%) var(--gy, 0%),
+    rgba(255, 255, 255, 0.42),
+    transparent 62%
+  );
+}
+/* 面板内容保持在高光层之上 */
+.sidebar > *,
+.main > *,
+.detail-header,
+.detail-body {
   position: relative;
   z-index: 1;
 }
@@ -57,7 +122,9 @@ img {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-panel), inset 0 1px 0 var(--glass-specular);
+  /* 透镜边缘：上缘高光、下缘暗线、内侧细环 */
+  box-shadow: var(--shadow-panel), inset 0 1px 0 var(--glass-specular),
+    inset 0 -1px 0 var(--glass-bevel-bottom), inset 0 0 0 0.5px var(--glass-ring);
 }
 
 /* ===== 应用框架 ===== */
@@ -762,7 +829,8 @@ img {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-panel), inset 0 1px 0 var(--glass-specular);
+  box-shadow: var(--shadow-panel), inset 0 1px 0 var(--glass-specular),
+    inset 0 -1px 0 var(--glass-bevel-bottom), inset 0 0 0 0.5px var(--glass-ring);
   animation: detailIn 320ms var(--ease-out);
 }
 .detail-overlay.closing .detail-panel {

@@ -1,3034 +1,3034 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-27T14:28:42.565Z",
+  "generatedAt": "2026-09-27T16:42:08.507Z",
   "categories": [
     {
       "id": "shuhua",
       "name": "书画",
-      "description": "国画与书法：作品欣赏、技法教程、临摹创作、篆刻文房、装裱展览；兼收水彩、速写等绘画内容",
+      "description": "国画、书法与篆刻：作品欣赏、技法教程、临摹创作、文房装裱；兼收水彩、速写等绘画内容",
       "order": 1
     },
     {
-      "id": "ai-programming",
-      "name": "AI 与编程",
-      "description": "AI 工具与大模型、编程与 Agent、知识管理（Obsidian/Notion）、效率软件与开源项目",
+      "id": "maker-digital",
+      "name": "数码硬件",
+      "description": "3D 打印与拓竹、开源硬件（ESP32 等）、数码好物评测、桌搭理线与家电",
       "order": 2
     },
     {
-      "id": "design-aigc",
-      "name": "设计与 AIGC",
-      "description": "UI/UX 与产品设计、字体、壁纸、PPT；AI 生图、AI 视频、数字 3D 等创作玩法与工具",
+      "id": "language-learning",
+      "name": "学习语言",
+      "description": "英语日语、考研考试、数学科普、学术论文、留学教育",
       "order": 3
     },
     {
-      "id": "maker-digital",
-      "name": "3D 打印与数码",
-      "description": "3D 打印与拓竹、开源硬件（ESP32 等）、数码好物、桌搭理线与硬件玩法",
+      "id": "design-aigc",
+      "name": "设计与创作",
+      "description": "UI/UX 与视觉设计、字体壁纸、摄影剪辑；AI 生图、AI 视频、数字 3D 等创作玩法",
       "order": 4
     },
     {
-      "id": "language-learning",
-      "name": "语言与学习",
-      "description": "英语、日语、考研考试、数学科普、留学教育与学术工具",
+      "id": "ai-programming",
+      "name": "AI 工具",
+      "description": "AI 工具与大模型、编程与 Agent、知识管理（Obsidian/Notion）、效率软件与开源项目",
       "order": 5
     },
     {
       "id": "life",
       "name": "生活",
-      "description": "茶器、养宠园艺、旅行见闻、穿搭健康、认知成长、音乐与日常好物等生活内容",
+      "description": "茶器文玩、养宠园艺、旅行见闻、穿搭健康、认知成长、音乐与日常好物",
       "order": 6
     }
   ],
   "initialAssignments": {
     "61074e59000000000102dfca": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「工笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69c5edb60000000021038db5": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「工笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6994757c0000000016009c03": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "69c5edb60000000021038db5": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68188d1b0000000023003adb": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "63f354db0000000013009576": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「皴」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「皴」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65d9d613000000000b0188ff": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6629bbb90000000003023090": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「帖」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "670bac360000000024019252": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「临摹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「果熟来禽」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6629bbb90000000003023090": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「寒食帖」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67cd21080000000009038f07": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「庄子」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「庄子」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a5ddc8e000000001c00c8b7": {
       "categoryId": "maker-digital",
-      "rationale": "人工复核：音箱新品数码",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「音箱」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d2f801000000001a02e131": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「claude」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Claude」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69563d21000000001e025f8f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66126b29000000001a00d190": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「宋体」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「八骏」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65eb17e9000000000b00e1ba": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66126b29000000001a00d190": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「宋体」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "682223e10000000023014b10": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「开箱」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「开箱」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "654ca81d00000000330046b9": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「考研」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「考研」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "659ca8000000000011033339": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "659cb2d4000000001a02b50e": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69aecda6000000002202e7eb": {
-      "categoryId": "language-learning",
-      "rationale": "人工复核：美院艺考教育话题",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a73aa770000000028000bae": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「deck」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "shuhua",
+      "rationale": "标签含「美院」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9fda7a000000002603216d": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「小米」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「小米」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a73aa770000000028000bae": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「deck」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6634e890000000001e039250": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「兰亭」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「兰」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a4108dc00000000070215eb": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「Figma」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Figma」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "684bde61000000000303c8d0": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「脑洞」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「旅行」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa8fcd10000000011035d56": {
       "categoryId": "design-aigc",
-      "rationale": "人工复核：AI 生图运镜教程",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「运镜」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e4d0bf000000001a0333ba": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「开源项目」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69f990f3000000000f03ac00": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「论文」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「论文」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a85d2aa000000002803087f": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「变装」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「变装」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a6426f4000000001f01dc46": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「行书」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「行书」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6964b129000000000a02ad79": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「deepseek」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a8304810000000022031fac": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标签含「茶器」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「DeepSeek」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a0c4052000000000702b9bb": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「留学」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「大学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9e8a920000000012035d7f": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「申请」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「申请」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a8304810000000022031fac": {
+      "categoryId": "life",
+      "rationale": "标题含「壶」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66e96d63000000001e01b620": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「工作流」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68d134f5000000001301d879": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「耳机」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「耳机」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65547b01000000001701dd36": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「马原」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66610848000000001500982f": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「榜书」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "666c40a2000000000e030cf0": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「大题」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6613e280000000000401b59a": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「kimi」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Kimi」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66610848000000001500982f": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「榜书」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "666c40a2000000000e030cf0": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "684c6a690000000012005c8a": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「龟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "697ae05f000000000e00d15c": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「龟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67861447000000000b016382": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "653f65cb0000000020002404": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「考研」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a996c390000000029011807": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标签含「钢琴」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68691d4a000000000d019510": {
+    "697ae05f000000000e00d15c": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67347ee30000000019015b30": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「理线」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「数码」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "68749c830000000013011da8": {
+    "6a996c390000000029011807": {
+      "categoryId": "life",
+      "rationale": "标签含「钢琴」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "653f65cb0000000020002404": {
+      "categoryId": "language-learning",
+      "rationale": "标题含「考研」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68691d4a000000000d019510": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa7d98c0000000026014c15": {
       "categoryId": "design-aigc",
-      "rationale": "数字 3D 创作：标题含「Blender」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「blender」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68749c830000000013011da8": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「册页」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669cf4d60000000025015a47": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「水彩」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66f4a62e000000002c02decd": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「紫藤」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「画画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68591d480000000023006a59": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66f4a62e000000002c02decd": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「画紫藤」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "682db1b3000000002300342e": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「图表」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69361116000000001f006249": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「用笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「网站」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66ba4312000000001e01d692": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「文件命名」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：文件整理效率工具",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "66fbaf50000000001a0209bc": {
-      "categoryId": "ai-programming",
-      "rationale": "人工复核：AI 工具盘点（正文含 AI 黑科技）",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a6b36c50000000025012723": {
+    "69361116000000001f006249": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「用笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67ff2a8b000000001c01cebb": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「NSDR」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「冥想」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66fbaf50000000001a0209bc": {
+      "categoryId": "ai-programming",
+      "rationale": "人工：AI 神器盘点",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a6b36c50000000025012723": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「八大山人」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69b631a0000000002200d185": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67a1e937000000001800e492": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「留白」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「水墨」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69bb8215000000001e00d646": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67a1e937000000001800e492": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「留白」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66c02146000000000d033b74": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：泼墨菊花国画",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：泼墨菊花国画",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6656a436000000001401a36b": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「挂画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "life",
+      "rationale": "标签含「摆台」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6708bac8000000001a022687": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「工笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「工笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6528e6c4000000001e03c3f7": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「语法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67692630000000000900fb98": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「速写」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "life",
+      "rationale": "标题含「猫」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68c7d737000000001d004509": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「拓竹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6935975e000000001f005a92": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69eadc8e000000001e00e7c1": {
-      "categoryId": "ai-programming",
-      "rationale": "人工复核：GitHub AI 项目盘点",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a75aafd0000000032023ac0": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "679cd97f0000000018008f89": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「deepseek」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "66cc8a49000000001d03a20d": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标题含「文具」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "69eadc8e000000001e00e7c1": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6935975e000000001f005a92": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a75aafd0000000032023ac0": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "694e61b8000000001f00d576": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibe coding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66cc8a49000000001d03a20d": {
+      "categoryId": "life",
+      "rationale": "标签含「阅读」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66322d76000000001e03368b": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「舞蹈」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「舞蹈」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67566945000000000700ddf1": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「代码」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「网站」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65840ad5000000003c013e73": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66aca434000000002701ef88": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「单词」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「单词」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6621db600000000001030dbc": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「科研」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「网站」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69aa65ce000000002801d89d": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「skill」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68024415000000001c014632": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「印谱」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「印章」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "675422e90000000001029ee8": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「鳜鱼」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "659e2725000000000f01eb0b": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「名画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「鳜鱼」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68551ef9000000001202ff72": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「皴」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「皴」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "6a6c697b0000000025012c56": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标签含「密室」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "659e2725000000000f01eb0b": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「名画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68a623c9000000001b030dd4": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「生图」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI生图」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a6c697b0000000025012c56": {
+      "categoryId": "life",
+      "rationale": "标签含「密室」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66eadc5c000000001e01a291": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「工笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「工笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6610ad8d000000001b0119d3": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「禽鸟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「禽鸟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "681e85200000000023016436": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「篆刻」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「冲刀」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66cdf759000000001d01551a": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「旅游」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「密室」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67cd5aee0000000009015f19": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「画画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「出枝」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "694e6aeb000000001e021966": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「穿搭」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「穿搭」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66e0eade000000001e01b269": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「画画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "maker-digital",
+      "rationale": "标题含「吹风机」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64fd9ac3000000001f03f40f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "682e652900000000230108ef": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "696a0e500000000022031b9a": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "693011e0000000001e016de0": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「花鸟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「花鸟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64538d250000000013011d5d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「皴」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「皴」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a816c43000000002402c530": {
-      "categoryId": "design-aigc",
-      "rationale": "人工复核：AI 旅行照片创意生成",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "ai-programming",
+      "rationale": "标题含「codex」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669e05640000000027018245": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「小米」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6754d70e000000000600ff66": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「青春期」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「数码」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9fd5db000000002902e205": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：AI 复现《千里江山图》，主题为国画",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「千里江山」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6754d70e000000000600ff66": {
+      "categoryId": "life",
+      "rationale": "标签含「亲子」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66b4cf26000000000d03208f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画作」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画作」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65783df5000000000703b07c": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「小米」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「小米」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66f14e38000000001b023a31": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画松」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "657bd49f00000000090186e6": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「居家好物」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「居家」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6537907b000000001e02962c": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「点叶」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "696c3878000000000a02bf25": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「WPS」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66a0aa3d000000000600d289": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「油画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「WPS」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68a352a1000000001c00af9a": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "66a8d85700000000050309dd": {
+    "66a0aa3d000000000600d289": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67c84f790000000029034b3c": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「毛笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「油画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "696fae0a000000002202f0a6": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Obsidian」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66a8d85700000000050309dd": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67c84f790000000029034b3c": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「毛笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa5a3f1000000002803beb0": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "674c036800000000060148ff": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「浏览器」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「浏览器插件」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69740937000000002202cc86": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「范治斌」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a4f2f91000000000f0302f2": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「兰」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "686c9a210000000012015162": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「金粟笺」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「金粟笺」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "652be5a9000000001a0164d5": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「用笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「用笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67301506000000001b02fe69": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画石」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "684e3312000000002100eeda": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「网站」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「网站」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6864fad10000000012033a85": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6659e0f7000000001401b0eb": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a82446c000000003302e37b": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「口语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69a6efa20000000022022872": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibe coding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6659e0f7000000001401b0eb": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a82446c000000003302e37b": {
+      "categoryId": "language-learning",
+      "rationale": "标题含「口语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "646f24a50000000012032666": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「龟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "696793d1000000000a028654": {
-      "categoryId": "shuhua",
-      "rationale": "人工复核：福字书法",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「龟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d667ed000000001b02039a": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Skill」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "696793d1000000000a028654": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「福字」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a79a07c000000002500728a": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「认知」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "651d3a9b000000001e032296": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「丸子头」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「演讲」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66ee244d000000002700519c": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "651d3a9b000000001e032296": {
+      "categoryId": "life",
+      "rationale": "标签含「丸子头」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a858cc8000000002403c672": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「AI视频」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI视频」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa3e0c2000000002b02435d": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「乐鑫」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：ESP32/乐鑫 硬件模块",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69f816ec000000001a02eb26": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「claude」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Claude」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66ed4f2c00000000120138d6": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「工笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「工笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6855161e0000000012033710": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6640021e000000001e031905": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67e34941000000000900e510": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "682c6ed40000000023011db5": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68eb3c0d0000000005003b92": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67b5b40a000000002802b19a": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「字体」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「字体」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "695f9d76000000002200937b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画竹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画竹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a05e1cf0000000008031884": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「kimi」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Kimi」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67592dc3000000000103f6ef": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「notebooklm」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「人工智能」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6657d264000000001303dc1e": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「汉隶」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「汉隶」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "678e33fd000000001902fc0d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69369876000000000d038aae": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6732c99d000000003c014775": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67a890af000000001800a5e6": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66c6d2b9000000001d01af91": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66bb6e1f000000001e01f1a2": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68522f83000000001101f2e1": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6527a91a000000001f03d27c": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66a5883d000000000d0314e3": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6527a91a000000001f03d27c": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "677497b7000000000800d9ed": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6870f7c30000000022033dc1": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "621cc6fd00000000210377ef": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69815bf9000000002103df0b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a96c22100000000260157d5": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6726d0ff000000003c01b26c": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64fd247f000000001e00dfca": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6613dd67000000001b0094d9": {
       "categoryId": "language-learning",
-      "rationale": "人工复核：国美考研信息",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「考研」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64e0d390000000000a019140": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「汉隶」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「汉隶」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "684d81b6000000000c039c7f": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「卡点舞」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「舞」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68f61630000000000402a8b9": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「水墨」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68f4bc3700000000040006ce": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「水墨」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669f2b9d0000000027013c99": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66d1bd43000000001f03dccd": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68a5ff62000000001c03126b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「花鸟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「鹰」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66c7bfbb000000001d03958a": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68e0f2a30000000005010564": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66dd8b2c0000000027007f66": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「花鸟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6769483a000000000b021780": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「花鸟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68954a7f0000000025013d6a": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「meshy」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66dd8b2c0000000027007f66": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「花鸟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6769483a000000000b021780": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「花鸟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "649e350e000000000703bb54": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d6051700000000230218d6": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66f1f0bd000000002a0377b2": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa12f99000000002601573a": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画松」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "673da30f0000000002039a2a": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画鱼」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画鱼」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "676d0569000000000b023fda": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画作」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画作」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "647b37d90000000013003c6f": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「摄影」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「摄影」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6667c0dc0000000006007622": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「桌面改造」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a7693ab0000000005028137": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「充电」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66d81d4d000000001f01c94d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画石」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a7693ab0000000005028137": {
+      "categoryId": "language-learning",
+      "rationale": "标题含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "686c0e35000000002203dac7": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64c25f22000000000c037419": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「水墨」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68100db40000000022037e45": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「修行」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「预言」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68525853000000000f039308": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9da9d5000000002b0104f6": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「codex」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「3D 场景」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66e006fb000000000c01a2bc": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「兰花」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「兰」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66be95b30000000005032129": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66bc35980000000025031718": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65268b23000000001c01772c": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a320660000000001102db20": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「提示词」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「提示词」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65a3aca4000000001e008847": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "655f1fca0000000032000f7d": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「壁纸」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「壁纸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67567bc8000000000603caf2": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「漫画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「漫画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6596a4070000000011018431": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65b3b4eb0000000010039952": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「茶」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「茶」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6853d18e000000001202c135": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6992d480000000000a032459": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「剧本杀」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66475bdf0000000016011c6b": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标签含「茶」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「剧本杀」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6927fa3f00000000190271fc": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「福字」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「福字」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66475bdf0000000016011c6b": {
+      "categoryId": "life",
+      "rationale": "标题含「壶」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa3c623000000000b034fb9": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「数字艺术」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "ai-programming",
+      "rationale": "标题含「开源」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69ead2b40000000020007002": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68b9b378000000001c037cac": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「PCB」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「PCB」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "66ecd9b700000000250338c5": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画竹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67b9fa66000000000603a8dc": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「印章」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "6a7addc900000000280064dd": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「开源」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d90682000000002103be38": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「karpathy」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "6a7addc900000000280064dd": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「YouTube」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "66ecd9b700000000250338c5": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「画竹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67b9fa66000000000603a8dc": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64ad190c000000001e01be7c": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「作文」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "655407d8000000003203a359": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「考研」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68d3c4b10000000013010d74": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标签含「游戏」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「考研」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6771089a000000000b016d87": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「麻省理工」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「留学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68d3c4b10000000013010d74": {
+      "categoryId": "life",
+      "rationale": "标签含「游戏」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "650677a60000000020002548": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6841945a000000000303c260": {
       "categoryId": "design-aigc",
-      "rationale": "人工复核：AI 配音音频创作工具",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI音频」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6586a49d0000000009022a10": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "653652960000000025008867": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「考研」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「考研」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6980a1cf000000000b00a3b4": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "680c25a7000000001202ec18": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「兰花」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「兰」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66e838dc000000001201345e": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「好物」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「好物」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a5261cc000000000f007eb1": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「字画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a53ae62000000001003f13e": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「字画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a57a052000000002201aeb5": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「字画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "65a7be0d000000002802f063": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "643000a3000000001203cbcb": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「绢本」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「绢本」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "65a7be0d000000002802f063": {
+      "categoryId": "language-learning",
+      "rationale": "标签含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "678299aa0000000001003e88": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「听力」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「听力」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "637f699f000000001f002ef7": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画家」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "681dd717000000000f038e9b": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「草书」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「绘画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67ee311c000000001d02d3c1": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「绘画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "681dd717000000000f038e9b": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「草书」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa39e8500000000110372b5": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67c7b927000000000903805d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「梅花」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「梅」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669f7b4a000000002701e93d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「宋画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "684470f800000000210066f7": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「牡丹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「牡丹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67dc281c000000001203ef59": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：罗寒蕾工笔画步骤图",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：罗寒蕾工笔画步骤",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "689b01ee000000001d0061db": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：艺术家画猫作品欣赏",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a0a819f0000000035022670": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：艺术家画猫作品欣赏",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6786462e0000000020029327": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「麻省理工」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「留学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a0a819f0000000035022670": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「画菊」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "699966fc000000000a03e84d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66323033000000001e038784": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「毛笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「毛笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "664fe43b000000001500be6c": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「风扇」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「风扇」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "652b8b24000000001d0392d4": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「界画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「界画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6665b79f000000000f00f445": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a369c5b000000001003c434": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "675a2f36000000000603b22d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「梅花」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「梅」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a369c5b000000001003c434": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「梅」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6553653e0000000032037e11": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6593fca2000000000f01f03a": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6882535d000000002400819a": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「大模型」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「大模型」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "662b50f20000000001007ccf": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「留学」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「留学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "666f6e2e000000000d00f229": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写生」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "language-learning",
+      "rationale": "人工：美术生艺考写生神器",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64d07c5d000000001201d6ce": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「绢本」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「绢本」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64cba1e3000000000b02ae2f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "64772721000000001203f0d5": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「砚」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669fb85f0000000027013106": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「拓展坞」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「充电」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "64772721000000001203f0d5": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「砚」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "656e8220000000003a00fb48": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「行书」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a2f9d2a00000000080014aa": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「工作流」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「行书」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6606572f0000000014007337": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「kimi」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a2f9d2a00000000080014aa": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「工作流」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64899cbe000000000800ee6b": {
       "categoryId": "life",
-      "rationale": "人工复核：西藏森林摄影游记",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：西藏森林摄影游记",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67b9bb2a0000000006039be0": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「控笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69822c74000000000b01029f": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「母乳」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「妈妈」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67c551860000000003028fcd": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔触」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a4669500000000015027dac": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「留学」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67565e1b0000000002024d40": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「人生」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「人生」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67e28aff000000001d02ddf7": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：正仓院唐笔文房",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「唐笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "663ecd2c000000001e031c14": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标题含「鱼缸」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "maker-digital",
+      "rationale": "标题含「鱼缸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "632b552c0000000018016919": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6746cb620000000008006110": {
-      "categoryId": "life",
-      "rationale": "人工复核：日常随拍",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a8adec90000000035027bcd": {
       "categoryId": "life",
-      "rationale": "人工复核：哲学科普视频",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：哲学科普视频",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6746cb620000000008006110": {
+      "categoryId": "life",
+      "rationale": "人工：日常随拍",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a51e744000000000f02b189": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「孩子」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「孩子」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "679b4fb20000000029014900": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「兰花」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a7d8bf30000000005031a4a": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「穿搭」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「兰」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67ebd827000000001c03ee6b": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「汉服」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「汉服」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a7d8bf30000000005031a4a": {
+      "categoryId": "life",
+      "rationale": "标签含「穿搭」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6624c5ee000000001c00a31b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「欧体」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「欧体」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a2177d0000000003601cae2": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「Vibe」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67a430c60000000017039b25": {
-      "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「平板」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68dfb8a50000000004023448": {
       "categoryId": "life",
-      "rationale": "人工复核：家庭日常",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「妈妈」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67a430c60000000017039b25": {
+      "categoryId": "maker-digital",
+      "rationale": "标题含「华为」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a2175b50000000006037e8d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69553ec1000000001e028036": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67b718cd0000000029018fdb": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「禽鸟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a96ff1b000000002b025555": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「禽鸟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "694a6fb5000000001d03cb82": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a96ff1b000000002b025555": {
+      "categoryId": "language-learning",
+      "rationale": "标题含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68231c62000000002100f761": {
       "categoryId": "life",
-      "rationale": "人工复核：观鸟自然观察",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「观鸟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65a13ecf000000001a0280af": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「古建」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「古建」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa2398b000000002a02f6ef": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「智谱」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6743e1750000000007028a22": {
-      "categoryId": "shuhua",
-      "rationale": "人工复核：日本画家伊藤若冲绘画",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「智谱」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa65b920000000012034b37": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「口语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「口语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69cbafed000000001e00f639": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibecoding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6743e1750000000007028a22": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「齐白石」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "642d448b00000000130104d4": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65a1525200000000110150af": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64547fdd000000001300846c": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68035092000000001c02dd02": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「头像」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标签含「头像」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6533a12a000000001f037f9d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「读画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「读画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "685e490e00000000170374ae": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e87bce000000001a027f4e": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69dde3990000000021010779": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标签含「OPC」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Obsidian」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69cb498a0000000023020939": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标签含「产品设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：向 AI 描述页面元素（UI 设计）",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "69dde3990000000021010779": {
+      "categoryId": "ai-programming",
+      "rationale": "标签含「一人公司」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a434fd3000000002100b6af": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「vibecoding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a435eb8000000001101e7cf": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibe coding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "689418be000000000400751a": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「效率神器」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68a081a4000000001c0112a8": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「海报」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「海报」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "65a0d606000000001d036eae": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "6a435eb8000000001101e7cf": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "689418be000000000400751a": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a4a22d7000000001101e58f": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「图标」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「图标」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "65a0d606000000001d036eae": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「笔法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66d46f94000000001d01bee6": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「用笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67a19bf5000000001701f9a6": {
-      "categoryId": "design-aigc",
-      "rationale": "数字 3D 创作：标题含「3D模型」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「用笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69fe6f3a000000001a036be4": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「slides」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Slides」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67a19bf5000000001701f9a6": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「3D模型」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a81252000000000240254f1": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6624ab1e0000000001007b02": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标题含「龟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "697b1b46000000000a03ea87": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibe coding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6624ab1e0000000001007b02": {
+      "categoryId": "life",
+      "rationale": "标题含「龟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68be523a000000001d0143ae": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「诗词」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "life",
+      "rationale": "标签含「诗词」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "684bad95000000000f03ae49": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「拓竹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6358aba9000000001402ae6b": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「拓竹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67a2d6d5000000001902de1f": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「deepseek」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6358aba9000000001402ae6b": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "63a6fd930000000022028966": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64ef1a27000000001e03276b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65cf319e000000000b00d3db": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔顺」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔顺」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65d3defe000000000b0226c4": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔顺」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔顺」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "676abefa000000001300c587": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "693d6dc8000000001e023b53": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「砚」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「砚」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6538df00000000001e0230f9": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「卫衣」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「卫衣」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "685365db0000000012016ba8": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "667a90c5000000001e0115cc": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67a9c3c3000000001701c6b7": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66716e5a000000000d00ef32": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66347914000000001e03520e": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「龟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「龟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68875fae0000000025017ed1": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：菊花写意画作",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「菊」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "687c465e000000001202ccea": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69b6b78b00000000210064ae": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「画作」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画作」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "667c2279000000001c0277ad": {
       "categoryId": "ai-programming",
-      "rationale": "人工复核：Coze 搭建助手",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Coze」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6674bae1000000001f0058ea": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「知识管理」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「知识管理」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66189fd3000000001a00e0c9": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「1Panel」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "65f11cdb000000000d00f4c0": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Ollama」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66ef887e000000000c019eca": {
       "categoryId": "ai-programming",
-      "rationale": "人工复核：Notion Life OS 效率系统",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Notion」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "65f11cdb000000000d00f4c0": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a1a1e5e000000003601d6f7": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：释明纲行草书墨迹",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66f0bdeb000000002603d8cb": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「花鸟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：释明纲行草书墨迹",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6969fff00000000022033688": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「本地部署」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「GitHub」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66f0bdeb000000002603d8cb": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「花鸟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d4f99f000000001f00412b": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「karpathy」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "695507ab000000002102b4c9": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "695e43a700000000220320a9": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6740b3e10000000006014b62": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "63d3e137000000001c0369b6": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67beaf4500000000290168f4": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "656af24a000000001502ec43": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67beaf4500000000290168f4": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65f084e4000000001203daff": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "638ad306000000001b02472e": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6756d887000000000700e21d": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「熟宣」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「熟宣」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "635a98ec000000001402506f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「临摹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9016db000000002503a159": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「认知」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "language-learning",
+      "rationale": "标题含「双语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68e4fd92000000000700bd32": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「水彩」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「水彩」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "666c30830000000006004068": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「水墨」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9e464f0000000012027a85": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「Astra」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标签含「创意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66266755000000001c006a2f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「小楷」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「小楷」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a38ec04000000001700a112": {
-      "categoryId": "design-aigc",
-      "rationale": "人工复核：AI 纯代码生成视频",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "657b344c000000003c013774": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66f57a67000000001a02003f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68e7c4250000000005033881": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「松针」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66ef90c8000000000c0197fd": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「松树」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「松树」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68e7c4250000000005033881": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「松针」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64879c310000000011011460": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「摄影」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：小米黑白摄影",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6711b5ea0000000026035282": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「手札」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「手札」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "666192aa00000000060053da": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：宋代书画审美",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：宋代书画审美",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "683ee584000000002202f505": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「宋画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "686e5b9a0000000017030417": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「宋画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "665bdd020000000014018455": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「工笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「工笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "686e5b9a0000000017030417": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "682801910000000021002e23": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「礼物」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68207cf2000000000c038573": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「砚」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66c31431000000001f01fa88": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书谱」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「礼物」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "698597d9000000001503aadf": {
       "categoryId": "design-aigc",
-      "rationale": "数字 3D 创作：标题含「3D模型」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D模型」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68207cf2000000000c038573": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「砚」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66c31431000000001f01fa88": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「书谱」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "685d7b8d000000002201cd41": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「拓竹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「拓竹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "686fa1ae0000000017031a6a": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「拓竹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「拓竹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69096dde000000000700e2d3": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「笔法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「笔法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "648d93d300000000120316d9": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标签含「ai」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「ai」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6952342c0000000022032887": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：丝网版画艺术展览",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「版画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67450df100000000070267a9": {
       "categoryId": "language-learning",
-      "rationale": "人工复核：古诗人文内容",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67ed01ce000000001c02e7b2": {
-      "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：古诗人文",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6636187a000000001e034bcf": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「鼠标」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「鼠标」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "67f6108c0000000009015f09": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「大模型」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "67ed01ce000000001c02e7b2": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「盲盒」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "652d1b2b000000001a017e08": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「皴」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「皴」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67f6108c0000000009015f09": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65a60cb2000000000f012474": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「兰亭」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「兰」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a3cf7d400000000110178d4": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画石」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67e8ce6a000000000901707b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "687900cf000000000d01b05f": {
       "categoryId": "life",
-      "rationale": "人工复核：思维认知随笔",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a4ce3890000000021009d8a": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「动效」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：思维认知随笔",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e5ff0f000000001a02b1af": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「键盘」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「键盘」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "652d05fc000000001e03cbcf": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画树」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a4ce3890000000021009d8a": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「动效」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6974456a0000000022038ed0": {
       "categoryId": "life",
-      "rationale": "人工复核：铜工艺品联名好物",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：铜师傅文创联名",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67964016000000002903d1f2": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「deepseek」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「DeepSeek」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69ce2f94000000001f00471a": {
       "categoryId": "ai-programming",
-      "rationale": "人工复核：飞书 CLI 直播分享",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66b43718000000001e01e3da": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「压缩」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「CLI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6767c6de00000000090156d0": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66b43718000000001e01e3da": {
+      "categoryId": "design-aigc",
+      "rationale": "人工：视频压缩工具",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a1828f7000000003502a0b3": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「qwen」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67768f66000000000900e0b6": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「用笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「用笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67158fe9000000001402e0f5": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64c4d9b9000000001700d953": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "67c1b1020000000029029575": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「认知」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e06a2d000000001b021539": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「数学」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「数学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67c1b1020000000029029575": {
+      "categoryId": "life",
+      "rationale": "标题含「王阳明」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6664e072000000000e03370f": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「kimi」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「PPT」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "650014bb000000001e020bd5": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「壁纸」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「壁纸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69daf78e000000002301faeb": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「知识管理」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「效率工具」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "667d32ff000000001f005e63": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「微软」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「软件」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d0d21e000000002302305a": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「知识库」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「知识库」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "696cee82000000000a030486": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「玩机攻略」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「手机」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa410b4000000002802e23e": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「人生」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「人生」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d5b2290000000022026006": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibe coding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69cd1315000000002103b032": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「CLI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「CLI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69985ced000000000c0371a7": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「openclaw」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「OpenClaw」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66a358b6000000002701f24b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66becacb000000001e019758": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「牡丹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「牡丹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "650eab8e0000000020000119": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「壁纸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6843f15600000000220246d7": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「首饰盒」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「拓竹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67c051d90000000029025e8f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「篆刻」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65f717630000000012033551": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标签含「短视频」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68031df6000000001c00488b": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「龟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「龟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e62521000000001a037335": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Skill」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a881584000000002a0135a5": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6979687e000000000b00aa7f": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibe coding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6795a80f0000000018011548": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：书画装裱",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「无框裱」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "677209620000000013000c96": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「绘画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69e78571000000002200d31b": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「封面」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「绘画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a5ca12c000000001002964f": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标签含「网站设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「品牌」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "69e78571000000002200d31b": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「封面」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69c3a38b000000002200e8af": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「网站」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a3e5611000000001102fe3d": {
-      "categoryId": "ai-programming",
-      "rationale": "人工复核：Claude Code 开发 APP",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "shuhua",
+      "rationale": "标题含「画画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69885c1b000000000a03d853": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「MIT」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「留学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66459796000000001e022932": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68561fb4000000000d027193": {
       "categoryId": "life",
-      "rationale": "人工复核：内容无法判断，暂归生活，可人工调整",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：内容不可判断，暂归生活",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6612804c000000001a011231": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「龟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「龟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65dc90f6000000000702432c": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「茶」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「茶」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "660e0a94000000000401899f": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "683823d5000000000c039e43": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65989c2400000000120045ad": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6482b123000000001301061a": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「拍照」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「拍照」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa26a570000000027014432": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Obsidian」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "680f555e0000000021004f61": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "697583d2000000000b0124fc": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「小米」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「小米」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a5c9faf000000002201bf81": {
       "categoryId": "life",
-      "rationale": "人工复核：美容养生",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：美容养颜",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69fbf9fc000000001f007961": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「大模型」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69b056ee000000000c00baf0": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「梅」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66ee44f90000000025030b50": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64ab7af3000000001602668b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68065607000000001d00ab16": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "62e7486c000000000e02bd43": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66ecad6f000000002700698b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6606792600000000120331bd": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「心理」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68d3c5f8000000000b011478": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a92ac1a000000000402a2c9": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6606792600000000120331bd": {
+      "categoryId": "life",
+      "rationale": "标题含「心理」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68d3c5f8000000000b011478": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6775becd000000000b00e167": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68272f9c00000000120076b5": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67aee3c4000000001801916d": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「deepseek」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「DeepSeek」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "69cb8955000000001a0208ef": {
+    "68272f9c00000000120076b5": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：书法用纸（赵孟頫洛神赋）",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "651555a5000000002202aef3": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「养龟」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「龟」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69f6cec4000000002301551e": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「claude」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Claude」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "69cb8955000000001a0208ef": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「赵孟頫」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69987eea00000000150202ae": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「听力」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "64aa25a10000000031008807": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「美术」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「听力」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a1792ea0000000035023d44": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「clau. code」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Clau」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "64aa25a10000000031008807": {
+      "categoryId": "shuhua",
+      "rationale": "人工：学画方法（倪瓒元四家）",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6721814e0000000019019f93": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "685533b20000000011000959": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6695e8d8000000000a024c40": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「水彩」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e1bc4e0000000022026549": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「泥银纸」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66c35368000000001f017b1e": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「泥银」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669b9b920000000025007f3e": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：破凤眼为兰花画法术语",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：破凤眼为兰花画法术语",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66c35368000000001f017b1e": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a584c5a000000001002835c": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「人生」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「人生」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a5c21f900000000010036a1": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「饮食」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「减脂」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69f06da50000000037037a14": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「claude」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Claude」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "647efc6b0000000013033098": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「好物分享」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a478111000000001102ed6c": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「三角函数」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「好物分享」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6617acdf000000001a010193": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "6526916c000000002301a801": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68b155d2000000001d024c60": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "6a478111000000001102ed6c": {
+      "categoryId": "language-learning",
+      "rationale": "标签含「数学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6817160b000000002202a7e0": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「篆刻」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6526916c000000002301a801": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68b155d2000000001d024c60": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64997ee20000000013002f93": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "692803f7000000001b020034": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「刘海勇」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "680238e5000000001b03a0be": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「文玩」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6629d97700000000010328a8": {
-      "categoryId": "shuhua",
-      "rationale": "人工复核：书法创作（大鱼堂）",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「折扇」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a0a935a0000000006035719": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「MIT」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「硕士」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "6a4a4a3c00000000210217ce": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "6629d97700000000010328a8": {
+      "categoryId": "shuhua",
+      "rationale": "人工：大鱼堂书法创作",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a0af9e5000000000602201a": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「codex」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Codex」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a4a4a3c00000000210217ce": {
+      "categoryId": "language-learning",
+      "rationale": "标题含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a7c51a0000000000600449b": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d6e9a9000000002301eb69": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「n8n」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68d69d1e000000000b011654": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「用笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "68cac540000000001003f77c": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「用笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Agent」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e990df000000002200294c": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68d69d1e000000000b011654": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「用笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "68cac540000000001003f77c": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「用笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67fb4b5e000000001c016606": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「剪映」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「剪映」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66003e5a000000001203d0b8": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「游戏」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「游戏」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69467dad000000001e00520e": {
       "categoryId": "language-learning",
-      "rationale": "人工复核：MIT 留学作品集",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69cef878000000001e00c6bc": {
-      "categoryId": "design-aigc",
-      "rationale": "人工复核：AI 视频剪辑工具",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "660d0036000000001a01641e": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「线稿」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「MIT」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa5062d000000002603b124": {
       "categoryId": "design-aigc",
-      "rationale": "人工复核：AI 把名画变成电影的创作教程",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：AI 把名画变电影",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "69cef878000000001e00c6bc": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "660d0036000000001a01641e": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a3f68150000000022019058": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「codex」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「网站」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a1bd9180000000008024d02": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「codex」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Codex」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a4e05a2000000001503c187": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「three.js」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「three」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "660458a20000000014005bf3": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标签含「PPT」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66a32abe000000000d032089": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「没骨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「没骨」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67727f390000000009017ab5": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6683da1a000000001e01395b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "671e4e860000000026035031": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标题含「猫」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「猫」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a3cf5ca000000002100979d": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「codex」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Codex」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69c867ef000000001a025195": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "65eaa6f60000000003035f5a": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「壁纸」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「网页」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "645f52b30000000013009396": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "65eaa6f60000000003035f5a": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「壁纸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "629c069f0000000021035d6c": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「绢本」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「绢本」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6698b4050000000025017624": {
       "categoryId": "ai-programming",
-      "rationale": "人工复核：安卓 AI 语音笔记应用",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a8a63510000000029026db9": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「哑铃」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「塑形」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67dcd0e6000000000603f39b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a2936540000000022009531": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「字体」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「字体」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "63a156d4000000001e03d35c": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69ed7e790000000023005394": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6603751400000000120348ec": {
       "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标题含「拖延」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「治愈」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "68e109f900000000050116d3": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69ef221900000000230178cb": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「智谱」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「大模型」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6632fc15000000001e03297c": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「字体」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「字体」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "658bc7c00000000012003b60": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「春联」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「春联」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66f5593c000000001b020ba1": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「牡丹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「画牡丹」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9c543c0000000012034a00": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「折叠屏」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「数码」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6835705e000000002002aa50": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a85b85300000000240278a5": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69cbd7410000000022003350": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a5f5e81000000001b01fd33": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「PPT」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66bb7e93000000001e019681": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「砚台」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「砚」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "67fe4729000000001d023d95": {
-      "categoryId": "life",
-      "rationale": "人工复核：中文说唱音乐",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "6a5f5e81000000001b01fd33": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「水墨」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669a49fe000000000a004690": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「游戏」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「游戏」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "67fe4729000000001d023d95": {
+      "categoryId": "life",
+      "rationale": "人工：中文说唱音乐",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "674a80580000000002039422": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「科幻」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "人工：科幻脑洞视频",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa0434700000000250350a6": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「水墨」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "675bee3f000000000600f814": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「旅游」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「旅行」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6583ce5d000000000703948a": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「翻译」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67bee851000000002a001a6a": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「听力」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「听力」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65967a64000000001d028207": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标签含「日语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「日语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "65f81c280000000012030248": {
+      "categoryId": "design-aigc",
+      "rationale": "标签含「头像」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "684d4c4000000000230154b0": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「AI修图」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "65f81c280000000012030248": {
-      "categoryId": "life",
-      "rationale": "生活·个人成长与日常（核心）：标签含「头像」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a958d52000000002b01d3dc": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「用笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI修图」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d4e3c1000000001a02b029": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "6871f22a0000000011002a85": {
+    "6a958d52000000002b01d3dc": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写生」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「用笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66115d60000000001a017a92": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标签含「审美积累」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「短片」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6871f22a0000000011002a85": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「写生」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64eab63f000000001201bd0b": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「山水」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「山水」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6391ed7d000000001e03c1ba": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「牡丹」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「刘海勇」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a0aa52b000000000803c310": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英文」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「英文」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "669f4728000000002701adba": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「写意」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「写意」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a464a340000000021008021": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「评测」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「中正评测」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a69babd000000001102cb77": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「评测」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6835b2d80000000022037c9f": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「中正评测」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9654430000000029019e69": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6835b2d80000000022037c9f": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67bab9a40000000029039e52": {
       "categoryId": "shuhua",
-      "rationale": "人工复核：篆刻学习（汉印法度）",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「汉印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6854eacc0000000022030c35": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "656054fa000000003103ce67": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「壁纸」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「壁纸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "655dabaf000000001b037c72": {
       "categoryId": "design-aigc",
-      "rationale": "人工复核：iPad 高清壁纸套图",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「壁纸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "667697de000000001f00473e": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「桌搭」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「理线」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "659233ac0000000011018d28": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「字组」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67f5b5c7000000001d0195ac": {
       "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6603692f00000000120204c2": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「自媒体」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「拍摄」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "66374559000000001e0349c5": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「书法」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「书法」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a8fa30e000000002503884c": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「YouTube」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66f3e1c2000000001b020a1a": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「工具」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "life",
+      "rationale": "人工：YouTube 内容推荐",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6660443f000000000d00e463": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「PPT」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「PPT」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66f3e1c2000000001b020a1a": {
+      "categoryId": "ai-programming",
+      "rationale": "标签含「ai」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a3b9883000000001702d507": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「梦境」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「梦境」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "64a92d86000000003500acc1": {
       "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「国画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "676540a9000000001300c958": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标题含「AI」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「国画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "685e71de000000000d024d5b": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「3D打印」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「3D打印」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "676540a9000000001300c958": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9da7b80000000027014814": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「AI视频」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI视频」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a2ab860000000001503c10d": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「数学」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「数学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a30f896000000000f01c67f": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a3b5164000000000f028573": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69d27e01000000001d01855d": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「claude」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69f0a5c8000000003601d024": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「claude」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Claude」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "69d27e01000000001d01855d": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「Claude」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a55aa9e000000001c026caa": {
       "categoryId": "design-aigc",
-      "rationale": "数字 3D 创作：标题含「自动建模」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a9a5a0d0000000012027740": {
-      "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标签含「AIGC」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「建模」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a1d8c460000000036003b64": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「codex」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Codex」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a9a5a0d0000000012027740": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「提示词」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a7f10480000000028031f00": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「deepseek」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「DeepSeek」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67a1b981000000001703862f": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「deepseek」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「deepseek」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65b3d4c1000000002c0152c5": {
-      "categoryId": "life",
-      "rationale": "生活（其余）：标题含「鱼缸」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6aa3e0f600000000290186b8": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「ESP32」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a044c0c0000000006033852": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「知识库」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「鱼缸」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a85870c000000003501689f": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标签含「乐鑫」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「硬件」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6aa3e0f600000000290186b8": {
+      "categoryId": "maker-digital",
+      "rationale": "标题含「ESP32」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a044c0c0000000006033852": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「GLM」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6aa94131000000001103405e": {
       "categoryId": "design-aigc",
-      "rationale": "数字 3D 创作：标题含「Blender」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「blender」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6926f8f2000000001e032770": {
+      "categoryId": "design-aigc",
+      "rationale": "标签含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a615436000000000f030126": {
       "categoryId": "ai-programming",
-      "rationale": "AI 与编程（主）：标签含「ai」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6926f8f2000000001e032770": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「大模型」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「ai」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "679990f4000000002902bf41": {
       "categoryId": "life",
-      "rationale": "生活（其余）：标签含「春晚」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「春晚」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d3bd24000000002200f24a": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「karpathy」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a20fc8f0000000035023fd7": {
-      "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「机器狗」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「知识库」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a61f06e0000000004028d4c": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「kimi」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Kimi」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6a20fc8f0000000035023fd7": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a718e670000000024027275": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「广告」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「广告」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a8ab87b0000000028029c80": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「MIT」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "69bfe148000000001a02c915": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「MIT」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a9193520000000021033d53": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标签含「大模型」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a86782b000000001b0332c6": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「MIT」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「留学」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "65017448000000001e02a1a4": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「群晖」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「NAS」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "69bfe148000000001a02c915": {
+      "categoryId": "ai-programming",
+      "rationale": "标题含「Obsidian」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69be5583000000001d01faa0": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69db74f6000000001d0182df": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Obsidian」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69c87b09000000001a02bc93": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69ce6df6000000002200d589": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「obsidian」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66a77051000000002701245f": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标签）：标签含「画画」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "design-aigc",
+      "rationale": "标题含「模板」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "699d6ad600000000150387e9": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「openclaw」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「OpenClaw」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66a77051000000002701245f": {
+      "categoryId": "shuhua",
+      "rationale": "标签含「绘画」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a86afa1000000002702d7c1": {
-      "categoryId": "maker-digital",
-      "rationale": "人工复核：数码通信新品",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "categoryId": "ai-programming",
+      "rationale": "标题含「AI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e5eb3900000000230172cc": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「skill」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「Skill」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "67a1b46d0000000018005b60": {
       "categoryId": "design-aigc",
-      "rationale": "人工复核：TouchDesigner 视觉教程",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "66135bb4000000001a012532": {
-      "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「发音」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标签含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "690823cd0000000004010e39": {
       "categoryId": "language-learning",
-      "rationale": "语言与学习：标题含「英语」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「英语」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "66135bb4000000001a012532": {
+      "categoryId": "language-learning",
+      "rationale": "标题含「发音」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69eccdd40000000035038453": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「MCP」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「TRAE」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69e1c1c900000000230062c3": {
       "categoryId": "design-aigc",
-      "rationale": "设计与 AIGC（主）：标题含「设计」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69ba1a810000000023023a63": {
       "categoryId": "design-aigc",
-      "rationale": "人工复核：AI+D2C 的 UI 设计出图",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
-    },
-    "6a2167e5000000003503b619": {
-      "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「vibe coding」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「设计」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "6a332ff4000000001003eed9": {
       "categoryId": "ai-programming",
-      "rationale": "AI 编程与工具（Vibe/Codex/Claude）：标题含「Vibe」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「vibe」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
-    "6746fbce00000000070265ab": {
-      "categoryId": "shuhua",
-      "rationale": "书画（标题）：标题含「工笔」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+    "6a2167e5000000003503b619": {
+      "categoryId": "design-aigc",
+      "rationale": "标题含「UI」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     },
     "69d0a064000000001d01a918": {
       "categoryId": "maker-digital",
-      "rationale": "3D 打印与数码：标题含「键盘」",
-      "classifiedAt": "2026-09-27T14:28:42.565Z"
+      "rationale": "标题含「键盘」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
+    },
+    "6746fbce00000000070265ab": {
+      "categoryId": "shuhua",
+      "rationale": "标题含「工笔」",
+      "classifiedAt": "2026-09-27T16:42:08.507Z"
     }
   }
 }

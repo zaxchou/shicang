@@ -2,17 +2,21 @@
 :root {
   color-scheme: dark;
 
-  /* 环境光背景（供玻璃折射/模糊） */
+  /* 环境光背景（供玻璃折射/模糊）——四组色斑，两两反向缓慢漂移 */
   --ambient: #0a0a10;
-  --ambient-blob-1: rgba(88, 101, 242, 0.20);  /* 靛蓝 */
-  --ambient-blob-2: rgba(255, 83, 107, 0.14);  /* 玫红 */
-  --ambient-blob-3: rgba(45, 212, 191, 0.09);  /* 青 */
+  --ambient-blob-1: rgba(88, 101, 242, 0.22);  /* 靛蓝 */
+  --ambient-blob-2: rgba(255, 83, 107, 0.16);  /* 玫红 */
+  --ambient-blob-3: rgba(45, 212, 191, 0.10);  /* 青 */
+  --ambient-blob-4: rgba(168, 85, 247, 0.13);  /* 紫 */
+  --ambient-blob-5: rgba(255, 159, 67, 0.10);  /* 暖橙 */
 
   /* 玻璃表面 */
   --glass-bg: rgba(24, 24, 32, 0.58);
   --glass-bg-strong: rgba(30, 30, 40, 0.72);
   --glass-border: rgba(255, 255, 255, 0.13);
   --glass-specular: rgba(255, 255, 255, 0.17);
+  --glass-bevel-bottom: rgba(0, 0, 0, 0.30);
+  --glass-ring: rgba(255, 255, 255, 0.06);
   --glass-blur: 28px;
   --glass-sat: 1.7;
 
@@ -73,14 +77,18 @@
   color-scheme: light;
 
   --ambient: #eef0f6;
-  --ambient-blob-1: rgba(255, 122, 152, 0.32);
-  --ambient-blob-2: rgba(122, 162, 255, 0.30);
-  --ambient-blob-3: rgba(255, 196, 128, 0.26);
+  --ambient-blob-1: rgba(255, 122, 152, 0.34);
+  --ambient-blob-2: rgba(122, 162, 255, 0.32);
+  --ambient-blob-3: rgba(255, 196, 128, 0.28);
+  --ambient-blob-4: rgba(178, 140, 255, 0.26);
+  --ambient-blob-5: rgba(96, 214, 196, 0.22);
 
   --glass-bg: rgba(255, 255, 255, 0.55);
   --glass-bg-strong: rgba(255, 255, 255, 0.72);
   --glass-border: rgba(255, 255, 255, 0.75);
   --glass-specular: rgba(255, 255, 255, 0.95);
+  --glass-bevel-bottom: rgba(255, 255, 255, 0.55);
+  --glass-ring: rgba(255, 255, 255, 0.5);
   --glass-blur: 28px;
   --glass-sat: 1.8;
 

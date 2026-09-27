@@ -44,6 +44,14 @@
 - 开发开始前对源目录 2,578 个文件（598 md + 1,980 webp + base 文件）生成 SHA-256 清单（`.local/source-hash.json`）；全部开发与测试结束后复查：added=0 / removed=0 / changed=0，**应用未写入源目录**。
 - 自动化测试一律使用 `os.tmpdir()` 夹具，未向源目录写任何文件（早期测试脚本临时目录泄漏问题已修复并清理，发布包重建确认干净）。
 
+## 分类体系重新整理（2026-09-28，v0.3.0）
+
+- 触发：用户反馈分类混乱（AI/设计/生活混杂），要求按内容重新整理。
+- 方式：`scripts/classify.mjs` 三层规则（人工表 20 条 > 标题命中 > 标签命中，六类固定顺序）+ 全量 598 行人工复核，共 4 轮迭代修正 30+ 处误判（单字「松/竹/狗」误伤、壁纸被「手机」抢走、博士/Claude 与学习类冲突、AI 视觉玩法被书画抢走等，逐条记录于 taxonomy 文档）。
+- 结果：书画 269 / AI 工具 105 / 设计与创作 65 / 生活 69 / 学习语言 49 / 数码硬件 41 = 598，全覆盖、无重复、无非法 ID；每条带命中理由（seed rationale）。
+- 数据迁移：**分类 seed 仅在未初始化的库导入**，故对本地 `.local/data` 与 NAS `runtime/data` 删除 `categories.json`（旧分类文件已备份为 categories.json.bak-old）与测试遗留 `overrides.json`，重启后由 `data-seed/categories-seed.json` 重新导入；索引与媒体不动，扫描 skipped=598 无需重读。
+- 自动化测试 36/36 通过；本地与 NAS 计数经 /api/library 核对一致。
+
 ## NAS 实际部署（2026-09-27 已完成，此前为未验证项）
 
 - 环境（现场核实）：DSM 7.3.1、x86_64、docker 位于 `/usr/local/bin`（需 sudo + 显式 PATH）、Compose v2.20.1；项目与源库路径 `/volume2/Media/BaiduNetdiskWorkspace/...`；端口 4317 空闲；共享目录属主 uid=1026/gid=100。

@@ -195,7 +195,7 @@ password=<PAT>
 
 ```bash
 npm run typecheck   # 前后端 + 测试代码的类型检查
-npm test            # vitest：解析/媒体路由/扫描完整性/分类优先级/幂等刷新/人工标注层/语料导出/OCR/语音转录等 247 个用例
+npm test            # vitest：解析/媒体路由/扫描完整性/分类优先级/幂等刷新/人工标注层/语料导出/OCR/语音转录等 248 个用例
 npm run build       # 构建服务端 + 前端到 dist/
 npm run dev:server  # 服务端热重载（开发）
 npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）

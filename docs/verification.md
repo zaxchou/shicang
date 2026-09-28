@@ -1366,14 +1366,16 @@ vault 相对的 `[音频: x](flomo/attachments/<日期>/<hash>.m4a)`，而解析
 启动自动全量重扫，符合既定纪律）。新回归用例：diary 分支的 flomo 式链接 → 登记为 `kind:'audio'`
 且链接改写成媒体路由。
 
-### 测试（234 → 247，新增 13 条）
+### 测试（234 → 248，新增 14 条）
 
 `tests/asr.test.ts`：配置（缺 key/默认值/空串/非法数值回落）、格式嗅探（wav/ID3/帧同步/m4a/空）、
 请求形态（**content 只有 input_audio**、format 正确、thinking disabled、Bearer、`usage.seconds`→
 `audioSeconds`）、失败翻译（401/429/500/格式被拒/空回复/超时/网络错）、**转码真跑 ffmpeg**
 （wav→mp3 可嗅探、坏输入 null；无 ffmpeg 的机器上 `ctx.skip()` **可见地跳过**）、服务接线
 （落盘 kind=asr、可搜索、进语料、二次缓存 0 调用、跨笔记复用同一段音频、上限 5 段只转 4、
-shouldStop 关窗即停、并发单飞 1 次调用、**真 m4a 转码后以 format=mp3 送出**）、HTTP（200/404/400）。
+shouldStop 关窗即停、并发单飞 1 次调用、**真 m4a 转码后以 format=mp3 送出**）、HTTP（200/404/400）；
+`tests/parse.test.ts` 新增 1 条：diary 分支的 flomo 式 `flomo/attachments/…` 链接会登记
+`kind:'audio'` 并把链接改写成媒体路由（真实缺陷的回归钉子）。
 fixture 新增 `audios` 选项与 `tinyWav`（纯 JS 合成 PCM，无需 ffmpeg）。
 
 ### 真实链路实测（本机 4399 预览，真实 key）
@@ -1393,7 +1395,7 @@ fixture 新增 `audios` 选项与 `tinyWav`（纯 JS 合成 PCM，无需 ffmpeg�
 
 ### 验收
 
-- `npm run typecheck` 三套 0 错；`npx vitest run` **247/247 全绿**（16 文件）；`npm run build` 通过。
+- `npm run typecheck` 三套 0 错；`npx vitest run` **248/248 全绿**（16 文件）；`npm run build` 通过。
 - 版本对齐：package.json / lock / 两份 compose 默认 tag / `.env.example` 全部 0.11.0；
   health 自报版本随 package.json（下一次重启生效）。
 - 未做（记录在案）：视频转录（需下载远端视频，另议）、批量转录层、§18.2 的「总结」。

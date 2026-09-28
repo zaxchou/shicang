@@ -7,7 +7,7 @@ interface CategoryOption {
 }
 import { formatShanghai } from '../../shared/time';
 import { api, ApiError } from '../api/client';
-import { IconArchive, IconChevronDown, IconCheck, IconClose, IconExternal, IconStar } from './Icons';
+import { IconArchive, IconChevronDown, IconCheck, IconClose, IconExternal, IconPen, IconStar } from './Icons';
 
 /** 详情中附加字段展示顺序（与表格一致） */
 const EXTRA_DISPLAY_ORDER = [
@@ -57,6 +57,8 @@ export function DetailDialog({
   const [statusSaving, setStatusSaving] = useState(false);
   const [remarkDraft, setRemarkDraft] = useState(summary.annotation.remark ?? '');
   const [remarkSaving, setRemarkSaving] = useState(false);
+  /** 备注面板默认收起：常驻一个输入框太占地方（用户反馈「有点显眼」） */
+  const [remarkOpen, setRemarkOpen] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -194,6 +196,7 @@ export function DetailDialog({
     try {
       const out = await api.setRemark(summary.id, next === '' ? null : next, annotationRevision);
       onRemarkChanged(summary.id, out.remark, out.revision);
+      setRemarkOpen(false); // 保存即收起，想再改再点一次「备注」
     } catch (e) {
       onAnnotationError(e instanceof ApiError ? e.message : '备注保存失败');
     } finally {
@@ -226,6 +229,17 @@ export function DetailDialog({
             <span className="detail-author-name">{summary.author}</span>
           </div>
           <div className="detail-header-actions">
+            {/* 备注改成按需展开：平时不占地方，需要时点这里（有内容时按钮上有个小点） */}
+            <button
+              type="button"
+              className={`btn-icon btn-remark-toggle${savedRemark ? ' has-remark' : ''}`}
+              aria-expanded={remarkOpen}
+              aria-label={remarkOpen ? '收起备注' : '备注'}
+              title={savedRemark ? '备注（已有内容）' : '添加备注'}
+              onClick={() => setRemarkOpen((v) => !v)}
+            >
+              <IconPen size={15} />
+            </button>
             <button
               type="button"
               className={`btn-star detail-star${summary.annotation.starred ? ' starred' : ''}`}
@@ -247,6 +261,51 @@ export function DetailDialog({
             </button>
           </div>
         </div>
+
+        {remarkOpen && (
+          <div className="detail-remark-panel">
+            <div className="remark-head">
+              <span className="remark-label">备注</span>
+              {remarkDirty && <span className="remark-dirty">未保存</span>}
+            </div>
+            <textarea
+              className="remark-input"
+              autoFocus
+              value={remarkDraft}
+              onChange={(e) => setRemarkDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  void saveRemark();
+                }
+                if (e.key === 'Escape') {
+                  // 就地收起，不要顺带把整个详情关掉（详情也在监听 Esc）
+                  e.stopPropagation();
+                  setRemarkOpen(false);
+                }
+              }}
+              placeholder="给自己记点什么：为什么留下它、下次怎么用…"
+              maxLength={MAX_REMARK}
+              rows={4}
+              disabled={remarkSaving}
+              aria-label="备注"
+            />
+            <div className="remark-actions">
+              <button
+                type="button"
+                className="btn-remark-save"
+                onClick={() => void saveRemark()}
+                disabled={!remarkDirty || remarkSaving}
+              >
+                {remarkSaving ? '保存中…' : '保存备注'}
+              </button>
+              <button type="button" className="btn-remark-close" onClick={() => setRemarkOpen(false)}>
+                收起
+              </button>
+              <span className="ann-hint">⌘/Ctrl + Enter 保存 · 只存在拾藏里，不写回 Obsidian</span>
+            </div>
+          </div>
+        )}
 
         <div className="detail-body" ref={bodyRef}>
           {error && (
@@ -344,41 +403,6 @@ export function DetailDialog({
                 {currentStatus === 'archived' && (
                   <span className="ann-hint">已归档：只影响拾藏，不删源文件，随时可以取回</span>
                 )}
-              </div>
-
-              {/* 备注：纯文本（不当 HTML 渲染），只存在拾藏里 */}
-              <div className="detail-remark">
-                <div className="remark-head">
-                  <span className="remark-label">备注</span>
-                  {remarkDirty && <span className="remark-dirty">未保存</span>}
-                </div>
-                <textarea
-                  className="remark-input"
-                  value={remarkDraft}
-                  onChange={(e) => setRemarkDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                      e.preventDefault();
-                      void saveRemark();
-                    }
-                  }}
-                  placeholder="给自己记点什么：为什么留下它、下次怎么用…"
-                  maxLength={MAX_REMARK}
-                  rows={4}
-                  disabled={remarkSaving}
-                  aria-label="备注"
-                />
-                <div className="remark-actions">
-                  <button
-                    type="button"
-                    className="btn-remark-save"
-                    onClick={() => void saveRemark()}
-                    disabled={!remarkDirty || remarkSaving}
-                  >
-                    {remarkSaving ? '保存中…' : '保存备注'}
-                  </button>
-                  <span className="ann-hint">⌘/Ctrl + Enter 保存 · 只存在拾藏里，不写回 Obsidian</span>
-                </div>
               </div>
 
               {videoFailed && (

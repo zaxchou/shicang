@@ -1370,9 +1370,38 @@ img {
   color: var(--text-weak);
   line-height: 1.5;
 }
-/* 备注编辑区：凹槽输入框 + 浮起保存按钮，与筛选行同一套表面语法 */
-.detail-remark {
-  margin: 0 0 22px;
+/* 备注：默认收起成一个头部按钮（用户反馈常驻输入框"有点显眼"）；
+   展开后面板贴在头部正下方，点了按钮不用往下找编辑框 */
+.btn-remark-toggle {
+  position: relative;
+}
+.btn-remark-toggle.has-remark::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--star);
+}
+.detail-remark-panel {
+  flex: none;
+  padding: 14px 28px 16px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  box-shadow: var(--trough);
+  animation: remarkIn 160ms var(--ease-out);
+}
+@keyframes remarkIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .remark-head {
   display: flex;
@@ -1442,6 +1471,22 @@ img {
 .btn-remark-save:disabled {
   color: var(--text-weak);
   box-shadow: var(--inset-top);
+}
+.btn-remark-close {
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  transition: background var(--transition), color var(--transition), transform 130ms var(--ease-out);
+}
+.btn-remark-close:hover {
+  background: var(--hover-soft);
+  color: var(--text-primary);
+}
+.btn-remark-close:active {
+  transform: scale(0.96);
 }
 .cat-picker {
   position: relative;

@@ -122,12 +122,21 @@ export default function App() {
     }
   }, []);
 
+  /**
+   * 标签也按请求序号防过期：快速切库时两次请求可能乱序返回，
+   * 后到的旧响应会把新库的标签目录盖掉（此前只清空了一次，挡不住晚到的响应）。
+   */
+  const tagsSeqRef = useRef(0);
   const loadTags = useCallback(async () => {
+    const seq = ++tagsSeqRef.current;
+    const cid = collectionRef.current;
     try {
-      const r = await api.tags(collectionRef.current);
+      const r = await api.tags(cid);
+      if (seq !== tagsSeqRef.current) return; // 已有更新的请求：丢弃这次响应
       setTags(r.tags);
       setTagsError(null);
     } catch (e) {
+      if (seq !== tagsSeqRef.current) return;
       setTagsError(e instanceof ApiError ? e.message : '加载标签失败');
     }
   }, []);
@@ -295,42 +304,70 @@ export default function App() {
     return () => window.clearInterval(t);
   }, [library, libraryError, loadLibrary]);
 
-  const patchQuery = useCallback((patch: Partial<QueryState>) => {
-    setQuery((prev) => ({ ...prev, ...patch }));
-  }, []);
-
-  const selectCollection = useCallback((cid: string) => {
-    setCollection((prev) => {
-      if (prev === cid) return prev;
-      setViewModeState(readViewMode(cid));
-      viewModeRef.current = readViewMode(cid);
-      return cid;
-    });
-    setView('library');
-    setActiveTag(null);
-    setQuery((q) => ({ ...q, categoryId: null, q: '', starred: false, status: 'active' }));
+  /**
+   * **切换作用域前先把列表清空并进入加载态**。
+   * 不清的话：标题与侧栏计数立刻变成新口径（"标星 12 篇"），而网格里还挂着上一批卡片，
+   * 直到防抖请求回来——用户看到的就是"数字和列表互相矛盾"（深审发现）。
+   */
+  const beginScopeChange = useCallback(() => {
     setItems([]);
     setTotal(null);
     setListLoading(true);
-    setTags(null); // 标签目录属于上一个库，先清空（否则会显示别的库的标签）
-    setTagsError(null);
   }, []);
+
+  /**
+   * 改查询条件。
+   * **会改变"结果集口径"的字段**（分类 / 标星 / 归档 / 时间范围 / 时间口径）在变化的同一次提交里
+   * 就把列表清空并进入加载态——否则标题与侧栏计数已经换成新口径（"标星 1 篇"），
+   * 网格里还挂着上一批卡片（605 篇的 120 张），正好是用户最反感的"数字与列表打架"。
+   * 搜索词与排序不清空：它们是"同一批结果里再筛/再排"，保留现有卡片更稳。
+   */
+  const SCOPE_FIELDS: Array<keyof QueryState> = ['categoryId', 'starred', 'status', 'range', 'from', 'to', 'timeField'];
+  const patchQuery = useCallback(
+    (patch: Partial<QueryState>) => {
+      const prev = queryRef.current;
+      const scopeChanged = SCOPE_FIELDS.some(
+        (k) => k in patch && (patch[k] ?? null) !== (prev[k] ?? null)
+      );
+      if (scopeChanged) beginScopeChange();
+      setQuery((p) => ({ ...p, ...patch }));
+    },
+    [beginScopeChange]
+  );
+
+  const selectCollection = useCallback(
+    (cid: string) => {
+      setCollection((prev) => (prev === cid ? prev : cid));
+      // 视图模式的读取与写入放在更新函数外面：setState 的 updater 必须是纯函数
+      // （StrictMode/并发下可能被执行多次），在里面写别的 state/ref 是隐患
+      if (collectionRef.current !== cid) {
+        const mode = readViewMode(cid);
+        setViewModeState(mode);
+        viewModeRef.current = mode;
+      }
+      setView('library');
+      setActiveTag(null);
+      setQuery((q) => ({ ...q, categoryId: null, q: '', starred: false, status: 'active' }));
+      beginScopeChange();
+      setTags(null); // 标签目录属于上一个库，先清空（否则会显示别的库的标签）
+      setTagsError(null);
+    },
+    [beginScopeChange]
+  );
 
   const selectCategory = useCallback(
     (id: string | null) => {
       // 从标签结果跳到分类：同一个提交里就会切回库视图，旧标签结果必须清掉，
       // 否则新标题下面挂着上一批结果（等到防抖请求回来才换）
-      if (viewRef.current === 'tags') {
-        setItems([]);
-        setTotal(null);
-        setListLoading(true);
+      if (viewRef.current === 'tags' || queryRef.current.categoryId !== id) {
+        beginScopeChange();
       }
       setView('library');
       setActiveTag(null);
       // 选分类 = 想"看这个分类"，顺手关掉标星筛选与归档视图，避免在分类里再被悄悄过滤一层
       patchQuery({ categoryId: id, starred: false, status: 'active' });
     },
-    [patchQuery]
+    [beginScopeChange, patchQuery]
   );
 
   const selectTagsView = useCallback(() => {
@@ -345,23 +382,24 @@ export default function App() {
   const selectArchive = useCallback(() => {
     setView('library');
     setActiveTag(null);
-    setQuery((q) =>
-      q.status !== 'active'
-        ? { ...q, status: 'active' }
-        : { ...q, status: 'archived', categoryId: null, starred: false }
-    );
-  }, []);
+    const next =
+      queryRef.current.status !== 'active'
+        ? { ...queryRef.current, status: 'active' as const }
+        : { ...queryRef.current, status: 'archived' as const, categoryId: null, starred: false };
+    beginScopeChange(); // 作用域变了：先清列表，别让旧卡片挂在新标题下面
+    setQuery(next);
+  }, [beginScopeChange]);
 
   /** 侧栏「标星」：当前库内的一层筛选，打开时清掉分类与归档视图 */
   const selectStarred = useCallback(() => {
     setView('library');
     setActiveTag(null);
-    setQuery((q) =>
-      q.starred
-        ? { ...q, starred: false }
-        : { ...q, starred: true, categoryId: null, status: 'active' }
-    );
-  }, []);
+    const next = queryRef.current.starred
+      ? { ...queryRef.current, starred: false }
+      : { ...queryRef.current, starred: true, categoryId: null, status: 'active' as const };
+    beginScopeChange();
+    setQuery(next);
+  }, [beginScopeChange]);
 
   const selectTag = useCallback((tag: string) => {
     setActiveTag(tag);
@@ -490,22 +528,26 @@ export default function App() {
         viewRef.current === 'library' &&
         q.categoryId !== null &&
         (q.categoryId === 'uncategorized' ? categoryId !== null : categoryId !== q.categoryId);
-      if (filteredOut) {
-        setItems((prev) => prev.filter((n) => n.id !== noteId));
-        setTotal((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
-      } else {
-        setItems((prev) =>
-          prev.map((n) => (n.id === noteId ? { ...n, categoryId, categorySource: 'override' as const } : n))
-        );
-      }
       setDetailSummary((prev) =>
         prev && prev.id === noteId ? { ...prev, categoryId, categorySource: 'override' as const } : prev
       );
       setLibrary((prev) => (prev ? { ...prev, categoryRevision: revision } : prev));
       void loadLibrary();
-      showToast(filteredOut ? '分类已保存，已移出当前筛选' : '分类已保存');
+      if (filteredOut) {
+        setItems((prev) => prev.filter((n) => n.id !== noteId));
+        setTotal((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
+        showToast('分类已保存，已移出当前筛选');
+        return;
+      }
+      setItems((prev) =>
+        prev.map((n) => (n.id === noteId ? { ...n, categoryId, categorySource: 'override' as const } : n))
+      );
+      // 反向操作：这条刚才是被当前筛选移出去的（改回来时它已不在 items 里），
+      // 只 map 补不回来 → 重新取数，否则计数涨了而列表里没有它（深审发现）
+      if (viewRef.current === 'library' && q.categoryId !== null) void reload();
+      showToast('分类已保存');
     },
-    [loadLibrary, showToast]
+    [loadLibrary, reload, showToast]
   );
 
   const onCategoryError = useCallback(
@@ -608,6 +650,10 @@ export default function App() {
           // 在「只看标星」里取消标星：这条已经不符合当前筛选，留在列表里自相矛盾
           setItems((prev) => prev.filter((n) => n.id !== note.id));
           setTotal((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
+        } else if (next && queryRef.current.starred) {
+          // 反向操作：刚才被移出「只看标星」的那条又被标回来了——它已经不在 items 里，
+          // 光 map 是补不回来的，必须重新取数，否则计数涨了而列表里没有它（深审发现）
+          void reload();
         }
       } catch (e) {
         setItems((prev) => prev.map(mark(!next)));
@@ -615,7 +661,7 @@ export default function App() {
         showToast(e instanceof ApiError ? e.message : '标星失败', 'error');
       }
     },
-    [loadLibrary, showToast]
+    [loadLibrary, reload, showToast]
   );
 
   /** 备注保存成功：更新列表卡片与详情；若当前有搜索词就重查一次（备注本身参与搜索） */
@@ -960,6 +1006,9 @@ export default function App() {
 
       {detailSummary && library && (
         <DetailDialog
+          // key 绑到笔记 id：详情里的"展开哪些图/备注面板是否打开/识别到第几张"都是**单篇状态**，
+          // 没有 key 时切换笔记会复用同一个组件实例，上一篇的状态会带进下一篇（深审发现）
+          key={detailSummary.id}
           summary={detailSummary}
           categories={categoriesOf(infos, detailSummary.collection)}
           categoryRevision={library.categoryRevision}

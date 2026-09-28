@@ -189,7 +189,7 @@ describe('AnnotationsService 落盘', () => {
 
 // ---- 与 LibraryService 的集成（列表筛选、计数、索引重建后仍在） ----
 
-function makeCfg(fx: Fixture, collections = [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' as const }]): AppConfig {
+function makeCfg(fx: Fixture, collections: AppConfig['collections'] = [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' }]): AppConfig {
   return {
     app: 'myinfobase-test',
     vaultRoot: fx.root.replace(/\\/g, '/'),
@@ -226,6 +226,8 @@ describe('列表与详情的标注', () => {
     await svc.init();
 
     const before = svc.query({ ...baseQuery });
+    // 先钉住条数：否则列表为空时下面三条 every() 会"空集通过"，等于没测
+    expect(before.items).toHaveLength(2);
     expect(before.items.every((n) => n.annotation.starred === false)).toBe(true);
     expect(before.items.every((n) => n.annotation.status === 'active')).toBe(true);
     expect(before.items.every((n) => n.annotation.remark === null)).toBe(true);
@@ -273,11 +275,14 @@ describe('列表与详情的标注', () => {
     await svc.init();
     await svc.setStar('id-0001', true);
 
-    // 未分类里筛标星：id-0001 有分类依据才不在这里，这里只验证"叠加"这件事本身不互相吞掉
+    // 未分类里筛标星：两篇都没有分类，所以"未分类"这一层必须真的能返回它们——
+    // 先钉住基数，否则"某一层恒返回空"这种回归会因为 0 ≤ 0 而静默通过（深审发现）
     const starred = svc.query({ ...baseQuery, starred: true, categoryId: 'uncategorized' });
     const all = svc.query({ ...baseQuery, categoryId: 'uncategorized' });
-    expect(starred.total).toBeLessThanOrEqual(all.total);
+    expect(all.total).toBe(2);
+    expect(starred.total).toBe(1); // 精确值：叠加后只剩标星的那篇
     expect(starred.items.every((n) => n.annotation.starred)).toBe(true);
+    expect(starred.items[0]?.id).toBe('id-0001');
   });
 
   it('索引被删掉重建后，标星仍在（标注不参与索引指纹）', async () => {
@@ -522,8 +527,10 @@ describe('备注', () => {
     expect(svc.query({ ...baseQuery, q: '笔记一 装修' }).total).toBe(1);
     // 有一个词哪都不在 → 排除
     expect(svc.query({ ...baseQuery, q: '装修 不存在的词' }).total).toBe(0);
-    // 大小写不敏感
-    expect(svc.query({ ...baseQuery, q: '装修' }).total).toBe(1);
+    // 大小写不敏感：必须用**含拉丁字母**的词才测得到（原来这条只是把上面同一句抄了一遍）
+    await svc.setAnnotation('id-0002', { remark: 'Obsidian Canvas 用法' }, 1);
+    expect(svc.query({ ...baseQuery, q: 'obsidian canvas' }).total).toBe(1);
+    expect(svc.query({ ...baseQuery, q: 'OBSIDIAN Canvas' }).total).toBe(1);
   });
 
   it('清空备注（null / 空串）之后不再被搜到，也不留空壳', async () => {

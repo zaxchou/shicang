@@ -65,9 +65,12 @@ if (!API_KEY) {
 }
 
 const results = [];
+// ok 三态：true 通过 / false 失败 / null **跳过（没真跑）**。
+// 跳过的项必须与通过区分开——否则"本机没有 ffmpeg"也会显示成一项 ✓，
+// 让人以为 mp3 通路验证过了（深审发现）。
 function record(name, ok, detail) {
   results.push({ name, ok, detail });
-  console.log(`${ok ? '✓' : '✗'} ${name}：${detail}`);
+  console.log(`${ok === true ? '✓' : ok === null ? '–' : '✗'} ${name}：${detail}`);
 }
 
 async function callChat(body) {
@@ -360,7 +363,7 @@ try {
     ffmpegOk = false;
   }
   if (!ffmpegOk) {
-    record('ASR format=mp3（ffmpeg 转码通路）', true, '跳过：本机没有 ffmpeg，无法合成 mp3（生产镜像需要它才能转码 m4a）');
+    record('ASR format=mp3（ffmpeg 转码通路）', null, '跳过：本机没有 ffmpeg，无法合成 mp3（生产镜像需要它才能转码 m4a）');
   } else {
     const tmp = path.join(os.tmpdir(), `probe-ai-tone-${process.pid}.mp3`);
     try {
@@ -405,10 +408,13 @@ try {
     body: form,
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
+  // 这是"对照项"没错，但不是"无论如何都算过"：它必须真是 404。
+  // 哪天网关加上了这条路由，这里就该有人知道（那时可以改用标准形态）。
+  const asExpected = res.status === 404;
   record(
-    'POST /audio/transcriptions（OpenAI 形态，仅作对照）',
-    true,
-    `HTTP ${res.status}${res.status === 404 ? '（该网关无此路由，ASR 请用上面的 input_audio 形态）' : ''}`
+    'POST /audio/transcriptions（对照：本网关应为 404）',
+    asExpected,
+    `HTTP ${res.status}${asExpected ? '（该网关无此路由，ASR 请用上面的 input_audio 形态）' : '（与预期不符：网关可能新增了这条路由，值得改用标准形态）'}`
   );
 } catch (e) {
   record('POST /audio/transcriptions（对照）', false, `请求失败 ${e.message}`);
@@ -416,7 +422,11 @@ try {
 
 // ---------- 汇总 ----------
 
-const failed = results.filter((r) => !r.ok);
+const failed = results.filter((r) => r.ok === false);
+const skipped = results.filter((r) => r.ok === null);
+const passed = results.filter((r) => r.ok === true).length;
 console.log('');
-console.log(`共 ${results.length} 项，失败 ${failed.length} 项${failed.length ? '：' + failed.map((f) => f.name).join('、') : ''}`);
+console.log(
+  `共 ${results.length} 项：通过 ${passed}，跳过 ${skipped.length}${skipped.length ? '（' + skipped.map((s) => s.name).join('、') + '）' : ''}，失败 ${failed.length}${failed.length ? '：' + failed.map((f) => f.name).join('、') : ''}`
+);
 process.exit(failed.length === 0 ? 0 : 1);

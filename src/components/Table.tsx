@@ -222,8 +222,15 @@ export function DataTable({
               key={note.id}
               tabIndex={0}
               ref={(el) => registerEl(note.id, el)}
-              onClick={(e) => onOpen(note, e.currentTarget)}
+              onClick={(e) => {
+                // 行内控件（勾选框 / 星标 / 归档）自己会 stopPropagation 掉点击，
+                // 但键盘事件没被拦住 —— 见下面的 onKeyDown
+                onOpen(note, e.currentTarget);
+              }}
               onKeyDown={(e) => {
+                // 只处理"焦点就在行本身"的情况：否则空格/回车会从行内控件冒泡上来，
+                // 变成"勾一下选/按一下星标，顺手把详情也打开了"——键盘用户根本没法用空格勾选（深审发现）
+                if (e.target !== e.currentTarget) return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   onOpen(note, e.currentTarget);

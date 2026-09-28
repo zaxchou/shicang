@@ -7,6 +7,10 @@ releases/
 shots/
 .playwright-mcp/
 deploy/production/
+# 任何位置的 .env（AI key / 凭据只放这里，绝不进仓库）；.env.example 是模板，要保留
+.env
+.env.*
+!.env.example
 *.log
 .DS_Store
 Thumbs.db

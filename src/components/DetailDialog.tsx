@@ -230,6 +230,16 @@ export function DetailDialog({
     (m) => m.kind === 'image' && m.localRelativePath && m.available !== false
   );
 
+  /** 组件是否还挂着：识别是**逐张、可能持续一分钟**的付费长任务，
+   *  关掉详情后必须立刻停下——否则关了窗还在后台烧额度，回来还弹"识别完成"（深审发现） */
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
   const runOcr = useCallback(async () => {
     if (ocrRunning || !detail) return;
     const pending = ocrTargets.filter((m) => !mediaText.some((t) => t.mediaId === m.id));
@@ -250,11 +260,13 @@ export function DetailDialog({
     let cachedCount = 0;
     const failures: string[] = [];
     for (let i = 0; i < batch.length; i++) {
+      if (!aliveRef.current) return; // 详情已关闭：立刻停，不再发下一次请求
       setOcrProgress({ done: i, total: batch.length });
       try {
         const target = batch[i];
         if (!target) break;
         const out = await api.ocrNote(summary.id, target.id);
+        if (!aliveRef.current) return; // 请求期间被关掉：结果照旧写进了服务端，但不再更新界面
         const r = out.results[0];
         if (r?.ok) {
           okCount++;

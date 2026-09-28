@@ -22,6 +22,10 @@ import type {
 } from '../../shared/types.js';
 import { CORPUS_SCHEMA_VERSION } from '../../shared/types.js';
 import type { NoteRecord } from '../reader/parse.js';
+// 守卫已抽到 storage/vault-guard.ts（启动时对所有写入目录统一校验），这里继续对外导出，
+// 让 corpus 的测试与调用方不必改导入路径。
+export { assertOutsideVault, isInsideDir } from '../storage/vault-guard.js';
+import { assertOutsideVault } from '../storage/vault-guard.js';
 
 // ---------- HTML → 纯文本 ----------
 
@@ -185,6 +189,11 @@ function remarkSnippet(remark: string | null, max = 60): string | null {
   return one.length > max ? `${one.slice(0, max)}…` : one;
 }
 
+/** 单行化：标题/路径里若混进换行（畸形 H1 等），会把目录的多行结构撑坏——压成一行 */
+function oneLine(v: string): string {
+  return v.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function dateOf(r: CorpusRecord): string {
   const iso = r.publishedAt ?? r.syncedAt;
   return iso ? iso.slice(0, 10) : '无日期';
@@ -243,12 +252,12 @@ export function buildCatalog(
       L.push(`### ${sec.title}（${sec.items.length}）`);
       L.push('');
       for (const r of sec.items) {
-        const bits = [dateOf(r), r.title || '(无标题)'];
+        const bits = [dateOf(r), oneLine(r.title) || '(无标题)'];
         if (r.starred) bits.push('★');
         const snip = remarkSnippet(r.remark);
         if (snip) bits.push(`「${snip}」`);
         if (r.sourceStatus === 'missing') bits.push('（源文件已移除）');
-        L.push(`- ${bits.join(' · ')} — \`${r.sourcePath}\``);
+        L.push(`- ${bits.join(' · ')} — \`${oneLine(r.sourcePath)}\``);
       }
       L.push('');
     }
@@ -258,7 +267,7 @@ export function buildCatalog(
       L.push(`### 已归档（${arch.length}）`);
       L.push('');
       for (const r of arch) {
-        L.push(`- ${dateOf(r)} · ${r.title || '(无标题)'} — \`${r.sourcePath}\``);
+        L.push(`- ${dateOf(r)} · ${oneLine(r.title) || '(无标题)'} — \`${oneLine(r.sourcePath)}\``);
       }
       L.push('');
     }
@@ -311,21 +320,6 @@ export interface CorpusExportResult {
 export const CORPUS_FILE = 'corpus.jsonl';
 export const CATALOG_FILE = 'catalog.md';
 export const MANIFEST_FILE = 'manifest.json';
-
-/**
- * 硬断言：导出目录绝不能在 vault 里。
- * 这条纪律（"绝不污染 Obsidian 源笔记"）不能只靠配置正确，配置写错时要**拒绝启动写入**而不是照写。
- */
-export function assertOutsideVault(dir: string, vaultRoot: string): void {
-  const d = path.resolve(dir);
-  if (!vaultRoot) return;
-  const v = path.resolve(vaultRoot);
-  const rel = path.relative(v, d);
-  const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-  if (inside) {
-    throw new Error(`导出目录落在内容源里了（拒绝写入，避免污染 vault）：${d}`);
-  }
-}
 
 /** 临时文件 + 回读 + rename 提交；rename 覆盖失败时退化为 copy+replace（NAS 上真遇到过） */
 async function writeFileAtomic(file: string, content: string): Promise<void> {
@@ -394,6 +388,17 @@ export async function exportCorpus(opts: CorpusExportOptions): Promise<CorpusExp
   // 判断"要不要重写"必须用整条记录的摘要：contentDigest 有意不含星标/归档状态，
   // 拿它当判据会让"只归档一篇"被当成没变化，文件里的状态就停在旧值（写测试时才发现的坑）。
   const digest = sha256(records.map((r) => JSON.stringify(r)).join('\n'));
+  /**
+   * `catalog.md` 的排版**也依赖记录以外的东西**：分类顺序/名称来自 collections（改分类顺序、
+   * 改分类名都不会动任何一条记录），解析器版本会写进目录头部。所以重写判据里再加一个 meta 摘要，
+   * 否则"重新排了分类顺序"之后目录会一直是旧的（深审发现）。
+   */
+  const metaDigest = sha256(
+    JSON.stringify({
+      parseVersion: opts.meta.parseVersion,
+      collections: opts.collections.map((c) => ({ id: c.id, name: c.name, categories: c.categories })),
+    })
+  );
 
   const base: Omit<CorpusManifest, 'files'> = {
     schemaVersion: CORPUS_SCHEMA_VERSION,
@@ -408,6 +413,7 @@ export async function exportCorpus(opts: CorpusExportOptions): Promise<CorpusExp
     counts,
     contentDigest,
     digest,
+    metaDigest,
   };
 
   // 一模一样就不写：省掉 NAS 上几 MB 的写入，也让 generatedAt 只在真有变化时前进。
@@ -418,6 +424,7 @@ export async function exportCorpus(opts: CorpusExportOptions): Promise<CorpusExp
   if (
     prev &&
     prev.digest === digest &&
+    prev.metaDigest === metaDigest &&
     allThere &&
     prev.schemaVersion === CORPUS_SCHEMA_VERSION &&
     prev.appVersion === opts.meta.appVersion

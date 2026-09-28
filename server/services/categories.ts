@@ -80,6 +80,8 @@ export class CategoriesService {
   private catStore!: JsonStore<CategoryDoc>;
   private ovrStore!: JsonStore<OverrideDoc>;
   private categoryIds = new Set<string>();
+  /** 分类覆盖的写队列：读-改-写必须串行，见 setOverride 的说明 */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(dataDir: string, backupDir: string) {
     this.catStore = new JsonStore<CategoryDoc>(
@@ -163,25 +165,45 @@ export class CategoriesService {
     return { categoryId: null, source: 'none' };
   }
 
-  /** 人工覆盖；expectedRevision 冲突抛 CategoryConflictError */
+  /**
+   * 人工覆盖；expectedRevision 冲突抛 CategoryConflictError。
+   * 两点与标注层对齐（2026-09-28 深审发现）：
+   * ① **整段读-改-写串行化**——否则两个并发请求基于同一份旧快照算出新文档，后写的覆盖先写的，
+   *    两边还都返回成功（实测：并发给两篇设不同分类 → 只存下 1 条，两个响应都报 revision 1）；
+   * ② **无实质变化不写盘、不抬 revision**——否则"点了当前已选的分类"会白写一次，
+   *    还会让另一个已读到旧 revision 的标签页莫名撞 409。
+   */
   async setOverride(noteId: string, categoryId: string | null, expectedRevision: number): Promise<number> {
-    if (expectedRevision !== this.ovrDoc.revision) {
-      throw new CategoryConflictError(`分类数据已被其他操作更新（当前 revision ${this.ovrDoc.revision}）`);
-    }
-    if (categoryId !== null && !this.categoryIds.has(categoryId)) {
-      throw new CategoryValidationError(`未知的分类 ID: ${categoryId}`);
-    }
-    const next: OverrideDoc = {
-      schemaVersion: 1,
-      revision: this.ovrDoc.revision + 1,
-      overrides: {
-        ...this.ovrDoc.overrides,
-        [noteId]: { categoryId, updatedAt: new Date().toISOString() },
-      },
-    };
-    await this.ovrStore.save(next);
-    this.ovrDoc = next;
-    return next.revision;
+    return this.enqueue(async () => {
+      if (expectedRevision !== this.ovrDoc.revision) {
+        throw new CategoryConflictError(`分类数据已被其他操作更新（当前 revision ${this.ovrDoc.revision}）`);
+      }
+      if (categoryId !== null && !this.categoryIds.has(categoryId)) {
+        throw new CategoryValidationError(`未知的分类 ID: ${categoryId}`);
+      }
+      // 判"有没有变化"只看**覆盖值**：把 seed 分来的分类显式钉成覆盖是一次真实的改变（此后不再被 seed 覆盖）
+      const prev = this.ovrDoc.overrides[noteId];
+      if (prev && (prev.categoryId ?? null) === categoryId) return this.ovrDoc.revision;
+
+      const next: OverrideDoc = {
+        schemaVersion: 1,
+        revision: this.ovrDoc.revision + 1,
+        overrides: {
+          ...this.ovrDoc.overrides,
+          [noteId]: { categoryId, updatedAt: new Date().toISOString() },
+        },
+      };
+      await this.ovrStore.save(next);
+      this.ovrDoc = next;
+      return next.revision;
+    });
+  }
+
+  /** 队列：同一 store 的读-改-写按顺序执行（与 AnnotationsService 同一套做法） */
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(fn);
+    this.queue = run.catch(() => undefined);
+    return run;
   }
 
   /**

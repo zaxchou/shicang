@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | 小红书收藏 | `RedNote/Bookmarks` | 606 篇小红书帖子收藏 | 瀑布流 + 列表 |
 | 我的宝贝 | `我的收藏品` | 331 件个人藏品（有封面、价格、购买时间、朝代/作者/工艺等字段） | 瀑布流 + **列表（数据表，字段自动成列、可排序）** |
-| 日记 | `flomo` | 267 条 flomo 闪念/日记（标题=日期+摘要，主题来自标签） | 瀑布流 + 列表 |
+| 日记 | `flomo` | 268 条 flomo 闪念/日记（标题=日期+摘要，主题来自标签） | 瀑布流 + 列表 |
 
 ## 功能
 
@@ -79,7 +79,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
    docker build -t myinfobase:<版本> <项目>/releases/<版本>
    docker compose -f <项目>/deploy/production/compose.yaml --env-file <项目>/deploy/production/.env up -d'
    ```
-5. 首次启动自动全量扫描（v0.6.0 起 1204 篇：小红书 606 / 宝贝 331 / 日记 267）并从 `data-seed/categories-seed.json` 导入首批分类（仅未初始化的库导入，之后不再重复）。
+5. 首次启动自动全量扫描（当前 1205 篇：小红书 606 / 宝贝 331 / 日记 268）并从 `data-seed/categories-seed.json` 导入首批分类（仅未初始化的库导入，之后不再重复）。
 
 ### 日常更新（改完代码 → 上线，约 2 分钟）
 
@@ -189,8 +189,8 @@ password=<PAT>
 ## 开发
 
 ```bash
-npm run typecheck   # 前后端类型检查
-npm test            # vitest：解析/媒体路由/扫描完整性/分类优先级/幂等刷新/人工标注层/语料导出/OCR 等 199 个用例
+npm run typecheck   # 前后端 + 测试代码的类型检查
+npm test            # vitest：解析/媒体路由/扫描完整性/分类优先级/幂等刷新/人工标注层/语料导出/OCR 等 219 个用例
 npm run build       # 构建服务端 + 前端到 dist/
 npm run dev:server  # 服务端热重载（开发）
 npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）

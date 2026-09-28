@@ -195,23 +195,25 @@ export class MediaTextService {
    * 记下一条识别结果。
    * 已有同一 mediaHash 时**只补 refs**（不覆盖文本、不重算）——同一张图被第二篇引用时走这里。
    * 返回是否真的改动了文档。
+   *
+   * **先在副本上改、写盘成功后才替换内存**：早先的写法是先 push/delete 内存再落盘，
+   * 一旦写盘失败（磁盘满 / NAS 掉线），内存里留着盘上没有的结果，而且因为 `get()` 现在能查到它，
+   * 后续同一个 ref 会判成"已有、无需再写"，**永远不再重试**——正是"内存说成功、盘上没有"。
    */
   async put(entry: MediaTextEntry): Promise<{ changed: boolean; revision: number }> {
     return this.enqueue(async () => {
-      const existing = this.doc.entries[entry.mediaHash];
-      if (existing) {
-        const has = entry.refs.every((r) =>
-          existing.refs.some((x) => x.noteId === r.noteId && x.mediaId === r.mediaId)
+      const prev = this.doc.entries[entry.mediaHash];
+      const entries = { ...this.doc.entries };
+      if (prev) {
+        const missing = entry.refs.filter(
+          (r) => !prev.refs.some((x) => x.noteId === r.noteId && x.mediaId === r.mediaId)
         );
-        if (has) return { changed: false, revision: this.doc.revision };
-        for (const r of entry.refs) {
-          if (!existing.refs.some((x) => x.noteId === r.noteId && x.mediaId === r.mediaId)) existing.refs.push(r);
-        }
-        await this.persist();
-        return { changed: true, revision: this.doc.revision };
+        if (missing.length === 0) return { changed: false, revision: this.doc.revision };
+        entries[entry.mediaHash] = { ...prev, refs: [...prev.refs, ...missing] };
+      } else {
+        entries[entry.mediaHash] = entry;
       }
-      this.doc.entries[entry.mediaHash] = entry;
-      await this.persist();
+      await this.commit(entries);
       return { changed: true, revision: this.doc.revision };
     });
   }
@@ -220,8 +222,9 @@ export class MediaTextService {
   async remove(mediaHash: string): Promise<boolean> {
     return this.enqueue(async () => {
       if (!this.doc.entries[mediaHash]) return false;
-      delete this.doc.entries[mediaHash];
-      await this.persist();
+      const entries = { ...this.doc.entries };
+      delete entries[mediaHash];
+      await this.commit(entries);
       return true;
     });
   }
@@ -238,10 +241,32 @@ export class MediaTextService {
       );
       if (!hit) return false;
       const rest = hit.refs.filter((r) => !(r.noteId === noteId && r.mediaId === mediaId));
-      if (rest.length === 0) delete this.doc.entries[hit.mediaHash];
-      else hit.refs = rest;
-      await this.persist();
+      const entries = { ...this.doc.entries };
+      if (rest.length === 0) delete entries[hit.mediaHash];
+      else entries[hit.mediaHash] = { ...hit, refs: rest };
+      await this.commit(entries);
       return true;
+    });
+  }
+
+  /**
+   * 按索引现状修剪 refs：丢掉指向"已不存在的 (noteId, mediaId)"的引用，一条 entry 的 refs 全没了就整条删。
+   * 什么时候会脏：笔记删掉/换掉了某个附件，而这条识别结果还挂着旧 mediaId。
+   * 不修剪的后果是**界面数字说谎**——`mediaText.length` 虚高，会把「识别其余 N 张」按钮顶掉，
+   * 同时缩略图 404。刷新后调用一次即可（一次写盘）。
+   */
+  async pruneRefs(valid: (noteId: string, mediaId: string) => boolean): Promise<number> {
+    return this.enqueue(async () => {
+      const entries: Record<string, MediaTextEntry> = {};
+      let dropped = 0;
+      for (const [hash, e] of Object.entries(this.doc.entries)) {
+        const refs = e.refs.filter((r) => valid(r.noteId, r.mediaId));
+        dropped += e.refs.length - refs.length;
+        if (refs.length > 0) entries[hash] = refs.length === e.refs.length ? e : { ...e, refs };
+      }
+      if (dropped === 0) return 0;
+      await this.commit(entries);
+      return dropped;
     });
   }
 
@@ -251,9 +276,9 @@ export class MediaTextService {
     return run;
   }
 
-  /** 落盘成功后才抬 revision 并重建索引；顺序反了会出现"内存有、盘上没有" */
-  private async persist(): Promise<void> {
-    const next: MediaTextDoc = { ...this.doc, revision: this.doc.revision + 1 };
+  /** 提交一份新的 entries：**先写盘、成功后才换内存**（失败时内存保持旧状态，下次会重试） */
+  private async commit(entries: Record<string, MediaTextEntry>): Promise<void> {
+    const next: MediaTextDoc = { ...this.doc, revision: this.doc.revision + 1, entries };
     await this.store.save(next);
     this.doc = next;
     this.rebuildIndex();

@@ -184,7 +184,7 @@ describe('HTTP 路由', () => {
     it('localRelativePath 越界 → 403', async () => {
       const res = await fetch(`${base}/api/media/id-0001/escape.webp`);
       expect(res.status).toBe(403);
-      expect((await res.json()).error.code).toBe('MEDIA_FORBIDDEN');
+      expect((await res.json() as any).error.code).toBe('MEDIA_FORBIDDEN');
     });
 
     it('available:false 与文件不存在都返回 404', async () => {
@@ -197,7 +197,7 @@ describe('HTTP 路由', () => {
     it('未登记的笔记 404', async () => {
       const res = await fetch(`${base}/api/media/id-9999/image-1.webp`);
       expect(res.status).toBe(404);
-      expect((await res.json()).error.code).toBe('NOTE_NOT_FOUND');
+      expect((await res.json() as any).error.code).toBe('NOTE_NOT_FOUND');
     });
   });
 
@@ -205,13 +205,13 @@ describe('HTTP 路由', () => {
     it('health 返回版本与就绪状态', async () => {
       const res = await fetch(`${base}/api/health`);
       expect(res.status).toBe(200);
-      expect((await res.json()).ready).toBe(true);
+      expect((await res.json() as any).ready).toBe(true);
     });
 
     it('外来 Origin 的变更请求被拒（403），白名单 Origin 与无 Origin 放行', async () => {
       const evil = await fetch(`${base}/api/refresh`, { method: 'POST', headers: { Origin: 'https://evil.example' } });
       expect(evil.status).toBe(403);
-      expect((await evil.json()).error.code).toBe('ORIGIN_FORBIDDEN');
+      expect((await evil.json() as any).error.code).toBe('ORIGIN_FORBIDDEN');
 
       // 放行路径用 PATCH + 过期 revision 验证：拿到 409（而不是 403）就说明 Origin 通过了守卫，
       // 同时不会像 POST /refresh 那样在后台真的跑一次扫描、把索引改掉
@@ -248,16 +248,16 @@ describe('HTTP 路由', () => {
 
     it('列表过滤掉 missing 记录，detail 仍可查', async () => {
       const list = await fetch(`${base}/api/notes?limit=100`);
-      const body = await list.json();
+      const body = await list.json() as any;
       expect(body.items.map((n: { id: string }) => n.id)).not.toContain('id-0002');
       const detail = await fetch(`${base}/api/notes/id-0002`);
       expect(detail.status).toBe(200);
-      expect((await detail.json()).sourceStatus).toBe('missing');
+      expect((await detail.json() as any).sourceStatus).toBe('missing');
     });
 
     it('未分类筛选不把 missing 记录算进来', async () => {
       const res = await fetch(`${base}/api/notes?category=uncategorized`);
-      const body = await res.json();
+      const body = await res.json() as any;
       // id-0002 才是未分类的，但它此刻是 missing（源文件被标为消失）→ 列表里不该出现
       expect(body.total).toBe(0);
     });
@@ -269,7 +269,7 @@ describe('HTTP 路由', () => {
         body: JSON.stringify({ categoryId: 'cat-b', expectedRevision: 99 }),
       });
       expect(conflict.status).toBe(409);
-      expect((await conflict.json()).error.code).toBe('REVISION_CONFLICT');
+      expect((await conflict.json() as any).error.code).toBe('REVISION_CONFLICT');
 
       const badCat = await fetch(`${base}/api/notes/id-0001/category`, {
         method: 'PATCH',
@@ -277,7 +277,7 @@ describe('HTTP 路由', () => {
         body: JSON.stringify({ categoryId: 'cat-x', expectedRevision: 0 }),
       });
       expect(badCat.status).toBe(400);
-      expect((await badCat.json()).error.code).toBe('INVALID_CATEGORY');
+      expect((await badCat.json() as any).error.code).toBe('INVALID_CATEGORY');
 
       const notFound = await fetch(`${base}/api/notes/id-9999/category`, {
         method: 'PATCH',
@@ -285,7 +285,7 @@ describe('HTTP 路由', () => {
         body: JSON.stringify({ categoryId: 'cat-a', expectedRevision: 0 }),
       });
       expect(notFound.status).toBe(404);
-      expect((await notFound.json()).error.code).toBe('NOTE_NOT_FOUND');
+      expect((await notFound.json() as any).error.code).toBe('NOTE_NOT_FOUND');
     });
 
     it('PATCH 标注（标星）：幂等、冲突 409、空补丁 400、未知笔记 404、starred 查询可筛', async () => {
@@ -298,43 +298,43 @@ describe('HTTP 路由', () => {
 
       const conflict = await patch('id-0001', { star: true, expectedRevision: 99 });
       expect(conflict.status).toBe(409);
-      expect((await conflict.json()).error.code).toBe('REVISION_CONFLICT');
+      expect((await conflict.json() as any).error.code).toBe('REVISION_CONFLICT');
 
       const empty = await patch('id-0001', {});
       expect(empty.status).toBe(400);
-      expect((await empty.json()).error.code).toBe('EMPTY_PATCH');
+      expect((await empty.json() as any).error.code).toBe('EMPTY_PATCH');
 
       const badType = await patch('id-0001', { star: 'yes' });
       expect(badType.status).toBe(400);
-      expect((await badType.json()).error.code).toBe('INVALID_BODY');
+      expect((await badType.json() as any).error.code).toBe('INVALID_BODY');
 
       const notFound = await patch('id-9999', { star: true });
       expect(notFound.status).toBe(404);
-      expect((await notFound.json()).error.code).toBe('NOTE_NOT_FOUND');
+      expect((await notFound.json() as any).error.code).toBe('NOTE_NOT_FOUND');
 
       // 卡片上的快速点按不带 expectedRevision
       const ok = await patch('id-0001', { star: true });
       expect(ok.status).toBe(200);
-      expect(await ok.json()).toMatchObject({ starred: true, revision: 1 });
+      expect(await ok.json() as any).toMatchObject({ starred: true, revision: 1 });
 
       // 幂等：再点一次不该抬 revision（否则会顶掉别人编辑备注时的 expectedRevision）
-      expect(await (await patch('id-0001', { star: true })).json()).toMatchObject({ revision: 1 });
+      expect(await (await patch('id-0001', { star: true })).json() as any).toMatchObject({ revision: 1 });
 
-      const starred = await (await fetch(`${base}/api/notes?starred=true`)).json();
+      const starred = await (await fetch(`${base}/api/notes?starred=true`)).json() as any;
       expect(starred.total).toBe(1);
       expect(starred.items[0].id).toBe('id-0001');
       expect(starred.items[0].annotation.starred).toBe(true);
       // 不传 starred 时行为不变（这条本来就在列表里）
-      const all = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      const all = await (await fetch(`${base}/api/notes?limit=100`)).json() as any;
       expect(all.items.map((n: { id: string }) => n.id)).toContain('id-0001');
 
       // 字面量校验而不是 z.coerce.boolean()：字符串 "false" 不能被当成 true
       expect((await fetch(`${base}/api/notes?starred=bogus`)).status).toBe(400);
-      const explicitFalse = await (await fetch(`${base}/api/notes?starred=false`)).json();
+      const explicitFalse = await (await fetch(`${base}/api/notes?starred=false`)).json() as any;
       expect(explicitFalse.items.map((n: { id: string }) => n.id)).toContain('id-0001');
 
       await patch('id-0001', { star: false });
-      expect((await (await fetch(`${base}/api/notes?starred=true`)).json()).total).toBe(0);
+      expect((await (await fetch(`${base}/api/notes?starred=true`)).json() as any).total).toBe(0);
     });
 
     it('PATCH 归档：归档后默认列表看不到、归档视图能看到，取回后回到列表，revision 冲突 409', async () => {
@@ -345,7 +345,7 @@ describe('HTTP 路由', () => {
           body: JSON.stringify(body),
         });
 
-      const lib = await (await fetch(`${base}/api/library`)).json();
+      const lib = await (await fetch(`${base}/api/library`)).json() as any;
       const rev = lib.annotationRevision;
       expect(typeof rev).toBe('number');
 
@@ -356,28 +356,28 @@ describe('HTTP 路由', () => {
 
       const ok = await patch('id-0001', { status: 'archived', expectedRevision: rev });
       expect(ok.status).toBe(200);
-      expect(await ok.json()).toMatchObject({ status: 'archived', revision: rev + 1 });
+      expect(await ok.json() as any).toMatchObject({ status: 'archived', revision: rev + 1 });
 
       // status 缺省即 active：归档掉的就该从默认视图消失
-      const active = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      const active = await (await fetch(`${base}/api/notes?limit=100`)).json() as any;
       expect(active.items.map((n: { id: string }) => n.id)).not.toContain('id-0001');
 
-      const arch = await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json();
+      const arch = await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json() as any;
       expect(arch.items.map((n: { id: string }) => n.id)).toContain('id-0001');
       expect(arch.items[0].annotation.status).toBe('archived');
 
       // 侧栏计数与列表同口径
-      const lib2 = await (await fetch(`${base}/api/library`)).json();
+      const lib2 = await (await fetch(`${base}/api/library`)).json() as any;
       const rn = lib2.collections.find((c: { id: string }) => c.id === 'rednote');
       expect(rn.archived).toBe(1);
       expect(rn.active).toBe(rn.total - 1);
 
       // 取回 → 回到默认列表
       const back = await patch('id-0001', { status: null, expectedRevision: rev + 1 });
-      expect(await back.json()).toMatchObject({ status: 'active' });
-      const active2 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(await back.json() as any).toMatchObject({ status: 'active' });
+      const active2 = await (await fetch(`${base}/api/notes?limit=100`)).json() as any;
       expect(active2.items.map((n: { id: string }) => n.id)).toContain('id-0001');
-      expect((await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json()).total).toBe(0);
+      expect((await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json() as any).total).toBe(0);
     });
 
     it('PATCH 备注：写入能被搜索命中、超长 400、冲突 409、清空后搜不到', async () => {
@@ -387,7 +387,7 @@ describe('HTTP 路由', () => {
           headers: { 'Content-Type': 'application/json', Origin: ALLOWED_ORIGIN },
           body: JSON.stringify(body),
         });
-      const lib = await (await fetch(`${base}/api/library`)).json();
+      const lib = await (await fetch(`${base}/api/library`)).json() as any;
       const rev = lib.annotationRevision;
 
       expect((await patch('id-0001', { remark: 'x'.repeat(2001), expectedRevision: rev })).status).toBe(400);
@@ -395,15 +395,15 @@ describe('HTTP 路由', () => {
 
       const ok = await patch('id-0001', { remark: '搜索用的独特词', expectedRevision: rev });
       expect(ok.status).toBe(200);
-      expect(await ok.json()).toMatchObject({ remark: '搜索用的独特词', revision: rev + 1 });
+      expect(await ok.json() as any).toMatchObject({ remark: '搜索用的独特词', revision: rev + 1 });
 
       // 备注参与搜索：这个词只出现在备注里
-      const found = await (await fetch(`${base}/api/notes?q=${encodeURIComponent('独特词')}`)).json();
+      const found = await (await fetch(`${base}/api/notes?q=${encodeURIComponent('独特词')}`)).json() as any;
       expect(found.items.map((n: { id: string }) => n.id)).toContain('id-0001');
 
       const cleared = await patch('id-0001', { remark: null, expectedRevision: rev + 1 });
-      expect(await cleared.json()).toMatchObject({ remark: null });
-      const gone = await (await fetch(`${base}/api/notes?q=${encodeURIComponent('独特词')}`)).json();
+      expect(await cleared.json() as any).toMatchObject({ remark: null });
+      const gone = await (await fetch(`${base}/api/notes?q=${encodeURIComponent('独特词')}`)).json() as any;
       expect(gone.total).toBe(0);
     });
 
@@ -423,24 +423,24 @@ describe('HTTP 路由', () => {
       ).toBe(400);
 
       // id-0001 此刻在默认列表里；把它和另一个不存在的 id 一起归档 → 只有 1 条真的改了
-      const active0 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      const active0 = await (await fetch(`${base}/api/notes?limit=100`)).json() as any;
       expect(active0.items.map((n: { id: string }) => n.id)).toContain('id-0001');
 
       const ok = await batch({ ids: ['id-0001', 'id-9999'], status: 'archived' });
       expect(ok.status).toBe(200);
-      expect(await ok.json()).toMatchObject({ updated: 1 });
+      expect(await ok.json() as any).toMatchObject({ updated: 1 });
 
-      const active1 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      const active1 = await (await fetch(`${base}/api/notes?limit=100`)).json() as any;
       expect(active1.items.map((n: { id: string }) => n.id)).not.toContain('id-0001');
-      const arch = await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json();
+      const arch = await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json() as any;
       expect(arch.items.map((n: { id: string }) => n.id)).toContain('id-0001');
 
       // 幂等：再来一次 updated=0
-      expect(await (await batch({ ids: ['id-0001'], status: 'archived' })).json()).toMatchObject({ updated: 0 });
+      expect(await (await batch({ ids: ['id-0001'], status: 'archived' })).json() as any).toMatchObject({ updated: 0 });
 
       // 批量取回
-      expect(await (await batch({ ids: ['id-0001'], status: null })).json()).toMatchObject({ updated: 1 });
-      const active2 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(await (await batch({ ids: ['id-0001'], status: null })).json() as any).toMatchObject({ updated: 1 });
+      const active2 = await (await fetch(`${base}/api/notes?limit=100`)).json() as any;
       expect(active2.items.map((n: { id: string }) => n.id)).toContain('id-0001');
     });
 
@@ -451,7 +451,7 @@ describe('HTTP 路由', () => {
         body: JSON.stringify({ categoryId: 5 }),
       });
       expect(bad.status).toBe(400);
-      expect((await bad.json()).error.code).toBe('INVALID_BODY');
+      expect((await bad.json() as any).error.code).toBe('INVALID_BODY');
 
       const broken = await fetch(`${base}/api/notes/id-0001/category`, {
         method: 'PATCH',
@@ -459,7 +459,7 @@ describe('HTTP 路由', () => {
         body: '{not json',
       });
       expect(broken.status).toBe(400);
-      expect((await broken.json()).error.code).toBe('BAD_JSON');
+      expect((await broken.json() as any).error.code).toBe('BAD_JSON');
     });
 
     it('超过 64KB 的请求体返回 413，而不是兜底 500', async () => {
@@ -471,7 +471,7 @@ describe('HTTP 路由', () => {
         body: big,
       });
       expect(res.status).toBe(413);
-      expect((await res.json()).error.code).toBe('PAYLOAD_TOO_LARGE');
+      expect((await res.json() as any).error.code).toBe('PAYLOAD_TOO_LARGE');
     });
 
     it('越界路径一律 404，不做文件系统访问', async () => {
@@ -490,38 +490,38 @@ describe('HTTP 路由', () => {
     it('未知 API 路径返回 JSON 404（不会被媒体路由或前端兜底吃掉）', async () => {
       const res = await fetch(`${base}/api/nope`);
       expect(res.status).toBe(404);
-      expect((await res.json()).error.code).toBe('NOT_FOUND');
+      expect((await res.json() as any).error.code).toBe('NOT_FOUND');
     });
 
     // 放在最后：它会在后台真的跑一次扫描并重写索引，前面的断言都要求初始状态
     it('POST /refresh 启动真实刷新，missing 标记按文件实际存在与否重算', async () => {
       const res = await fetch(`${base}/api/refresh`, { method: 'POST', headers: { Origin: ALLOWED_ORIGIN } });
       expect(res.status).toBe(202);
-      const { job } = await res.json();
+      const { job } = await res.json() as any;
       const jobId = job.jobId as string;
 
       let final = job;
       for (let i = 0; i < 200 && final.state === 'running'; i++) {
         await new Promise((r) => setTimeout(r, 50));
-        final = (await (await fetch(`${base}/api/refresh/${jobId}`)).json()).job;
+        final = (await (await fetch(`${base}/api/refresh/${jobId}`)).json() as any).job;
       }
       expect(final.state).toBe('completed');
       expect(final.errors).toBe(0);
 
       const detail = await fetch(`${base}/api/notes/id-0002`);
-      expect((await detail.json()).sourceStatus).toBe('available');
-      const uncategorized = await (await fetch(`${base}/api/notes?category=uncategorized`)).json();
+      expect((await detail.json() as any).sourceStatus).toBe('available');
+      const uncategorized = await (await fetch(`${base}/api/notes?category=uncategorized`)).json() as any;
       expect(uncategorized.total).toBe(1);
     });
 
     it('语料导出路由：还没导过时 GET 返回 null，POST 写出三件套，再 POST 因内容未变而跳过', async () => {
-      const before = await (await fetch(`${base}/api/export/corpus`)).json();
+      const before = await (await fetch(`${base}/api/export/corpus`)).json() as any;
       expect(before.manifest).toBeNull();
       expect(before.dir).toBe(fx.exportDir);
 
       const post = await fetch(`${base}/api/export/corpus`, { method: 'POST', headers: { Origin: ALLOWED_ORIGIN } });
       expect(post.status).toBe(200);
-      const body = await post.json();
+      const body = await post.json() as any;
       expect(body.written).toBe(true);
       expect(body.manifest.schemaVersion).toBe(1);
       expect(body.manifest.counts.total).toBeGreaterThan(0);
@@ -537,13 +537,13 @@ describe('HTTP 路由', () => {
       expect(fs.existsSync(path.join(fx.exportDir, 'catalog.md'))).toBe(true);
 
       // GET 读回来的就是刚写的 manifest
-      const got = await (await fetch(`${base}/api/export/corpus`)).json();
+      const got = await (await fetch(`${base}/api/export/corpus`)).json() as any;
       expect(got.manifest.contentDigest).toBe(body.manifest.contentDigest);
 
       // 幂等：内容没变就不重复写（NAS 上不该每次都写几 MB）
       const again = await (
         await fetch(`${base}/api/export/corpus`, { method: 'POST', headers: { Origin: ALLOWED_ORIGIN } })
-      ).json();
+      ).json() as any;
       expect(again.written).toBe(false);
       expect(again.manifest.generatedAt).toBe(body.manifest.generatedAt);
     });

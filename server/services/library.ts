@@ -160,10 +160,21 @@ export class LibraryService {
     return this.cfg.vaultRoot;
   }
 
-  /** 索引指纹：收藏库结构（id/root/exclude）+ 解析器版本，任一变化即索引作废 */
+  /**
+   * 索引指纹：**内容源 + 收藏库结构（id/root/type/exclude）+ 解析器版本**，任一变化即索引作废。
+   * 内容源必须进指纹：同一份 DATA_DIR 换了 SOURCE_ROOT（搬家 / 换盘 / 开发切生产）时，
+   * 少了这一项就会继续用旧库的索引——列表看着正常，媒体却全 404，且没有任何提示（深审发现）。
+   * `type` 也要进：它决定走哪个解析分支。
+   */
   private indexSig(): string {
     return JSON.stringify({
-      collections: this.cfg.collections.map((c) => ({ id: c.id, root: c.root, exclude: c.exclude ?? [] })),
+      vaultRoot: this.cfg.vaultRoot,
+      collections: this.cfg.collections.map((c) => ({
+        id: c.id,
+        root: c.root,
+        type: c.type,
+        exclude: c.exclude ?? [],
+      })),
       parseVersion: PARSE_VERSION,
     });
   }
@@ -197,8 +208,15 @@ export class LibraryService {
     }
     this.bootDiagnostics = diagnostics;
 
-    // 无索引缓存（或结构失效）：自动全量扫描
-    if (this.doc.notes.length === 0) {
+    // 无索引缓存（或结构失效）：自动全量扫描。
+    // **一篇可读笔记都没有时也要扫**：上一轮如果内容源没挂上，记录会全部保留成 missing，
+    // notes.length 不为 0，于是修好挂载后重启不会自愈，用户看到的是空库（深审发现）。
+    const noAvailable = this.doc.notes.every((n) => n.sourceStatus !== 'available');
+    if (this.doc.notes.length === 0 || noAvailable) {
+      if (noAvailable && this.doc.notes.length > 0) {
+        diagnostics.push('索引里没有任何可读记录（内容源可能未挂载），已自动重新扫描');
+        this.bootDiagnostics = diagnostics;
+      }
       await this.runScan('initial');
     }
   }
@@ -483,28 +501,44 @@ export class LibraryService {
 
   /** 导出语料（corpus.jsonl / catalog.md / manifest.json）；内容没变时不写盘 */
   async exportCorpus(): Promise<CorpusExportResult> {
-    const result = await writeCorpus({
-      dir: this.cfg.exportDir,
-      vaultRoot: this.cfg.vaultRoot,
-      records: this.corpusRecords(),
-      collections: this.corpusCollections(),
-      meta: {
-        app: this.cfg.app,
-        appVersion: this.cfg.version,
-        contentSource: this.cfg.vaultRoot,
-        indexRevision: this.doc.revision,
-        annotationRevision: this.annotations.revision,
-        categoryRevision: this.categories.revision,
-        parseVersion: PARSE_VERSION,
-      },
+    // **串行化**：手动点「导出语料」可能正好撞上刷新后的自动导出。两个导出并发时
+    // 临时文件名可能相同（同进程同毫秒）、manifest 的读-改-写也会互相覆盖，
+    // 结果是半截的 corpus.jsonl（深审发现）。串起来后第二次通常是"内容未变 → 跳过"。
+    return this.corpusQueue(async () =>
+      writeCorpus({
+        dir: this.cfg.exportDir,
+        vaultRoot: this.cfg.vaultRoot,
+        records: this.corpusRecords(),
+        collections: this.corpusCollections(),
+        meta: {
+          app: this.cfg.app,
+          appVersion: this.cfg.version,
+          contentSource: this.cfg.vaultRoot,
+          indexRevision: this.doc.revision,
+          annotationRevision: this.annotations.revision,
+          categoryRevision: this.categories.revision,
+          parseVersion: PARSE_VERSION,
+        },
+      })
+    ).then((result) => {
+      log.info(
+        result.written
+          ? `语料导出完成: ${result.manifest.counts.total} 篇 → ${result.dir}`
+          : '语料导出: 内容未变，跳过写入'
+      );
+      return result;
     });
-    log.info(
-      result.written
-        ? `语料导出完成: ${result.manifest.counts.total} 篇 → ${result.dir}`
-        : '语料导出: 内容未变，跳过写入'
-    );
-    return result;
   }
+
+  /** 语料导出的写队列（见 exportCorpus 的说明） */
+  private corpusQueue: <T>(fn: () => Promise<T>) => Promise<T> = (() => {
+    let queue: Promise<unknown> = Promise.resolve();
+    return <T>(fn: () => Promise<T>): Promise<T> => {
+      const run = queue.then(fn);
+      queue = run.catch(() => undefined);
+      return run;
+    };
+  })();
 
   /** 上次导出的 manifest（读盘，重启后仍能看到）；从未导出或文件坏了返回 null */
   corpusManifest(): CorpusManifest | null {
@@ -559,18 +593,24 @@ export class LibraryService {
     }
 
     const results: OcrRunResult['results'] = [];
-    // 已经有结果的跳过（不重复烧额度）；但缓存命中要补 ref，所以下面按 hash 再判一次
-    const pending = targets.filter((m) => !this.mediaText.hasFor(noteId, m.id));
-    const limited = cfg ? pending.slice(0, cfg.maxPerNote) : [];
+    /**
+     * 待识别判定**按内容 hash，不按 mediaId**：早先用 `hasFor(noteId, mediaId)` 跳过，
+     * 于是"文件在同名路径上被换掉"（重新同步、手动替换）时永远拿旧文本——内容 hash 缓存根本没被问到。
+     * 现在每张都读盘算 hash：hash 命中就复用（不花钱），否则才调模型。
+     * **上限只约束真正调用模型的张数**：命中缓存的不花额度，没理由占名额。
+     */
+    let modelBudget = cfg ? cfg.maxPerNote : 1;
 
     if (!cfg) {
-      for (const m of limited.length ? limited : pending.slice(0, 1)) {
-        results.push({ mediaId: m.id, ok: false, cached: false, reason: '未配置 AI 凭据（AI_CLASSIFY_API_KEY）' });
-      }
-      return { noteId, results, recognized: this.mediaTextFor(noteId), remaining: pending.length, model: null };
+      const first = targets[0];
+      if (first) results.push({ mediaId: first.id, ok: false, cached: false, reason: '未配置 AI 凭据（AI_CLASSIFY_API_KEY）' });
+      // remaining 按**这篇整体**算（与成功路径同一口径），不能按本次请求的目标数
+      const left = allTargets.filter((m) => !this.mediaText.hasFor(noteId, m.id)).length;
+      return { noteId, results, recognized: this.mediaTextFor(noteId), remaining: left, model: null };
     }
 
-    for (const m of limited) {
+    for (const m of targets) {
+      if (modelBudget <= 0) break;
       const abs = this.resolveMediaAbs(m.localRelativePath!);
       if (!abs) {
         results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体路径越界，已拒绝读取' });
@@ -595,17 +635,25 @@ export class LibraryService {
       const hash = mediaHashOf(bytes);
       const cached = this.mediaText.get(hash);
       if (cached) {
-        // 同一份文件以前算过：只补 ref，不再调模型
+        // 同一份文件以前算过（无论哪篇笔记算的）：只补 ref，不再调模型
         await this.mediaText.put({ ...cached, refs: [{ noteId, mediaId: m.id }] });
         results.push({ mediaId: m.id, ok: true, cached: true, text: cached.text });
         continue;
       }
 
       const out = await ocrImage(cfg, { bytes, mime });
+      modelBudget--; // 只有真正调用模型才占名额（命中缓存的不花额度）
       if (!out.ok) {
         results.push({ mediaId: m.id, ok: false, cached: false, reason: out.reason });
         continue;
       }
+      // 同一张图被换过内容时，先把指向这个 mediaId 的**旧结果**摘掉，
+      // 否则新旧两条都挂在同一个 mediaId 上：界面会出现两条"图 N"，数字也对不上。
+      const stale = this.mediaText
+        .forNote(noteId)
+        .some((e) => e.mediaHash !== hash && e.refs.some((r) => r.noteId === noteId && r.mediaId === m.id));
+      if (stale) await this.mediaText.removeRef(noteId, m.id);
+
       await this.mediaText.put({
         mediaHash: hash,
         kind: 'ocr',
@@ -639,8 +687,10 @@ export class LibraryService {
   }
 
   libraryInfo(): LibraryInfo {
-    // 顶层字段保持 rednote 口径（兼容）；前端以 collections 为准
-    const rnIds = this.doc.notes.filter((n) => n.collection === 'rednote').map((n) => n.id);
+    // 顶层字段保持 rednote 口径（兼容）；前端以 collections 为准。
+    // **口径必须与 collectionInfo 一致（工作集）**：否则归档一篇之后，顶层的分类计数不动、
+    // 而 collections 里的动，"同一页上两套数字"正是这条纪律要避免的（深审发现）。
+    const rnIds = this.doc.notes.filter((n) => n.collection === 'rednote' && this.inWorkSet(n)).map((n) => n.id);
     const { counts, uncategorized } = this.categories.countEffective(rnIds);
     const cats: Category[] = this.categories.categories;
     return {
@@ -923,6 +973,17 @@ export class LibraryService {
     // 提交成功后才切换内存
     this.doc = nextDoc;
     this.rebuildMaps();
+
+    // 顺手修剪识别文本里的孤儿引用（笔记换掉/删掉了某个附件）：刷新时做一次，成本一次读+至多一次写。
+    try {
+      const dropped = await this.mediaText.pruneRefs((noteId, mediaId) => {
+        const rec = this.byId.get(noteId);
+        return !!rec && rec.media.some((m) => m.id === mediaId);
+      });
+      if (dropped > 0) log.info(`识别文本清理: 摘掉 ${dropped} 条失效引用（附件已不在索引里）`);
+    } catch (e) {
+      log.warn(`识别文本清理失败（不影响刷新）: ${(e as Error).message}`);
+    }
 
     const classifyMsg = await this.autoClassify(nextDoc.notes, job);
     // 首扫没有 job（诊断只走 onProgress），把自动分类结果放进页面诊断；

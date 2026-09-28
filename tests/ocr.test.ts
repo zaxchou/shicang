@@ -581,7 +581,7 @@ describe('HTTP：识别文本路由', () => {
   });
 
   it('GET 还没识别时返回空数组；POST 识别后可读回；DELETE 可清掉', async () => {
-    const empty = await (await fetch(`${base}/api/notes/id-0001/media-text`)).json();
+    const empty = await (await fetch(`${base}/api/notes/id-0001/media-text`)).json() as any;
     expect(empty.items).toEqual([]);
 
     stubVision({ text: '接口识别出来的字' });
@@ -591,16 +591,16 @@ describe('HTTP：识别文本路由', () => {
       body: JSON.stringify({}),
     });
     expect(post.status).toBe(200);
-    const out = await post.json();
+    const out = await post.json() as any;
     expect(out.results[0]).toMatchObject({ ok: true, cached: false });
     expect(out.recognized).toHaveLength(1);
 
-    const after = await (await fetch(`${base}/api/notes/id-0001/media-text`)).json();
+    const after = await (await fetch(`${base}/api/notes/id-0001/media-text`)).json() as any;
     expect(after.items[0]).toMatchObject({ kind: 'ocr', text: '接口识别出来的字', mediaId: 'image-1.webp' });
 
     const del = await fetch(`${base}/api/notes/id-0001/media-text/image-1.webp`, { method: 'DELETE' });
-    expect((await del.json()).removed).toBe(true);
-    expect((await (await fetch(`${base}/api/notes/id-0001/media-text`)).json()).items).toEqual([]);
+    expect((await del.json() as any).removed).toBe(true);
+    expect((await (await fetch(`${base}/api/notes/id-0001/media-text`)).json() as any).items).toEqual([]);
   });
 
   it('未知笔记 404、指定不存在的媒体 400、请求体不是对象 400', async () => {
@@ -620,6 +620,6 @@ describe('HTTP：识别文本路由', () => {
       body: JSON.stringify({ mediaId: 'image-9.webp' }),
     });
     expect(bad.status).toBe(400);
-    expect((await bad.json()).error.code).toBe('INVALID_OCR_TARGET');
+    expect((await bad.json() as any).error.code).toBe('INVALID_OCR_TARGET');
   });
 });

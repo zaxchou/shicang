@@ -165,6 +165,13 @@ export function applyAnnotationPatch(
 export class AnnotationsService {
   private doc: AnnotationDoc = { schemaVersion: 1, revision: 0, entries: {} };
   private store: JsonStore<AnnotationDoc>;
+  /**
+   * 串行化队列：**必须把"检查 revision → 合并 → 写盘 → 更新内存"整段串起来**。
+   * JsonStore 只保证磁盘写入有序，管不住这个读-改-写序列——两个并发请求会各自基于同一份
+   * 旧内存快照算出新文档，后写的把先写的覆盖掉，而且两边都返回成功（实测复现：
+   * 并行标星两篇 → 只存下 1 条，两条响应都报 revision 1）。
+   */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(dataDir: string, backupDir: string) {
     this.store = new JsonStore<AnnotationDoc>(
@@ -230,29 +237,32 @@ export class AnnotationsService {
   /**
    * 改一条笔记的标注（一次写盘合并所有字段），返回新 revision。
    * `expectedRevision` 用于"改之前先看一眼"的场景（备注/状态）；星标是单字段幂等动作，可以不传。
+   * 整段读-改-写放在队列里，见 `queue` 的说明。
    */
   async patch(noteId: string, patch: AnnotationPatch, expectedRevision?: number): Promise<number> {
-    if (patch.status !== undefined && patch.status !== null && !STATUS_VALUES.has(patch.status)) {
-      throw new AnnotationValidationError(`未知的状态: ${String(patch.status)}`);
-    }
-    if (expectedRevision !== undefined && expectedRevision !== this.doc.revision) {
-      throw new AnnotationConflictError(`标注数据已被其他操作更新（当前 revision ${this.doc.revision}）`);
-    }
+    return this.enqueue(async () => {
+      if (patch.status !== undefined && patch.status !== null && !STATUS_VALUES.has(patch.status)) {
+        throw new AnnotationValidationError(`未知的状态: ${String(patch.status)}`);
+      }
+      if (expectedRevision !== undefined && expectedRevision !== this.doc.revision) {
+        throw new AnnotationConflictError(`标注数据已被其他操作更新（当前 revision ${this.doc.revision}）`);
+      }
 
-    const now = new Date().toISOString();
-    const prev = this.doc.entries[noteId];
-    const nextEntry = applyAnnotationPatch(prev, patch, now);
-    // 无变化：applyAnnotationPatch 会把 prev 原样退回，据此避免写盘与 revision 虚增
-    if ((prev ?? null) === nextEntry) return this.doc.revision;
+      const now = new Date().toISOString();
+      const prev = this.doc.entries[noteId];
+      const nextEntry = applyAnnotationPatch(prev, patch, now);
+      // 无变化：applyAnnotationPatch 会把 prev 原样退回，据此避免写盘与 revision 虚增
+      if ((prev ?? null) === nextEntry) return this.doc.revision;
 
-    const entries = { ...this.doc.entries };
-    if (nextEntry) entries[noteId] = nextEntry;
-    else delete entries[noteId];
+      const entries = { ...this.doc.entries };
+      if (nextEntry) entries[noteId] = nextEntry;
+      else delete entries[noteId];
 
-    const next: AnnotationDoc = { schemaVersion: 1, revision: this.doc.revision + 1, entries };
-    await this.store.save(next); // 写失败必须抛错，内存不得先当作成功
-    this.doc = next;
-    return next.revision;
+      const next: AnnotationDoc = { schemaVersion: 1, revision: this.doc.revision + 1, entries };
+      await this.store.save(next); // 写失败必须抛错，内存不得先当作成功
+      this.doc = next;
+      return next.revision;
+    });
   }
 
   /**
@@ -261,26 +271,35 @@ export class AnnotationsService {
    * 不会覆盖别人正在编辑的另一个字段，因此不需要让"选了 20 条"去跟 revision 较劲。
    */
   async patchMany(ids: string[], patch: AnnotationPatch): Promise<{ revision: number; updated: number }> {
-    if (patch.status !== undefined && patch.status !== null && !STATUS_VALUES.has(patch.status)) {
-      throw new AnnotationValidationError(`未知的状态: ${String(patch.status)}`);
-    }
-    const now = new Date().toISOString();
-    const entries = { ...this.doc.entries };
-    let updated = 0;
-    for (const id of ids) {
-      const prev = entries[id];
-      const next = applyAnnotationPatch(prev, patch, now);
-      if ((prev ?? null) === next) continue; // 已经是这个状态：不算改动
-      if (next) entries[id] = next;
-      else delete entries[id];
-      updated++;
-    }
-    if (updated === 0) return { revision: this.doc.revision, updated: 0 };
+    return this.enqueue(async () => {
+      if (patch.status !== undefined && patch.status !== null && !STATUS_VALUES.has(patch.status)) {
+        throw new AnnotationValidationError(`未知的状态: ${String(patch.status)}`);
+      }
+      const now = new Date().toISOString();
+      const entries = { ...this.doc.entries };
+      let updated = 0;
+      for (const id of ids) {
+        const prev = entries[id];
+        const next = applyAnnotationPatch(prev, patch, now);
+        if ((prev ?? null) === next) continue; // 已经是这个状态：不算改动
+        if (next) entries[id] = next;
+        else delete entries[id];
+        updated++;
+      }
+      if (updated === 0) return { revision: this.doc.revision, updated: 0 };
 
-    const next: AnnotationDoc = { schemaVersion: 1, revision: this.doc.revision + 1, entries };
-    await this.store.save(next);
-    this.doc = next;
-    return { revision: next.revision, updated };
+      const next: AnnotationDoc = { schemaVersion: 1, revision: this.doc.revision + 1, entries };
+      await this.store.save(next);
+      this.doc = next;
+      return { revision: next.revision, updated };
+    });
+  }
+
+  /** 队列：同一 store 的读-改-写按顺序执行，杜绝"各自基于旧快照覆盖" */
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(fn);
+    this.queue = run.catch(() => undefined);
+    return run;
   }
 
   /** 给定 id 集合里有多少条标了星（侧栏按收藏库计数用） */

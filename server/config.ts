@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CollectionDef } from '../shared/types.js';
+import { assertOutsideVault } from './storage/vault-guard.js';
 
 export interface AppConfig {
   app: string;
@@ -111,6 +112,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   if (isProduction && !dataDirEnv) {
     throw new Error('生产环境必须设置 DATA_DIR，禁止使用开发默认数据目录');
+  }
+  // 所有写入目录都不许落在内容源里——**启动即失败**，而不是等出错那一天才发现污染了 Obsidian。
+  // （此前只有语料导出那一处有守卫，数据/备份/日志目录配错了照样会写进 vault。）
+  if (cfg.vaultRoot) {
+    assertOutsideVault(cfg.dataDir, cfg.vaultRoot, 'DATA_DIR（数据目录）');
+    assertOutsideVault(cfg.backupDir, cfg.vaultRoot, 'BACKUP_DIR（备份目录）');
+    assertOutsideVault(cfg.exportDir, cfg.vaultRoot, 'EXPORT_DIR（语料导出目录）');
+    assertOutsideVault(cfg.logDir, cfg.vaultRoot, 'LOG_DIR（日志目录）');
   }
   return cfg;
 }

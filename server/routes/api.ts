@@ -313,9 +313,11 @@ export function apiRouter(deps: ApiDeps): express.Router {
   router.delete(
     '/notes/:id/media-text/:mediaId',
     wrap(async (req, res) => {
-      const removed = await deps
-        .library()
-        .clearMediaText(requireParam(req, 'id'), requireParam(req, 'mediaId'));
+      const id = requireParam(req, 'id');
+      // 与同族的 GET 一样先确认笔记存在：否则一个 id 打错也返回 200，客户端分不清
+      // "笔记不在了"和"本来就没有可删的"
+      if (!deps.library().hasNote(id)) throw new HttpError(404, 'NOTE_NOT_FOUND', `未找到笔记 ${id}`);
+      const removed = await deps.library().clearMediaText(id, requireParam(req, 'mediaId'));
       res.json({ removed });
     })
   );
@@ -359,8 +361,17 @@ export function apiRouter(deps: ApiDeps): express.Router {
     '/export/corpus',
     wrap(async (req, res) => {
       const lib = deps.library();
-      const result = await lib.exportCorpus();
-      res.json({ manifest: result.manifest, written: result.written, dir: result.dir });
+      try {
+        const result = await lib.exportCorpus();
+        res.json({ manifest: result.manifest, written: result.written, dir: result.dir });
+      } catch (e) {
+        // 导出目录被守卫拒绝（配到内容源里了）是可操作的配置错误，不该显示成"服务器内部错误"
+        const msg = (e as Error).message ?? '';
+        if (msg.includes('落在内容源里')) {
+          throw new HttpError(500, 'EXPORT_DIR_IN_VAULT', msg);
+        }
+        throw e;
+      }
     })
   );
 

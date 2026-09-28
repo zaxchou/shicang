@@ -307,6 +307,8 @@ export interface CorpusManifest {
   };
   /** 全部 contentHash 排序后的摘要：不变 = 没有任何一篇需要外部管道重算 */
   contentDigest: string;
+  /** `catalog.md` 的排版依赖（分类顺序/名称、解析器版本）的摘要：它变了也要重写目录 */
+  metaDigest: string;
   /**
    * 全部**记录**（含星标/状态/时间等）的摘要，只用来判断"这次要不要重写文件"。
    * 不能拿 `contentDigest` 代替它：那个**有意不含**星标与归档状态，用它判断会让

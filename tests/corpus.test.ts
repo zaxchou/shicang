@@ -122,7 +122,7 @@ describe('computeContentHash：语义内容 hash', () => {
 
   it('识别文本参与 hash（OCR/转录接进来后，外部管道才会感知到内容变了）', () => {
     const withOcr: RecognizedText[] = [
-      { kind: 'ocr', mediaId: 'image-1.webp', text: '图里的字', model: 'm', at: '2026-01-01T00:00:00.000Z' },
+      { kind: 'ocr', mediaId: 'image-1.webp', mediaHash: 'h-ocr', text: '图里的字', model: 'm', at: '2026-01-01T00:00:00.000Z' },
     ];
     expect(computeContentHash({ ...base, recognized: withOcr })).not.toBe(computeContentHash(base));
   });
@@ -169,7 +169,7 @@ describe('buildCorpusRecords：记录构造', () => {
     expect(noProvider[0].recognized).toEqual([]);
 
     const ocr: RecognizedText[] = [
-      { kind: 'ocr', mediaId: 'image-1.webp', text: '识别出的字', model: 'mimo-v2.6-flash', at: '2026-01-01T00:00:00.000Z' },
+      { kind: 'ocr', mediaId: 'image-1.webp', mediaHash: 'h-1', text: '识别出的字', model: 'mimo-v2.6-flash', at: '2026-01-01T00:00:00.000Z' },
     ];
     const withProvider = buildCorpusRecords([mkRecord()], mkCtx({ recognizedOf: () => ocr }));
     expect(withProvider[0].recognized).toEqual(ocr);
@@ -234,6 +234,8 @@ describe('buildCatalog：人读目录', () => {
       byCollection: [{ id: 'rednote', name: '小红书收藏', count: 3 }],
     },
     contentDigest: 'd',
+    digest: 'd',
+    metaDigest: 'm',
   };
 
   it('分类小节顺序跟 collections 走，不跟记录出现顺序走；归档单独一节', () => {
@@ -518,8 +520,9 @@ describe('与 LibraryService 的接线', () => {
 
     // 标注一层：标星 + 备注 + 归档
     await svc.setStar('id-0001', true);
-    await svc.setRemark('id-0001', '这条以后做参考');
-    await svc.setStatus('id-0002', 'archived');
+    // 备注与状态是"看一眼再改"的写：必须带当前 revision（此前少传了参数，类型检查这次才抓到）
+    await svc.setRemark('id-0001', '这条以后做参考', svc.libraryInfo().annotationRevision);
+    await svc.setStatus('id-0002', 'archived', svc.libraryInfo().annotationRevision);
     await svc.exportCorpus();
 
     const recs = fs

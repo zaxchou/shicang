@@ -146,7 +146,8 @@ export async function scanVault(
           records.push(prev);
           diagnostics.push(`${meta.relPath}: ${outcome.error ?? '解析为空'}；保留旧记录`);
         } else {
-          counts.skipped++;
+          // 这里**不再计 skipped**：skipped 的语义是"有意跳过"（索引页/空笔记），
+          // 一个坏文件同时算进 errors 与 skipped 会让刷新诊断里两个数字都失真（深审发现）
           diagnostics.push(`${meta.relPath}: ${outcome.error ?? '解析为空'}；跳过`);
         }
         continue;

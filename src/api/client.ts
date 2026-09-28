@@ -51,6 +51,8 @@ export interface QueryParams {
   q: string;
   categoryId: string | null; // null=全部, 'uncategorized', 或分类 id
   tag?: string | null; // 精确标签过滤
+  /** 只看已标星 */
+  starred?: boolean;
   timeField: 'published' | 'synced';
   range: 'all' | '7d' | '30d' | 'custom';
   from?: string;
@@ -66,6 +68,7 @@ export function buildQuery(p: QueryParams): string {
   if (p.q.trim()) sp.set('q', p.q.trim());
   if (p.categoryId) sp.set('category', p.categoryId);
   if (p.tag) sp.set('tag', p.tag);
+  if (p.starred) sp.set('starred', 'true');
   sp.set('timeField', p.timeField);
   sp.set('range', p.range);
   if (p.range === 'custom') {
@@ -90,6 +93,12 @@ export const api = {
       `/api/notes/${encodeURIComponent(id)}/category`,
       { method: 'PATCH', body: JSON.stringify({ categoryId, expectedRevision }) }
     ),
+  /** 标星 / 取消标星（单字段幂等动作，不需要 expectedRevision） */
+  setStar: (id: string, star: boolean) =>
+    request<{ revision: number; starred: boolean }>(`/api/notes/${encodeURIComponent(id)}/annotation`, {
+      method: 'PATCH',
+      body: JSON.stringify({ star }),
+    }),
   startRefresh: () => request<{ job: RefreshJobInfo }>('/api/refresh', { method: 'POST' }),
   refreshJob: (jobId: string) => request<{ job: RefreshJobInfo }>(`/api/refresh/${encodeURIComponent(jobId)}`),
 };

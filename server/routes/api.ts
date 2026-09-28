@@ -14,6 +14,8 @@ import { DEFAULT_PAGE_SIZE } from '../../shared/types.js';
 const MAX_PAGE_SIZE_TABLE = 1000;
 import type { LibraryService } from '../services/library.js';
 import {
+  AnnotationConflictError,
+  AnnotationValidationError,
   CategoryConflictError,
   CategoryValidationError,
   NotFoundError,
@@ -43,6 +45,8 @@ const noteQuerySchema = z.object({
   q: z.string().max(200).optional(),
   category: z.string().max(64).optional(),
   tag: z.string().trim().min(1).max(40).optional(),
+  // 用字面量而不是 z.coerce.boolean()：后者把字符串 "false" 也当 true（非空即真）
+  starred: z.enum(['true', 'false']).optional(),
   timeField: z.enum(['published', 'synced']).default('published'),
   range: z.enum(['all', '7d', '30d', 'custom']).default('all'),
   from: z
@@ -61,6 +65,12 @@ const noteQuerySchema = z.object({
 const patchCategorySchema = z.object({
   categoryId: z.string().max(64).nullable(),
   expectedRevision: z.number().int().nonnegative(),
+});
+
+/** 人工标注补丁：至少要带一个待改字段；expectedRevision 可选（星标是单字段幂等动作） */
+const patchAnnotationSchema = z.object({
+  star: z.boolean().optional(),
+  expectedRevision: z.number().int().nonnegative().optional(),
 });
 
 /** 变更类请求的 Origin 校验；同源浏览器地址栏访问无 Origin，直接放行 */
@@ -153,6 +163,7 @@ export function apiRouter(deps: ApiDeps): express.Router {
         q: p.q,
         categoryId: p.category ?? null,
         tag: p.tag ?? null,
+        starred: p.starred === 'true',
         timeField: p.timeField,
         range: p.range,
         from: p.from,
@@ -189,6 +200,33 @@ export function apiRouter(deps: ApiDeps): express.Router {
         }
         if (e instanceof CategoryValidationError) {
           throw new HttpError(400, 'INVALID_CATEGORY', e.message);
+        }
+        throw e;
+      }
+    })
+  );
+
+  router.patch(
+    '/notes/:id/annotation',
+    wrap(async (req, res) => {
+      const body = patchAnnotationSchema.safeParse(req.body);
+      if (!body.success) {
+        throw new HttpError(400, 'INVALID_BODY', '请求体无效', body.error.flatten());
+      }
+      if (body.data.star === undefined) {
+        throw new HttpError(400, 'EMPTY_PATCH', '请求体至少要带一个待修改字段');
+      }
+      try {
+        const out = await deps
+          .library()
+          .setStar(requireParam(req, 'id'), body.data.star, body.data.expectedRevision);
+        res.json(out);
+      } catch (e) {
+        if (e instanceof AnnotationConflictError) {
+          throw new HttpError(409, 'REVISION_CONFLICT', e.message);
+        }
+        if (e instanceof AnnotationValidationError) {
+          throw new HttpError(400, 'INVALID_ANNOTATION', e.message);
         }
         throw e;
       }

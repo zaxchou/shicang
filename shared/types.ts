@@ -22,6 +22,23 @@ export interface MediaItem {
   displayable?: boolean;
 }
 
+/**
+ * 人工标注状态。'active' = 在用（不落字段）；另外两种都表示「不再属于工作集」：
+ * 'expired' 内容用过一次不再需要，'uncollected' 打算去小红书取消收藏（本系统只能记下来）。
+ * 做成互斥的单字段而不是三个独立开关——两种原因在界面上的行为一致（默认隐藏、进归档、可分别筛），
+ * 互斥就不会出现"既过期又已取消"这种没有意义的组合。
+ */
+export type NoteStatus = 'active' | 'expired' | 'uncollected';
+
+/** 人工标注层：星标 / 状态 / 备注。存 runtime 数据目录，绝不写回源笔记。 */
+export interface NoteAnnotation {
+  starred: boolean;
+  /** 标星时间（ISO）；未标星为 null */
+  starredAt: string | null;
+  status: NoteStatus;
+  remark: string | null;
+}
+
 /** 列表条目：不含正文 HTML 与全部媒体 */
 export interface NoteSummary {
   id: string;
@@ -46,6 +63,8 @@ export interface NoteSummary {
     available: boolean;
   } | null;
   sourceStatus: 'available' | 'missing';
+  /** 人工标注（星标/状态/备注）；与索引无关，索引重建不影响 */
+  annotation: NoteAnnotation;
   /** 结构化附加字段（treasures：价格/购买时间/朝代等，供表格展示） */
   extra?: ExtraFields;
 }
@@ -101,6 +120,8 @@ export interface NoteQuery {
   categoryId?: string | null; // 'uncategorized' 表示未分类
   /** 精确标签过滤（与 q、分类、时间条件叠加） */
   tag?: string | null;
+  /** 只看已标星（与其它条件叠加） */
+  starred?: boolean;
   timeField: 'published' | 'synced';
   range: 'all' | '7d' | '30d' | 'custom';
   from?: string; // YYYY-MM-DD，custom 时有效
@@ -148,6 +169,8 @@ export interface CollectionInfo {
   name: string;
   total: number;
   uncategorized: number;
+  /** 已标星篇数（侧栏入口计数用） */
+  starred: number;
   categories: CategoryCount[];
   /** 仅 treasures：可作为表格列的附加字段（按出现次数降序） */
   extraFields: ExtraFieldInfo[];

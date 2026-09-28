@@ -20,6 +20,7 @@ const INITIAL_QUERY: QueryState = {
   from: '',
   to: '',
   order: 'desc',
+  starred: false,
 };
 
 type View = 'library' | 'tags';
@@ -132,6 +133,7 @@ export default function App() {
         q: q.q,
         categoryId: viewRef.current === 'library' ? q.categoryId : null,
         tag: viewRef.current === 'tags' ? activeTagRef.current : null,
+        starred: q.starred,
         timeField: q.timeField,
         range: q.range,
         from: q.range === 'custom' && q.from ? q.from : undefined,
@@ -182,6 +184,7 @@ export default function App() {
         q: q.q,
         categoryId: viewRef.current === 'library' ? q.categoryId : null,
         tag: viewRef.current === 'tags' ? activeTagRef.current : null,
+        starred: q.starred,
         timeField: q.timeField,
         range: q.range,
         from: q.range === 'custom' && q.from ? q.from : undefined,
@@ -255,6 +258,7 @@ export default function App() {
     query.order,
     query.from,
     query.to,
+    query.starred,
     view,
     activeTag,
     collection,
@@ -280,7 +284,7 @@ export default function App() {
     });
     setView('library');
     setActiveTag(null);
-    setQuery((q) => ({ ...q, categoryId: null, q: '' }));
+    setQuery((q) => ({ ...q, categoryId: null, q: '', starred: false }));
     setItems([]);
     setTotal(null);
     setListLoading(true);
@@ -299,7 +303,8 @@ export default function App() {
       }
       setView('library');
       setActiveTag(null);
-      patchQuery({ categoryId: id });
+      // 选分类 = 想"看这个分类"，顺手关掉标星筛选，避免在分类里再被标星悄悄过滤一层
+      patchQuery({ categoryId: id, starred: false });
     },
     [patchQuery]
   );
@@ -307,6 +312,13 @@ export default function App() {
   const selectTagsView = useCallback(() => {
     setView('tags');
     setActiveTag(null);
+  }, []);
+
+  /** 侧栏「标星」：当前库内的一层筛选，打开时清掉分类（否则计数与条数对不上） */
+  const selectStarred = useCallback(() => {
+    setView('library');
+    setActiveTag(null);
+    setQuery((q) => (q.starred ? { ...q, starred: false } : { ...q, starred: true, categoryId: null }));
   }, []);
 
   const selectTag = useCallback((tag: string) => {
@@ -442,6 +454,36 @@ export default function App() {
     [loadLibrary, showToast]
   );
 
+  /**
+   * 标星 / 取消标星。先乐观更新（点一下要立刻有反馈，等一个来回会显得卡），失败再回滚。
+   * 服务端那边是单字段幂等写入，不需要 expectedRevision，所以连点不会互相冲突。
+   */
+  const toggleStar = useCallback(
+    async (note: NoteSummary) => {
+      const next = !note.annotation.starred;
+      const mark = (b: boolean) => (n: NoteSummary): NoteSummary =>
+        n.id === note.id
+          ? { ...n, annotation: { ...n.annotation, starred: b, starredAt: b ? new Date().toISOString() : null } }
+          : n;
+      setItems((prev) => prev.map(mark(next)));
+      setDetailSummary((prev) => (prev && prev.id === note.id ? mark(next)(prev) : prev));
+      try {
+        await api.setStar(note.id, next);
+        void loadLibrary(); // 刷新侧栏的标星计数
+        if (!next && queryRef.current.starred) {
+          // 在「只看标星」里取消标星：这条已经不符合当前筛选，留在列表里自相矛盾
+          setItems((prev) => prev.filter((n) => n.id !== note.id));
+          setTotal((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
+        }
+      } catch (e) {
+        setItems((prev) => prev.map(mark(!next)));
+        setDetailSummary((prev) => (prev && prev.id === note.id ? mark(!next)(prev) : prev));
+        showToast(e instanceof ApiError ? e.message : '标星失败', 'error');
+      }
+    },
+    [loadLibrary, showToast]
+  );
+
   const categoryName = useCallback(
     (id: string | null) => {
       if (!id) return null;
@@ -458,24 +500,31 @@ export default function App() {
     ? '标签'
     : inTagResult
       ? `#${activeTag}`
-      : query.categoryId === 'uncategorized'
-        ? '未分类'
-        : query.categoryId
-          ? (categoryName(query.categoryId) ?? '收藏')
-          : (curInfo?.name ?? '收藏');
+      : query.starred
+        ? '标星'
+        : query.categoryId === 'uncategorized'
+          ? '未分类'
+          : query.categoryId
+            ? (categoryName(query.categoryId) ?? '收藏')
+            : (curInfo?.name ?? '收藏');
   const scopeCount = inDirectory
     ? (tags?.length ?? null)
     : inTagResult
       ? (tags?.find((t) => t.tag === activeTag)?.count ?? null)
-      : query.categoryId === 'uncategorized'
-        ? (curInfo?.uncategorized ?? null)
-        : query.categoryId
-          ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
-          : (curInfo?.total ?? null);
+      : query.starred
+        ? (curInfo?.starred ?? null)
+        : query.categoryId === 'uncategorized'
+          ? (curInfo?.uncategorized ?? null)
+          : query.categoryId
+            ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
+            : (curInfo?.total ?? null);
 
   const bootLoading = !library && !libraryError;
   const emptyLibrary = (curInfo?.total ?? 0) === 0 && view === 'library' && !libraryError && library !== null;
   const noResult = !listLoading && !listError && total === 0 && !inDirectory;
+  /** 「只看标星」且一条都没有：这不是"筛没了"，而是还没标过任何一条，提示要不一样 */
+  const emptyStarred =
+    query.starred && !inTagResult && !query.q.trim() && query.range === 'all' && total === 0;
   const listSwitching = listLoading && items.length === 0;
   const showNotes = !inDirectory && !libraryError && !emptyLibrary && items.length > 0;
   const showTableView = showNotes && viewMode === 'table';
@@ -487,9 +536,11 @@ export default function App() {
         collection={collection}
         activeCategoryId={query.categoryId}
         tagsView={view === 'tags'}
+        starredOnly={query.starred}
         onSelectCollection={selectCollection}
         onSelectCategory={selectCategory}
         onSelectTags={selectTagsView}
+        onSelectStarred={selectStarred}
       />
 
       <main className="main glass-surface">
@@ -552,23 +603,42 @@ export default function App() {
               )}
               {noResult && !libraryError && !bootLoading && (
                 <div className="results-state">
-                  <div className="state-title">没有匹配的收藏</div>
+                  <div className="state-title">
+                    {emptyStarred ? '还没有标星的笔记' : '没有匹配的收藏'}
+                  </div>
                   <div>
-                    当前条件：
-                    {inTagResult
-                      ? `标签 #${activeTag}`
-                      : query.categoryId === 'uncategorized'
-                        ? '未分类'
-                        : (categoryName(query.categoryId ?? null) ?? curInfo?.name ?? '全部')}
-                    {query.q.trim() ? `，搜索“${query.q.trim()}”` : ''}
-                    {query.range !== 'all'
-                      ? `，时间范围 ${query.range === 'custom' ? `${query.from} 至 ${query.to}` : query.range === '7d' ? '最近 7 天' : '最近 30 天'}`
-                      : ''}
+                    {emptyStarred ? (
+                      <>在卡片左上角（没有封面的卡片在作者行右端）点一下星标，就会出现在这里。</>
+                    ) : (
+                      <>
+                        当前条件：
+                        {inTagResult
+                          ? `标签 #${activeTag}`
+                          : query.starred
+                            ? '标星'
+                            : query.categoryId === 'uncategorized'
+                              ? '未分类'
+                              : (categoryName(query.categoryId ?? null) ?? curInfo?.name ?? '全部')}
+                        {query.q.trim() ? `，搜索“${query.q.trim()}”` : ''}
+                        {query.range !== 'all'
+                          ? `，时间范围 ${query.range === 'custom' ? `${query.from} 至 ${query.to}` : query.range === '7d' ? '最近 7 天' : '最近 30 天'}`
+                          : ''}
+                      </>
+                    )}
                   </div>
                   <button
                     className="btn-refresh"
                     onClick={() => {
-                      patchQuery({ q: '', range: 'all', from: '', to: '', order: 'desc', timeField: 'published', categoryId: null });
+                      patchQuery({
+                        q: '',
+                        range: 'all',
+                        from: '',
+                        to: '',
+                        order: 'desc',
+                        timeField: 'published',
+                        categoryId: null,
+                        starred: false,
+                      });
                       setActiveTag(null);
                     }}
                   >
@@ -598,7 +668,13 @@ export default function App() {
               )}
               {showNotes && !showTableView && (
                 <>
-                  <Masonry items={items} categoryName={categoryName} onOpen={openDetail} registerEl={registerEl} />
+                  <Masonry
+                    items={items}
+                    categoryName={categoryName}
+                    onOpen={openDetail}
+                    onToggleStar={toggleStar}
+                    registerEl={registerEl}
+                  />
                   <div ref={sentinelRef} style={{ height: 1 }} />
                   {hasMore && (
                     <div className="load-more">
@@ -622,6 +698,7 @@ export default function App() {
           showCategoryPicker={detailSummary.collection === 'rednote'}
           onCategoryChanged={onCategoryChanged}
           onCategoryError={onCategoryError}
+          onToggleStar={() => void toggleStar(detailSummary)}
           onClose={closeDetail}
         />
       )}

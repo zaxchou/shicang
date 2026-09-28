@@ -7,7 +7,7 @@ interface CategoryOption {
 }
 import { formatShanghai } from '../../shared/time';
 import { api, ApiError } from '../api/client';
-import { IconChevronDown, IconCheck, IconClose, IconExternal } from './Icons';
+import { IconChevronDown, IconCheck, IconClose, IconExternal, IconStar } from './Icons';
 
 /** 详情中附加字段展示顺序（与表格一致） */
 const EXTRA_DISPLAY_ORDER = [
@@ -23,6 +23,8 @@ interface Props {
   showCategoryPicker?: boolean;
   onCategoryChanged(noteId: string, categoryId: string | null, revision: number): void;
   onCategoryError(message: string): void;
+  /** 标星开关（三个库都可标） */
+  onToggleStar(): void;
   onClose(): void;
 }
 
@@ -33,6 +35,7 @@ export function DetailDialog({
   showCategoryPicker = true,
   onCategoryChanged,
   onCategoryError,
+  onToggleStar,
   onClose,
 }: Props) {
   const [detail, setDetail] = useState<NoteDetail | null>(null);
@@ -170,6 +173,16 @@ export function DetailDialog({
             <span className="detail-author-name">{summary.author}</span>
           </div>
           <div className="detail-header-actions">
+            <button
+              type="button"
+              className={`btn-star detail-star${summary.annotation.starred ? ' starred' : ''}`}
+              onClick={onToggleStar}
+              aria-pressed={summary.annotation.starred}
+              aria-label={summary.annotation.starred ? '取消标星' : '标星'}
+              title={summary.annotation.starred ? '取消标星' : '标星'}
+            >
+              <IconStar size={15} filled={summary.annotation.starred} />
+            </button>
             {detail?.originalUrl && (
               <a className="btn-link" href={detail.originalUrl} target="_blank" rel="noopener noreferrer">
                 <IconExternal size={13} />

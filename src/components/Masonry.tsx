@@ -6,6 +6,7 @@ interface Props {
   items: NoteSummary[];
   categoryName(id: string): string | null;
   onOpen(note: NoteSummary, el: HTMLElement): void;
+  onToggleStar(note: NoteSummary): void;
   registerEl(id: string, el: HTMLElement | null): void;
 }
 
@@ -36,7 +37,7 @@ function estimateHeight(item: NoteSummary, cardW: number): number {
  * 瀑布流：单一 DOM 列表保持发布时间顺序，视觉上放入当前最短列；
  * 同高从左到右；ResizeObserver + rAF 批量重排；首次布局后位移带过渡。
  */
-export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
+export function Masonry({ items, categoryName, onOpen, onToggleStar, registerEl }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperEls = useRef<Map<string, HTMLElement>>(new Map());
   const heights = useRef<Map<string, number>>(new Map());
@@ -169,6 +170,7 @@ export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
               categoryName={categoryName(note.categoryId ?? '')}
               enterDelay={layout ? enterDelays[i] ?? 0 : 0}
               onOpen={onOpen}
+              onToggleStar={onToggleStar}
               registerEl={registerEl}
             />
           </div>

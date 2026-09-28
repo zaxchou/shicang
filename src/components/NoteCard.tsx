@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { NoteSummary } from '../../shared/types';
-import { IconLayers, IconPlay } from './Icons';
+import { IconLayers, IconPlay, IconStar } from './Icons';
 
 interface Props {
   note: NoteSummary;
@@ -8,7 +8,31 @@ interface Props {
   /** 入场动画延迟（毫秒），0 表示不播放入场动画 */
   enterDelay?: number;
   onOpen(note: NoteSummary, el: HTMLElement): void;
+  onToggleStar(note: NoteSummary): void;
   registerEl(id: string, el: HTMLElement | null): void;
+}
+
+/** 卡片上的标星按钮。卡片本身是 role="button"，所以点击与回车都必须就地截断，
+ *  否则会顺手把详情弹层打开（键盘还要挡 keydown：Enter 在按钮上既触发 click 又冒泡） */
+function StarButton({ starred, onToggle }: { starred: boolean; onToggle(): void }) {
+  return (
+    <button
+      type="button"
+      className={`btn-star${starred ? ' starred' : ''}`}
+      aria-pressed={starred}
+      aria-label={starred ? '取消标星' : '标星'}
+      title={starred ? '取消标星' : '标星'}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+      }}
+    >
+      <IconStar size={13} filled={starred} />
+    </button>
+  );
 }
 
 /** 无框卡片：图片自然比例铺满列宽，超高图限高裁切；无尺寸时 4:3 占位 */
@@ -20,7 +44,7 @@ function coverStyle(note: NoteSummary): React.CSSProperties {
   return { aspectRatio: '4 / 3' };
 }
 
-export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, registerEl }: Props) {
+export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleStar, registerEl }: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
   return (
     <article
@@ -77,6 +101,8 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, registerE
               视频
             </span>
           )}
+          {/* 有封面时星标浮在图片左上角（右上角被多图角标占用、左下角是视频角标） */}
+          <StarButton starred={note.annotation.starred} onToggle={() => onToggleStar(note)} />
         </div>
       )}
       <div className="card-info">
@@ -87,6 +113,8 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, registerE
           </span>
           <span className="card-author-name">{note.author}</span>
           {categoryName && <span className="card-cat">{categoryName}</span>}
+          {/* 无封面的卡片（日记居多）没有图片可压，星标落在元信息行右端，避免压住标题 */}
+          {!note.cover && <StarButton starred={note.annotation.starred} onToggle={() => onToggleStar(note)} />}
         </div>
       </div>
     </article>

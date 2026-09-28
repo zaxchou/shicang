@@ -1,5 +1,5 @@
 import { shanghaiDateDaysAgo } from '../../shared/time';
-import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconRefresh, IconSearch } from './Icons';
+import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconRefresh, IconSearch, IconStar } from './Icons';
 
 export interface QueryState {
   q: string;
@@ -9,6 +9,8 @@ export interface QueryState {
   from: string;
   to: string;
   order: 'desc' | 'asc';
+  /** 只看已标星 */
+  starred: boolean;
 }
 
 interface Props {
@@ -36,7 +38,11 @@ interface Props {
 }
 
 const isFiltered = (q: QueryState) =>
-  q.q.trim() !== '' || q.range !== 'all' || q.order !== 'desc' || q.timeField !== 'published';
+  q.q.trim() !== '' ||
+  q.range !== 'all' ||
+  q.order !== 'desc' ||
+  q.timeField !== 'published' ||
+  q.starred;
 
 export function Toolbar({
   query,
@@ -140,6 +146,22 @@ export function Toolbar({
           </div>
 
           <div className="filter-row">
+            {/* 标星开关放在筛选行：它是一层筛选，必须和「当前结果 N 篇」在一起，
+                否则列表变短的唯一线索就只剩侧栏那个入口 */}
+            <button
+              type="button"
+              className={`pill-toggle${query.starred ? ' on' : ''}`}
+              onClick={() =>
+                // 打开标星时顺手清掉分类：标星是"我在意的那些"，与分类交叉会让侧栏计数
+                // 和实际条数对不上（计数是全库口径）
+                onChange(query.starred ? { starred: false } : { starred: true, categoryId: null })
+              }
+              aria-pressed={query.starred}
+              title={query.starred ? '显示全部（含未标星）' : '只看已标星'}
+            >
+              <IconStar size={12} filled={query.starred} />
+              标星
+            </button>
             <label className="pill-select">
               <select
                 value={query.range}
@@ -211,7 +233,16 @@ export function Toolbar({
                 <button
                   className="link-clear"
                   onClick={() => {
-                    onChange({ q: '', range: 'all', from: '', to: '', order: 'desc', timeField: 'published' });
+                    // 只清筛选，不动分类（分类是导航，不是筛选——保持原有行为）
+                    onChange({
+                      q: '',
+                      range: 'all',
+                      from: '',
+                      to: '',
+                      order: 'desc',
+                      timeField: 'published',
+                      starred: false,
+                    });
                   }}
                 >
                   清除筛选

@@ -559,3 +559,90 @@ Range/416/304/HEAD/越界/缺失/MIME + API 的 Origin 守卫、查询校验、4
 `y273` 起为卡片内容。亮色同构（分界线为 −11 的暗线）。DOM 实测 `筛选行→线 = 5px`、`线→内容 = 12px`
 （636×520 与 760×560 一致，筛选行换行时同值）。
 线条与投影强度各是一个 token（`--edge-line` / `--edge-shadow`），调风格只改一处。
+
+## AI 通道能力探测（2026-09-28，**未改动产品代码**）
+
+背景：用户问「AI 除了分类能不能做总结，还要能对需要的视频做文稿转录、对需要的图片做 OCR」，
+并担心"不换 DeepSeek 是不是就做不了"。本轮只做实测与计划（方案见 `plan.md` §18），未写产品代码；
+探测已固化为可复跑脚本 `scripts/probe-ai.mjs`（`npm run probe:ai`）。
+
+**方法**：全部使用脚本自己合成的素材——1 秒 440Hz 正弦 WAV、纯矩形代码画的 96×96 大写 "L" PNG、
+浏览器 canvas 生成的 webp——**不上传任何 vault 素材**；媒体可达性只取远程视频前 1KB。
+
+**结果**（`npm run probe:ai` = 4/4 通过；追加 `--image public/icon-96.png` 时 5/5）：
+
+| 探测项 | 结果 |
+| --- | --- |
+| `GET /models` | 200，9 个：`mimo-v2.5` / `-asr` / `-pro` / `-tts`(×3) / `mimo-v2.6-flash` / `-pro` / `-pro-ultraspeed` |
+| 视觉 `chat/completions` + `image_url`（合成 PNG，图中 "L"） | 200，回答「L」，usage 含 `image_tokens: 9` |
+| 视觉 + 真实 webp（canvas 合成，图中 "A7"） | 200，回答「A7」→ **webp 直接被接受，不需要图片解码器** |
+| ASR（`mimo-v2.5-asr` + `input_audio`，合成正弦音） | 200，返回「嗯。」（合成音无语义，读数无意义，只证明通道通） |
+| `POST /audio/transcriptions`（OpenAI 形态，对照项） | 404——该网关没有这条路由 |
+
+**两条形态结论**（照 OpenAI 习惯写必踩，已同步写进 `plan.md` 与脚本输出与注释）：
+1. ASR 必须走 `/chat/completions` + `model: mimo-v2.5-asr` + **只含** `input_audio` 的 content；
+   带文字部分报 400，网关原话 *"ASR request must not include text parts; text prompt is injected by the gateway"*。
+2. 视觉走通用 `mimo-v2.6-flash`（模型列表里没有 VL 专用 id），`image_url` 用 data URI；实测直接吃 webp。
+
+**媒体可达性（决定转录的工作量分布）**：小红书 606 篇里 405 篇带视频，**全部是远程
+`http://sns-bak-v1.xhscdn.com/...mp4`，本地 0 个**；抽检该 URL：HEAD 200、分段请求 206、
+`Content-Type: video/mp4`、**不需要 Referer 或 UA**、0.11s 响应（腾讯 COS）→ 备份域名仍可用。
+本地音频更适合先做：274 篇 flomo 里 **112 篇引用 `.m4a`**（`flomo/attachments` 110 个 / 201.6 MB）。
+
+**未验证（留给实施时第一步试掉）**：ASR 接受哪些容器格式——m4a 或 mp4 的音频轨能否直接用；
+若只吃 wav 就需要转码（`ffmpeg-static`，镜像会加几十 MB）。
+
+## 人工标注层·标星（2026-09-28，v0.7.0）
+
+`plan.md` §18.1 的第一个功能（用户要求"一次只做一个功能，做完先验证再提交"）。这一轮同时把
+人工标注层的**存储与冲突处理**这套地基立起来，后面"状态""备注"就是往里加字段。
+
+**设计要点**：
+- 新增 `server/services/annotations.ts` + `runtime/data/annotations.json`（`JsonStore`），
+  与 `overrides.json` 同级：**绝不进 `library-index.json`**（那份索引会随 `PARSE_VERSION` 整体重建）。
+- 一个文件、一条 revision，字段级浅合并；清空用显式值（`star: false`）而不是 `undefined`，
+  这样"没提这个字段"和"清掉它"能区分开。
+- **幂等**：重复标星不刷新 `starredAt`，且无实质变化时 `applyAnnotationPatch` 原样返回 `prev`，
+  服务层据此**不写盘、不递增 revision**——否则连点两下星标就会把 revision 抬高，
+  让另一个正在编辑备注的客户端莫名撞 409。
+- 星标不带 `expectedRevision`（单字段覆盖是安全的）；备注/状态将来带，冲突走 409。
+- 列表 `query()` 新增 `starred` 过滤，与其它条件叠加；`CollectionInfo.starred` 供侧栏计数。
+
+**测试：104 → 124（新增 20 条）**，`tests/annotations.test.ts`（19 条）+ `tests/http.test.ts`（1 条）。
+覆盖：补丁的字段级合并与幂等、读时净化（非法 `status` 只丢该字段、空壳条目返回 null）、
+落盘与新实例读回、revision 冲突与非法状态、**主文件损坏后从备份恢复**、
+`starred` 查询与侧栏计数、**索引被删掉重建后标星仍在**、**刷新后标星仍在**、
+不存在的笔记 404、非小红书库也能标星（分类仍不能改，原约束未动）、
+源文件消失后标注不丢（列表口径不变）、HTTP 层 409/400/404 与 `starred=bogus` 400。
+
+**证伪（本项目的老规矩：新测试必须在旧代码上失败）**：把 `server/services/library.ts` 与
+`server/routes/api.ts` 回退到 HEAD 版本后重跑，**9 条失败**——
+8 条集成用例报 `Cannot read properties of undefined (reading 'starred')` / `svc.setStar is not a function`，
+HTTP 用例报路由不存在；恢复新代码后 124 条全绿。说明这些用例真的在测新行为，而不是"看起来在测"。
+
+**浏览器实测（Playwright，DOM 断言，不看帧率）**：
+
+| 检查 | 结果 |
+| --- | --- |
+| 首屏 120 张卡片都带星标按钮 | `.card-media .btn-star` = 120（小红书卡片都有封面） |
+| 点星标不打开详情 | 点击后 `.detail-overlay` = 0（事件就地截断） |
+| 点击后状态 | `aria-pressed=true`、`.starred`、`aria-label` 变"取消标星"、侧栏计数 0→1 |
+| **整页重载后仍在** | 重载后 `.btn-star.starred` 仍在、侧栏计数 1（证明落的是服务端而不是本地状态） |
+| 侧栏「标星」入口 | 列表 1 篇、标题"标星"、范围"1 篇"、入口高亮、筛选行开关已按下 |
+| 在标星视图里取消标星 | 立即移出列表（0 张）+ 空状态文案"还没有标星的笔记" + 计数归 0 |
+| 日记库（无封面卡片） | 60 张卡片全部落在 `.card-meta .btn-star`（作者行右端），点击同样不打开详情 |
+| 详情弹层星标 | 显示当前状态（与卡片一致），点击后 `aria-pressed` 翻转、计数同步 |
+| 键盘 | 聚焦星标按 Enter：状态翻转、**不打开详情**（嵌套按钮的 keydown 冒泡已截断）、焦点留在按钮上 |
+| 回归：列表模式 | 606 行表格正常渲染，切回瀑布流 60 张卡片 |
+| 回归：详情分类选择器 | 打开正常、7 个选项、当前分类"生活"正确勾选 |
+| 回归：点「刷新收藏库」 | 刷新完成（新增 1 篇）后标星仍在（计数 1） |
+
+**只读边界**：改动前后各跑一次 `node scripts/source-hash.mjs`，
+`--check` 结果 `total 4222 / added 0 / removed 0 / changed 0`——标星、刷新都没碰 vault。
+
+**已知缺口（下一轮补）**：表格（列表）模式没有星标列，只能在卡片或详情里标星。
+本轮刻意不加（保持"一次一个功能"的步子），但用户若常在表格模式里整理，就该把它排到前面。
+
+**落点**：`server/services/annotations.ts`（新）、`server/services/library.ts`、`server/routes/api.ts`、
+`shared/types.ts`、`src/components/{NoteCard,Masonry,Sidebar,Toolbar,DetailDialog,Icons}.tsx`、
+`src/App.tsx`、`src/api/client.ts`、`src/styles/{app,tokens}.css`、`tests/{annotations.test.ts,http.test.ts}`。

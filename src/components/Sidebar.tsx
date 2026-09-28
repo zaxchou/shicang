@@ -1,5 +1,5 @@
 import type { CollectionInfo, LibraryInfo } from '../../shared/types';
-import { IconInbox, IconLibrary, IconPen, IconTag, categoryIcon, IconGem } from './Icons';
+import { IconInbox, IconLibrary, IconPen, IconStar, IconTag, categoryIcon, IconGem } from './Icons';
 import { ThemeToggle } from './ThemeToggle';
 
 interface Props {
@@ -8,9 +8,11 @@ interface Props {
   collection: string;
   activeCategoryId: string | null; // null=该库全部
   tagsView: boolean; // 当前是否处于标签视图
+  starredOnly: boolean; // 当前是否只看标星
   onSelectCollection(id: string): void;
   onSelectCategory(id: string | null): void;
   onSelectTags(): void;
+  onSelectStarred(): void;
 }
 
 const COLLECTION_ICONS: Record<string, typeof IconLibrary> = {
@@ -24,9 +26,11 @@ export function Sidebar({
   collection,
   activeCategoryId,
   tagsView,
+  starredOnly,
   onSelectCollection,
   onSelectCategory,
   onSelectTags,
+  onSelectStarred,
 }: Props) {
   const infos = library?.collections ?? [];
   const cur: CollectionInfo | null = infos.find((c) => c.id === collection) ?? null;
@@ -92,6 +96,17 @@ export function Sidebar({
         )}
 
         <div className="nav-section">发现</div>
+        {/* 标星是当前收藏库内的一层筛选（计数与本库标星数一致），选中它会清掉分类筛选 */}
+        <button
+          className={`nav-item${starredOnly ? ' active' : ''}`}
+          onClick={onSelectStarred}
+          aria-current={starredOnly ? 'page' : undefined}
+          title="只看已标星的笔记"
+        >
+          <IconStar size={15} filled={starredOnly} />
+          <span className="nav-label">标星</span>
+          <span className="nav-count">{cur?.starred ?? 0}</span>
+        </button>
         <button
           className={`nav-item${tagsView ? ' active' : ''}`}
           onClick={onSelectTags}

@@ -1,7 +1,7 @@
 {
   "name": "myinfobase",
   "private": true,
-  "version": "0.6.3",
+  "version": "0.7.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -16,7 +16,8 @@
     "dev:web": "vite",
     "test": "vitest run",
     "scan": "tsx scripts/scan-cli.ts",
-    "classify": "tsx scripts/classify.ts"
+    "classify": "tsx scripts/classify.ts",
+    "probe:ai": "node scripts/probe-ai.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",

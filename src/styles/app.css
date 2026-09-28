@@ -501,6 +501,32 @@ img {
   background: var(--surface-solid);
   color: var(--text-primary);
 }
+/* 标星开关：与 pill-select 同高同形，但它是"按下就有筛选"的开关，用暖金色区分开 */
+.pill-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 33px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1), var(--inset-top);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  transition: box-shadow var(--transition), color var(--transition), transform 130ms var(--ease-out);
+}
+.pill-toggle:hover {
+  color: var(--text-primary);
+  box-shadow: var(--elev-2), var(--inset-top);
+}
+.pill-toggle:active {
+  transform: scale(0.985);
+}
+/* 开启态：金色文字 + 一圈柔光晕，单靠"更高一点"的投影读不出"已按下" */
+.pill-toggle.on {
+  color: var(--star);
+  box-shadow: var(--elev-2), var(--inset-top), 0 0 0 3px var(--star-soft);
+}
 .filter-custom-dates {
   display: inline-flex;
   align-items: center;
@@ -899,6 +925,103 @@ img {
   bottom: 10px;
   left: 10px;
   right: auto;
+}
+
+/* ===== 标星（人工标注层） =====
+   三个落点：卡片图片左上角、无封面卡片的作者行右端、详情弹层头部。
+   未标星时默认隐藏，只在悬停/键盘聚焦/触屏设备上出现——无框卡片上常驻一个空星会显脏。 */
+.btn-star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+.card-media .btn-star {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  color: #f2f2f5;
+  background: rgba(16, 16, 22, 0.62);
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out),
+    background 200ms ease, color 160ms var(--ease-out);
+}
+.note-card:hover .card-media .btn-star,
+.note-card:focus-within .card-media .btn-star,
+.card-media .btn-star:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+.card-media .btn-star:hover {
+  background: rgba(16, 16, 22, 0.82);
+}
+.card-media .btn-star:active {
+  transform: scale(0.9);
+}
+/* 已标星：常显 + 实心亮金（--star-on-media 是固定值，因为底色是固定深色的胶囊） */
+.card-media .btn-star.starred {
+  opacity: 1;
+  transform: none;
+  color: var(--star-on-media);
+}
+/* 无封面卡片（日记居多）：星标放作者行右端，不用绝对定位去压标题 */
+.card-meta .btn-star {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: var(--text-weak);
+  opacity: 0;
+  transition: opacity 160ms var(--ease-out), background var(--transition), color var(--transition);
+}
+.note-card:hover .card-meta .btn-star,
+.note-card:focus-within .card-meta .btn-star,
+.card-meta .btn-star:focus-visible {
+  opacity: 1;
+}
+.card-meta .btn-star:hover {
+  background: var(--hover-soft);
+  color: var(--text-primary);
+}
+.card-meta .btn-star.starred {
+  opacity: 1;
+  color: var(--star);
+}
+/* 触屏没有 hover：藏起来就永远点不到 */
+@media (hover: none) {
+  .card-media .btn-star,
+  .card-meta .btn-star {
+    opacity: 1;
+  }
+}
+/* 详情头部：和相邻的关闭按钮同尺寸，压在玻璃面上所以用主题内的 --star */
+.detail-header .btn-star {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-2), var(--inset-top);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition),
+    transform 130ms var(--ease-out);
+}
+.detail-header .btn-star:hover {
+  background: var(--surface-raised-hover);
+  color: var(--text-primary);
+  box-shadow: var(--elev-3), var(--inset-top);
+}
+.detail-header .btn-star:active {
+  transform: scale(0.94);
+}
+.detail-header .btn-star.starred {
+  color: var(--star);
 }
 .card-info {
   padding: 12px 4px 10px;

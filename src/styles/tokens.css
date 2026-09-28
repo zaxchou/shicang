@@ -58,6 +58,13 @@
   --ring: rgba(96, 156, 255, 0.8);
   --ring-soft: rgba(96, 156, 255, 0.20);
 
+  /* 标星用暖金色，与 --accent（红=错误/危险）区分开。
+     --star-on-media 两个主题同值：卡片上的星标压在固定深色的图片胶囊上，底色不随主题变，
+     用深色主题那档亮金，浅色主题下才不会糊在深底上。 */
+  --star: #ffc857;
+  --star-soft: rgba(255, 200, 87, 0.18);
+  --star-on-media: #ffc857;
+
   --overlay: rgba(6, 7, 11, 0.46);
   --skeleton-a: rgba(255, 255, 255, 0.05);
   --skeleton-b: rgba(255, 255, 255, 0.10);
@@ -124,6 +131,11 @@
   --danger-text: #c2183f;
   --ring: rgba(0, 122, 255, 0.55);
   --ring-soft: rgba(0, 122, 255, 0.14);
+
+  /* 标星：浅色主题的玻璃面近白，亮金读不出来（#ffc857 只有 1.5:1），压到 4.0:1 的深琥珀 */
+  --star: #a8760a;
+  --star-soft: rgba(168, 118, 10, 0.16);
+  --star-on-media: #ffc857;
 
   --overlay: rgba(22, 26, 44, 0.30);
   --skeleton-a: rgba(24, 32, 60, 0.05);

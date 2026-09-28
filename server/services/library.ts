@@ -27,6 +27,11 @@ import {
   CategoryConflictError,
   CategoryValidationError,
 } from './categories.js';
+import {
+  AnnotationsService,
+  AnnotationConflictError,
+  AnnotationValidationError,
+} from './annotations.js';
 
 interface IndexDoc {
   schemaVersion: number;
@@ -84,6 +89,7 @@ function validateIndexDoc(data: unknown): IndexDoc | null {
 export class LibraryService {
   readonly cfg: AppConfig;
   private categories: CategoriesService;
+  private annotations: AnnotationsService;
   private indexStore: JsonStore<IndexDoc>;
   private doc: IndexDoc;
   private byId = new Map<string, NoteRecord>();
@@ -99,6 +105,7 @@ export class LibraryService {
     this.cfg = cfg;
     for (const c of cfg.collections) this.colMap.set(c.id, c);
     this.categories = new CategoriesService(cfg.dataDir, cfg.backupDir);
+    this.annotations = new AnnotationsService(cfg.dataDir, cfg.backupDir);
     this.indexStore = new JsonStore<IndexDoc>(
       path.join(cfg.dataDir, 'library-index.json'),
       cfg.backupDir,
@@ -123,6 +130,10 @@ export class LibraryService {
     return this.categories;
   }
 
+  get annotationsService(): AnnotationsService {
+    return this.annotations;
+  }
+
   get sourceRoot(): string {
     return this.cfg.vaultRoot;
   }
@@ -139,6 +150,7 @@ export class LibraryService {
     const diagnostics: string[] = [];
     const seedPath = path.join(projectRoot(), 'data-seed', 'categories-seed.json');
     diagnostics.push(...(await this.categories.init(seedPath)));
+    diagnostics.push(...(await this.annotations.init()));
 
     const loaded = this.indexStore.load();
     const sig = this.indexSig();
@@ -207,6 +219,11 @@ export class LibraryService {
     if (params.tag) {
       const tag = params.tag;
       items = items.filter((r) => r.tags.includes(tag));
+    }
+
+    // 只看标星（与其它条件叠加：在某个分类里再筛标星是合理用法）
+    if (params.starred) {
+      items = items.filter((r) => this.annotations.isStarred(r.id));
     }
 
     if (params.range !== 'all') {
@@ -282,6 +299,7 @@ export class LibraryService {
       }
     }
     const derived = r.collection !== 'rednote';
+    const ann = this.annotations.effective(r.id);
     return {
       id: r.id,
       collection: r.collection,
@@ -297,6 +315,12 @@ export class LibraryService {
       hasVideo: r.media.some((m) => m.kind === 'video'),
       cover,
       sourceStatus: r.sourceStatus,
+      annotation: {
+        starred: ann.starred,
+        starredAt: ann.starredAt,
+        status: ann.status,
+        remark: ann.remark,
+      },
       extra: r.extra,
     };
   }
@@ -337,7 +361,8 @@ export class LibraryService {
     const extraFields: ExtraFieldInfo[] = [...extraCount.entries()]
       .map(([key, count]) => ({ key, count }))
       .sort((a, b) => b.count - a.count);
-    return { id: def.id, name: def.name, total: recs.length, uncategorized, categories, extraFields };
+    const starred = this.annotations.countStarred(recs.map((r) => r.id));
+    return { id: def.id, name: def.name, total: recs.length, uncategorized, starred, categories, extraFields };
   }
 
   /** 全部收藏库信息 */
@@ -407,6 +432,23 @@ export class LibraryService {
     const revision = await this.categories.setOverride(noteId, categoryId, expectedRevision);
     const eff = this.categories.effective(noteId);
     return { revision, categoryId: eff.categoryId, source: eff.source };
+  }
+
+  // ---------- 人工标注（星标 / 状态 / 备注） ----------
+
+  /**
+   * 标星 / 取消标星。**三个收藏库都可标星**（这是个人标注，不是分类，不涉及"分类以笔记为准"那条约束）。
+   * 星标是单字段幂等动作，可以不传 expectedRevision —— 连点两下不会互相冲突，
+   * 也不会把正开着详情编辑备注的另一个客户端顶成 409。
+   */
+  async setStar(
+    noteId: string,
+    star: boolean,
+    expectedRevision?: number
+  ): Promise<{ revision: number; starred: boolean }> {
+    if (!this.byId.has(noteId)) throw new NotFoundError(`未找到笔记 ${noteId}`);
+    const revision = await this.annotations.patch(noteId, { star }, expectedRevision);
+    return { revision, starred: this.annotations.isStarred(noteId) };
   }
 
   // ---------- 刷新 ----------
@@ -583,4 +625,4 @@ function mediaUrl(noteId: string, mediaId: string): string {
   return `/api/media/${encodeURIComponent(noteId)}/${encodeURIComponent(mediaId)}`;
 }
 
-export { CategoryConflictError, CategoryValidationError };
+export { CategoryConflictError, CategoryValidationError, AnnotationConflictError, AnnotationValidationError };

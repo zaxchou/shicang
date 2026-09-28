@@ -146,6 +146,13 @@ export const IconCheck = ({ size, className }: IconProps) => (
   </svg>
 );
 
+/** 标星：filled=true 为实心（已标星）。星形顶点按 R=8.6 / r=3.6 算好，1.9 的笔画不会溢出 24 框 */
+export const IconStar = ({ size, className, filled }: IconProps & { filled?: boolean }) => (
+  <svg {...base(size ?? 13, className)} fill={filled ? 'currentColor' : 'none'}>
+    <path d="M12 3.4 14.12 9.09 20.18 9.34 15.42 13.11 17.06 18.96 12 15.6 6.95 18.96 8.58 13.11 3.82 9.34 9.88 9.09Z" />
+  </svg>
+);
+
 export const IconSun = ({ size, className }: IconProps) => (
   <svg {...base(size, className)}>
     <circle cx="12" cy="12" r="4.2" />

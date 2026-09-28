@@ -286,6 +286,55 @@ describe('HTTP 路由', () => {
       expect((await notFound.json()).error.code).toBe('NOTE_NOT_FOUND');
     });
 
+    it('PATCH 标注（标星）：幂等、冲突 409、空补丁 400、未知笔记 404、starred 查询可筛', async () => {
+      const patch = (id: string, body: unknown) =>
+        fetch(`${base}/api/notes/${id}/annotation`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Origin: ALLOWED_ORIGIN },
+          body: JSON.stringify(body),
+        });
+
+      const conflict = await patch('id-0001', { star: true, expectedRevision: 99 });
+      expect(conflict.status).toBe(409);
+      expect((await conflict.json()).error.code).toBe('REVISION_CONFLICT');
+
+      const empty = await patch('id-0001', {});
+      expect(empty.status).toBe(400);
+      expect((await empty.json()).error.code).toBe('EMPTY_PATCH');
+
+      const badType = await patch('id-0001', { star: 'yes' });
+      expect(badType.status).toBe(400);
+      expect((await badType.json()).error.code).toBe('INVALID_BODY');
+
+      const notFound = await patch('id-9999', { star: true });
+      expect(notFound.status).toBe(404);
+      expect((await notFound.json()).error.code).toBe('NOTE_NOT_FOUND');
+
+      // 卡片上的快速点按不带 expectedRevision
+      const ok = await patch('id-0001', { star: true });
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toMatchObject({ starred: true, revision: 1 });
+
+      // 幂等：再点一次不该抬 revision（否则会顶掉别人编辑备注时的 expectedRevision）
+      expect(await (await patch('id-0001', { star: true })).json()).toMatchObject({ revision: 1 });
+
+      const starred = await (await fetch(`${base}/api/notes?starred=true`)).json();
+      expect(starred.total).toBe(1);
+      expect(starred.items[0].id).toBe('id-0001');
+      expect(starred.items[0].annotation.starred).toBe(true);
+      // 不传 starred 时行为不变（这条本来就在列表里）
+      const all = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(all.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+
+      // 字面量校验而不是 z.coerce.boolean()：字符串 "false" 不能被当成 true
+      expect((await fetch(`${base}/api/notes?starred=bogus`)).status).toBe(400);
+      const explicitFalse = await (await fetch(`${base}/api/notes?starred=false`)).json();
+      expect(explicitFalse.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+
+      await patch('id-0001', { star: false });
+      expect((await (await fetch(`${base}/api/notes?starred=true`)).json()).total).toBe(0);
+    });
+
     it('非法请求体与非 JSON 请求体都是 400', async () => {
       const bad = await fetch(`${base}/api/notes/id-0001/category`, {
         method: 'PATCH',

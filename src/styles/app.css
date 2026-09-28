@@ -1403,41 +1403,9 @@ img {
   padding-bottom: 16px;
   margin-bottom: 20px;
 }
-/* 人工标注行：只有一个「归档」开关，所以不做多状态控件 */
-.detail-annotation {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: -8px 0 20px;
-}
-.detail-annotation.saving {
-  opacity: 0.6;
-}
-/* 归档开关：和分类选择器同一套"浮起胶囊"语法。已归档时换成暖色文字 + 按下态，
-   让人一眼知道当前是归档状态、再点一下是取回。 */
-.btn-archive {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 31px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: var(--surface-raised);
-  box-shadow: var(--elev-1), var(--inset-top);
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  transition: background var(--transition), color var(--transition), box-shadow var(--transition),
-    transform 130ms var(--ease-out);
-}
-.btn-archive:hover {
-  background: var(--surface-raised-hover);
-  color: var(--text-primary);
-  box-shadow: var(--elev-2), var(--inset-top);
-}
-.btn-archive:active {
-  transform: scale(0.96);
-}
-.btn-archive.archived {
+/* 归档按钮与星标并排放在详情头部（都是"这条怎么处理"的开关，不各占一行）。
+   已归档时金色 + 一圈柔光，再点一下是取回。 */
+.detail-header .btn-archive-icon.archived {
   color: var(--star);
   box-shadow: var(--elev-2), var(--inset-top), 0 0 0 3px var(--star-soft);
 }

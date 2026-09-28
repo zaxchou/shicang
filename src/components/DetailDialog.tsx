@@ -250,6 +250,22 @@ export function DetailDialog({
             >
               <IconStar size={15} filled={summary.annotation.starred} />
             </button>
+            {/* 归档紧挨着标星：两个都是"这条怎么处理"的开关，没必要各占一行 */}
+            <button
+              type="button"
+              className={`btn-icon btn-archive-icon${currentStatus === 'archived' ? ' archived' : ''}`}
+              aria-pressed={currentStatus === 'archived'}
+              disabled={statusSaving}
+              aria-label={currentStatus === 'archived' ? '取回' : '归档'}
+              title={
+                currentStatus === 'archived'
+                  ? '已归档 · 点一下取回（放回默认列表）'
+                  : '归档：现在没用了，收进侧栏「归档」（只影响拾藏，不删源文件，随时可取回）'
+              }
+              onClick={() => void setStatus(currentStatus === 'archived' ? null : 'archived')}
+            >
+              <IconArchive size={15} />
+            </button>
             {detail?.originalUrl && (
               <a className="btn-link" href={detail.originalUrl} target="_blank" rel="noopener noreferrer">
                 <IconExternal size={13} />
@@ -381,28 +397,6 @@ export function DetailDialog({
                 <span>发布：{formatShanghai(detail.publishedAt) ?? '未知'}</span>
                 <span>同步：{formatShanghai(detail.syncedAt) ?? '未知'}</span>
                 {detail.sourceStatus === 'missing' && <span style={{ color: 'var(--accent)' }}>源文件暂不可用</span>}
-              </div>
-
-              {/* 归档只有一个含义（现在没用了），所以就是一个开关按钮 */}
-              <div className={`detail-annotation${statusSaving ? ' saving' : ''}`}>
-                <button
-                  type="button"
-                  className={`btn-archive${currentStatus === 'archived' ? ' archived' : ''}`}
-                  aria-pressed={currentStatus === 'archived'}
-                  disabled={statusSaving}
-                  title={
-                    currentStatus === 'archived'
-                      ? '放回默认列表（随时可以再归档）'
-                      : '现在没用了：收进归档，之后在侧栏「归档」里找得到'
-                  }
-                  onClick={() => void setStatus(currentStatus === 'archived' ? null : 'archived')}
-                >
-                  <IconArchive size={14} />
-                  {currentStatus === 'archived' ? '取回' : '归档'}
-                </button>
-                {currentStatus === 'archived' && (
-                  <span className="ann-hint">已归档：只影响拾藏，不删源文件，随时可以取回</span>
-                )}
               </div>
 
               {videoFailed && (

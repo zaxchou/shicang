@@ -17,7 +17,13 @@ const COLLECTIONS: CollectionDef[] = [
     type: 'treasures',
     exclude: ['-索引\\.md$', '^MOC\\.md$', '^未命名页面\\.md$'],
   },
-  { id: 'diary', name: '日记', root: 'flomo', type: 'diary', exclude: ['^闪念笔记概览\\.md$'] },
+  {
+    id: 'diary',
+    name: '日记',
+    root: 'flomo',
+    type: 'diary',
+    exclude: ['^闪念笔记概览\\.md$', '^flomo-首页\\.md$', '^flomo-.+-首页\\.md$'],
+  },
 ];
 
 /** 构造迷你 vault：三个 collection 的真实布局（含图片与附件） */
@@ -83,6 +89,9 @@ function makeVault() {
     'utf8'
   );
   fs.writeFileSync(path.join(root, 'flomo', '闪念笔记概览.md'), '# 概览\n', 'utf8');
+  // flomo 导出工具生成的首页/导航页：应被 exclude 排除（v0.5.3）
+  fs.writeFileSync(path.join(root, 'flomo', 'flomo-首页.md'), '# flomo-首页\n', 'utf8');
+  fs.writeFileSync(path.join(root, 'flomo', 'flomo-书法-首页.md'), '# flomo-书法-首页\n', 'utf8');
   return root;
 }
 

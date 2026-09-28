@@ -264,6 +264,34 @@ HEIC/HEIF/TIFF 浏览器无法显示，不再选作封面（改用正文首图�
   简单加「心经→书画」关键词反而会误伤真正的书法内容；AI 读了摘要后判为设计与创作，与人工判断一致。
 - 若未配置 AI key，规则未命中的新笔记会进未分类（与既往行为一致），网页上仍可手动改分类。
 
+## 我的宝贝 / 日记 导入核验（2026-09-28，v0.5.3）
+
+用户要求：这两个库的分类都是自己手工分好的（宝贝靠 frontmatter「收藏分类」、日记靠标签/文件名），
+不需要 AI 参与，只要确认导入没问题。
+
+### 核验方式（新增 `scripts/verify-manual-collections.ts`）
+
+对真实 vault 逐篇解析，把**导入结果与用户的手工分类逐条比对**，并统计未分类：
+
+| 收藏库 | 条目 | 未分类 | 手工分类一致性 |
+| --- | --- | --- | --- |
+| 我的宝贝 | 331（跳过索引/空笔记 5） | 1 | 336 篇 frontmatter「收藏分类」与导入结果**全部一致** |
+| 日记 | 267（排除导出工具的首页/导航页 6） | 0 | 全部等于 tags[0] 或文件名主题段 |
+
+- 宝贝剩余 1 篇未分类是 `最近买纸.md`（收藏库根目录下、无 frontmatter 的买纸清单）——属真·未分类，非解析问题。
+- 自动分类管道的作用范围在代码层确认只碰 rednote（`autoClassify` 过滤 `collection === 'rednote'`），
+  宝贝/日记的分类来自笔记自身的派生值，刷新不会改动它们（测试 `parse-multisource` 断言 categorySource=derived）。
+
+### 发现并修复的问题
+
+日记库里混进 5 篇 flomo 导出工具自动生成的**首页/导航页**（`flomo-首页.md`、`flomo-书法-首页.md`、
+`flomo-哲学思考-首页.md`、`flomo-画画-首页.md`、`flomo-礼器碑-首页.md`）——内容是概览统计与链接列表，
+不是日记条目，此前被当作日记导入并成为「日记 未分类 5」的全部来源。修复：日记收藏库的 exclude 增加
+`^flomo-首页\.md$` 与 `^flomo-.+-首页\.md$`（与既有的 `^闪念笔记概览\.md$` 同一机制）。
+exclude 属于索引指纹的一部分，改动后索引自动重建，无需手工干预。
+
+修复后：日记 272 → 267，未分类 5 → 0；测试夹具同步加入两个首页文件并由「三库分别入库」用例断言其被排除。
+
 ## NAS 实际部署（2026-09-27 已完成，此前为未验证项）
 
 - 环境（现场核实）：DSM 7.3.1、x86_64、docker 位于 `/usr/local/bin`（需 sudo + 显式 PATH）、Compose v2.20.1；项目与源库路径 `/volume2/Media/BaiduNetdiskWorkspace/...`；端口 4317 空闲；共享目录属主 uid=1026/gid=100。
@@ -294,7 +322,7 @@ HEIC/HEIF/TIFF 浏览器无法显示，不再选作封面（改用正文首图�
 ## 证据清单
 
 - 截图：`docs/screenshots/`（softglass-light-masonry / softglass-dark-masonry / softglass-light-table / softglass-dark-detail 为 v0.5.0；早期 home-1280 / home-1440 / home-1920 / shuhua-1440 / detail-1440 为 v0.1.0）。
-- 测试：`npm test` 52/52 通过（vitest；日志见会话记录）。
+- 测试：`npm test` 52/52 通过（vitest；日志见会话记录；v0.5.3 未新增用例，复用三库集成断言）。
 - 源哈希清单：`.local/source-hash.json`（基线与复查一致）。
 - 发布包：`releases/0.1.0/`（59 个文件，含 manifest.json 与逐文件 SHA-256）。
 - 分类 seed：`data-seed/categories-seed.json`；人工覆盖：`<DATA_DIR>/overrides.json`。

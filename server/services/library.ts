@@ -34,13 +34,17 @@ import {
   mediaHashOf,
   readMediaBytes,
 } from './media-text.js';
+import { aiVisionConfigFromEnv, ocrImage, OCR_IMAGE_MIMES, MAX_OCR_IMAGE_BYTES, type OcrUsage } from './ai-vision.js';
 import {
-  aiVisionConfigFromEnv,
-  ocrImage,
-  OCR_IMAGE_MIMES,
-  MAX_OCR_IMAGE_BYTES,
-  type OcrUsage,
-} from './ai-vision.js';
+  aiAsrConfigFromEnv,
+  transcribeAudio,
+  transcodeToMp3,
+  sniffAudioFormat,
+  ffmpegAvailable,
+  MAX_ASR_AUDIO_BYTES,
+  type AsrUsage,
+  type AudioFormat,
+} from './ai-asr.js';
 import { JsonStore } from '../storage/json-store.js';
 import {
   buildCorpusRecords,
@@ -63,6 +67,11 @@ import {
 /** 单次 OCR 调用的产物（单飞表里在途共享的就是它） */
 type OcrFlightOutcome =
   | { ok: true; text: string; model: string; usage: OcrUsage }
+  | { ok: false; reason: string };
+
+/** 单次 ASR 调用的产物（同上，语音转录用） */
+type AsrFlightOutcome =
+  | { ok: true; text: string; model: string; usage: AsrUsage }
   | { ok: false; reason: string };
 
 interface IndexDoc {
@@ -576,6 +585,13 @@ export class LibraryService {
     return r.media.filter((m) => m.kind === 'image' && m.localRelativePath && m.available !== false);
   }
 
+  /** 该笔记里"可以转录的本地音频"（flomo 语音；按出现顺序） */
+  asrTargets(noteId: string): MediaItem[] {
+    const r = this.byId.get(noteId);
+    if (!r) return [];
+    return r.media.filter((m) => m.kind === 'audio' && m.localRelativePath && m.available !== false);
+  }
+
   /**
    * 把媒体解析成绝对路径，并做越界防护（与媒体路由同一条判据）。
    * 越界/缺失返回 null——OCR 要读磁盘，绝不能让登记的相对路径指到 vault 外面去。
@@ -773,6 +789,181 @@ export class LibraryService {
 
   /** 单飞表：同内容 hash 的并发 OCR 共享一次模型调用（键为内容 hash，完成后即摘） */
   private ocrFlights = new Map<string, Promise<OcrFlightOutcome>>();
+
+  /** 单飞表（转录）：同内容 hash 的并发转录共享一次模型调用；门要等落盘完成才开（与 OCR 同理） */
+  private asrFlights = new Map<string, Promise<AsrFlightOutcome>>();
+
+  /**
+   * 按需转录一篇笔记的本地音频（plan §18.2 下半）。结构与 ocrNote 同构：
+   * - 不传 mediaId = 转录还没有结果的段（受 AI_ASR_MAX_PER_NOTE 限制，按秒计费必须有上限）；
+   * - **缓存键是原始音频的内容 hash**（m4a 原文件），转码产物不落盘——media-text 挡住重复付费；
+   * - 网关只收 wav/mp3：其它格式在单飞门内先 ffmpeg 转码（并发只转一次）。
+   */
+  async transcribeNote(
+    noteId: string,
+    opts: { mediaId?: string; shouldStop?: () => boolean } = {}
+  ): Promise<OcrRunResult> {
+    const r = this.byId.get(noteId);
+    if (!r) throw new NotFoundError(`未找到笔记 ${noteId}`);
+
+    const cfg = aiAsrConfigFromEnv();
+    const allTargets = this.asrTargets(noteId);
+    const targets = opts.mediaId ? allTargets.filter((m) => m.id === opts.mediaId) : allTargets;
+    if (opts.mediaId && targets.length === 0) {
+      throw new ValidationError(`这篇笔记里没有可转录的本地音频：${opts.mediaId}`);
+    }
+
+    const results: OcrRunResult['results'] = [];
+    let modelBudget = cfg ? cfg.maxPerNote : 1;
+
+    if (!cfg) {
+      const first = targets[0];
+      if (first) results.push({ mediaId: first.id, ok: false, cached: false, reason: '未配置 AI 凭据（AI_CLASSIFY_API_KEY）' });
+      const left = allTargets.filter((m) => !this.mediaText.hasFor(noteId, m.id)).length;
+      return { noteId, results, recognized: this.mediaTextFor(noteId), remaining: left, model: null };
+    }
+
+    for (const m of targets) {
+      if (opts.shouldStop?.()) break;
+      if (modelBudget <= 0) break;
+      const abs = this.resolveMediaAbs(m.localRelativePath!);
+      if (!abs) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体路径越界，已拒绝读取' });
+        continue;
+      }
+      const stillThere = (): boolean => !!this.byId.get(noteId)?.media.some((x) => x.id === m.id);
+      const size = mediaFileSize(abs);
+      if (size === null) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体文件读不到' });
+        continue;
+      }
+      if (size === 0) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体文件是空的' });
+        continue;
+      }
+      if (size > MAX_ASR_AUDIO_BYTES) {
+        results.push({
+          mediaId: m.id,
+          ok: false,
+          cached: false,
+          reason: `音频过大（${(size / 1048576).toFixed(1)} MB，上限 50 MB），跳过转录`,
+        });
+        continue;
+      }
+      const bytes = await readMediaBytes(abs, MAX_ASR_AUDIO_BYTES);
+      if (!bytes) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体文件读不到' });
+        continue;
+      }
+
+      const hash = mediaHashOf(bytes);
+      const cached = this.mediaText.get(hash);
+      if (cached) {
+        // 同一段音频以前转过（无论哪篇引用）：只补 ref；已被删除的不复活（putIfPresent）
+        if (stillThere()) {
+          await this.mediaText.putIfPresent({ ...cached, refs: [{ noteId, mediaId: m.id }] });
+          results.push({ mediaId: m.id, ok: true, cached: true, text: cached.text });
+        } else {
+          results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体已随刷新移出这篇笔记' });
+        }
+        continue;
+      }
+
+      const flight = this.asrFlights.get(hash);
+      if (flight) {
+        const joined = await flight.then(
+          (x) => x,
+          () => ({ ok: false as const, reason: '并发转录中断，请重试' })
+        );
+        if (joined.ok && stillThere()) {
+          const now = this.mediaText.get(hash);
+          if (now) {
+            await this.mediaText.putIfPresent({ ...now, refs: [{ noteId, mediaId: m.id }] });
+            results.push({ mediaId: m.id, ok: true, cached: true, text: now.text });
+            continue;
+          }
+        }
+        results.push({
+          mediaId: m.id,
+          ok: false,
+          cached: true,
+          reason: joined.ok ? '转录结果刚被删除，请重试' : joined.reason,
+        });
+        continue;
+      }
+
+      modelBudget--; // 只有真正发起调用才占名额（命中缓存/共享在途的不花额度）
+      let release!: (v: AsrFlightOutcome) => void;
+      const gate = new Promise<AsrFlightOutcome>((r2) => {
+        release = r2;
+      });
+      this.asrFlights.set(hash, gate);
+      let settled: AsrFlightOutcome = { ok: false, reason: '转录中断，请重试' };
+      try {
+        // 网关只收 wav/mp3：m4a 等先本地转码——放在单飞门内，等的那一位连转码都只做一次
+        let format: AudioFormat | null = sniffAudioFormat(bytes);
+        let sendBytes = bytes;
+        if (!format) {
+          if (!(await ffmpegAvailable())) {
+            settled = {
+              ok: false,
+              reason: '服务端缺少 ffmpeg，无法转码 m4a 等格式（生产镜像已内置；本机开发请安装 ffmpeg）',
+            };
+          } else {
+            const mp3 = await transcodeToMp3(abs);
+            if (!mp3) {
+              settled = { ok: false, reason: '音频转码失败（ffmpeg 处理不了这个文件）' };
+            } else {
+              sendBytes = mp3;
+              format = 'mp3';
+            }
+          }
+        }
+        if (format) {
+          const out = await transcribeAudio(cfg, { bytes: sendBytes, format });
+          if (!out.ok) {
+            settled = { ok: false, reason: out.reason };
+          } else if (!stillThere()) {
+            settled = { ok: false, reason: '媒体已随刷新移出这篇笔记' };
+          } else {
+            // 同一段音频被换过内容时，先摘掉指向这个 mediaId 的旧结果（与 OCR 同一条纪律）
+            const stale = this.mediaText
+              .forNote(noteId)
+              .some((e) => e.mediaHash !== hash && e.refs.some((x) => x.noteId === noteId && x.mediaId === m.id));
+            if (stale) await this.mediaText.removeRef(noteId, m.id);
+            await this.mediaText.put({
+              mediaHash: hash,
+              kind: 'asr',
+              text: out.text,
+              model: out.model,
+              at: new Date().toISOString(),
+              refs: [{ noteId, mediaId: m.id }],
+              usage: out.usage,
+            });
+            settled = { ok: true, text: out.text, model: out.model, usage: out.usage };
+          }
+        }
+      } finally {
+        // 先摘表（新来者会走缓存命中，put 已提交）、再放行等待者；任何一步抛错都要放行
+        this.asrFlights.delete(hash);
+        release(settled);
+      }
+
+      if (!settled.ok) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: settled.reason });
+        continue;
+      }
+      results.push({ mediaId: m.id, ok: true, cached: false, text: settled.text });
+    }
+
+    const okCount = results.filter((x) => x.ok).length;
+    if (okCount) {
+      log.info(`ASR 完成: ${noteId} 转录 ${okCount} 段（缓存 ${results.filter((x) => x.cached).length} 段）`);
+    }
+    // 与 OCR 同口径：按**这篇整体**还剩几段没算，而不是本次请求了几段
+    const remaining = allTargets.filter((m) => !this.mediaText.hasFor(noteId, m.id)).length;
+    return { noteId, results, recognized: this.mediaTextFor(noteId), remaining, model: cfg.model };
+  }
 
   /** 识别文本条数（页面诊断/信息展示用） */
   get mediaTextEntryCount(): number {

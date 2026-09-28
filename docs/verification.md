@@ -1332,3 +1332,70 @@ HTTP 安全 / 前端状态与交互 / 测试套件质量 / 配置构建部署文
   一条新语音附件、一条新宝贝笔记、四个收藏品索引被 Obsidian 重算。拾藏侧没有任何 vault 写路径
   （索引/标注/语料/识别文本分别落在 `.local/data`、`.local/export`），逐项核对无应用侧写入。
 
+## 语音转录 ASR（2026-09-29 凌晨，v0.11.0）
+
+用户指令「再 review 一遍然后做语音转录」的后半。设计与 OCR 同构：按需触发、逐段请求、
+内容 hash 缓存、单篇上限、可取消；差别是**计费按音频秒数**（`usage.seconds`）、且网关只收
+wav/mp3——源库 110+ 个语音全是 m4a，所以服务端先转码。
+
+### 实现
+
+- `server/services/ai-asr.ts`（新）：`aiAsrConfigFromEnv`（`AI_ASR_MODEL` 默认 `mimo-v2.5-asr`、
+  `AI_ASR_TIMEOUT_MS` 默认 300s、`AI_ASR_MAX_PER_NOTE` 默认 4）、`sniffAudioFormat`（文件头认
+  wav/mp3）、`transcodeToMp3`（ffmpeg `-vn -codec:a libmp3lame -b:a 64k -ac 1 -ar 16000`，
+  临时文件用完即删、60s 兜底超时）、`transcribeAudio`（`input_audio` **audio-only**，
+  thinking disabled，空转录按失败报"没有返回文字（静音？）"）。
+- `LibraryService.transcribeNote` / `asrTargets` / `POST /api/notes/:id/transcribe`：
+  与 ocrNote 同构——stat 体积闸（空/超 50MB 给理由）→ 原始音频内容 hash 查缓存（`putIfPresent`
+  防复活）→ **单飞**（门等落盘才开，OCR 那边实测过的双倍花费窗口在这里一开始就没留）→
+  转码放在单飞门内（并发只转一次）→ 落盘 `kind:'asr'` → `res.on('close')` 即停。
+- **转码产物不落盘**：media-text 按原始音频 hash 挡住重复付费，tmp mp3 用完即删——比原计划
+  的"转码缓存目录"简单，且没有任何磁盘管理问题。
+- 前端：详情同一入口（只有语音的笔记按钮 aria-label「转录语音」）；进度文案分相（识别中/转录中）；
+  面板标题统一「识别文字」，计数按 kind 分开（N 张 / N 段），语音条目带 **♪ 缩略标记**与播放链接，
+  「转录其余 N 段」单独出现。
+- `deploy/Dockerfile`：生产镜像 `apk add --no-cache ffmpeg`（约 +100MB）；
+  compose 两份补齐 `AI_ASR_*` / `AI_VISION_MODEL` / `AI_OCR_*` / `EXPORT_*` 白名单透传。
+
+### 顺带修掉的解析缺口（真实缺陷，ASR 的前置）
+
+写完服务端去真实库找转录目标时发现：**语音笔记的 media 是空的**。原因：flomo 导出的附件链接是
+vault 相对的 `[音频: x](flomo/attachments/<日期>/<hash>.m4a)`，而解析器只认裸 `attachments/` 前缀——
+**全部 114 处语音引用（113 篇笔记）从未被登记过**，15 处同形态的图片链接同样漏网。
+修复：`parseDiary` 的两个链接正则允许若干级目录前缀；**PARSE_VERSION 4→5**（索引指纹随之变化，
+启动自动全量重扫，符合既定纪律）。新回归用例：diary 分支的 flomo 式链接 → 登记为 `kind:'audio'`
+且链接改写成媒体路由。
+
+### 测试（234 → 247，新增 13 条）
+
+`tests/asr.test.ts`：配置（缺 key/默认值/空串/非法数值回落）、格式嗅探（wav/ID3/帧同步/m4a/空）、
+请求形态（**content 只有 input_audio**、format 正确、thinking disabled、Bearer、`usage.seconds`→
+`audioSeconds`）、失败翻译（401/429/500/格式被拒/空回复/超时/网络错）、**转码真跑 ffmpeg**
+（wav→mp3 可嗅探、坏输入 null；无 ffmpeg 的机器上 `ctx.skip()` **可见地跳过**）、服务接线
+（落盘 kind=asr、可搜索、进语料、二次缓存 0 调用、跨笔记复用同一段音频、上限 5 段只转 4、
+shouldStop 关窗即停、并发单飞 1 次调用、**真 m4a 转码后以 format=mp3 送出**）、HTTP（200/404/400）。
+fixture 新增 `audios` 选项与 `tinyWav`（纯 JS 合成 PCM，无需 ffmpeg）。
+
+### 真实链路实测（本机 4399 预览，真实 key）
+
+- 全量重扫（PARSE_VERSION 5）后：`flomo/2026-05-31_但是刷完之后_MjM5NjAwODMw.md` 的 media 里出现
+  `17802429536800161E9D8D549F3E0.m4a (kind: audio)`——此前它是空的。
+- `POST /transcribe`：**1.2 秒**返回 `ok:true`，文本「说完之后，他会，他会自动的把我刷。」
+  （正文原文「但是刷完之后，它会自动地把我刷掉」——口语转写的高度吻合；计费 = 音频 3.79 秒）。
+  ffmpeg 转码 → 上传 → 模型返回全程 1.2s，远低于 300s 超时预算。
+- 联动验证：搜「说完之后」（只存在于转录文本，正文没有这个词组）能命中这篇；
+  多词 AND「刷完之后 说完」= 正文词 + 转录词跨字段命中，total=1；
+  `POST /export/corpus` 写出 **1206 行**（全量重扫把用户当天新写的日记也收进来了），
+  转录文本在 `corpus.jsonl` 的 `recognized` 里。
+- 浏览器：详情按钮 aria-label=「转录语音」，面板「识别文字 1 段」，语音条目 ♪ 缩略 + 「语音 1」
+  标签 + 转录文本 + 复制/重来；截图 `.playwright-mcp/asr-panel.png`（1440×900 深色）。
+- 再次点按不花钱：`cached:true`，模型 0 次调用。
+
+### 验收
+
+- `npm run typecheck` 三套 0 错；`npx vitest run` **247/247 全绿**（16 文件）；`npm run build` 通过。
+- 版本对齐：package.json / lock / 两份 compose 默认 tag / `.env.example` 全部 0.11.0；
+  health 自报版本随 package.json（下一次重启生效）。
+- 未做（记录在案）：视频转录（需下载远端视频，另议）、批量转录层、§18.2 的「总结」。
+
+

@@ -146,6 +146,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(mediaId ? { mediaId } : {}),
     }),
+  /**
+   * 按需转录语音。与 ocrNote 同形态：**只发 id**——音频由服务端读盘、（必要时）ffmpeg 转码后送出，
+   * 浏览器不上传文件；按音频秒数计费，所以也是逐段请求、带进度。
+   */
+  transcribeNote: (id: string, mediaId?: string) =>
+    request<OcrRunResult>(`/api/notes/${encodeURIComponent(id)}/transcribe`, {
+      method: 'POST',
+      body: JSON.stringify(mediaId ? { mediaId } : {}),
+    }),
   /** 删掉一条识别结果（识别错了想重来） */
   clearMediaText: (id: string, mediaId: string) =>
     request<{ removed: boolean }>(

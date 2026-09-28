@@ -98,6 +98,30 @@ export function fakeImageBody(): Buffer {
   return Buffer.from('{"code":500,"msg":"服务器异常，请稍后重试"}', 'utf8');
 }
 
+/** 最小合法 PCM WAV：0.25 秒 440Hz 正弦、8kHz 单声道（文件头合法即可，语义不重要） */
+export function tinyWav(seconds = 0.25, sampleRate = 8000): Buffer {
+  const n = Math.round(seconds * sampleRate);
+  const data = Buffer.alloc(n * 2);
+  for (let i = 0; i < n; i++) {
+    data.writeInt16LE(Math.round(Math.sin((i / sampleRate) * 440 * 2 * Math.PI) * 12000), i * 2);
+  }
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0, 'ascii');
+  header.writeUInt32LE(36 + data.length, 4);
+  header.write('WAVE', 8, 'ascii');
+  header.write('fmt ', 12, 'ascii');
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20); // PCM
+  header.writeUInt16LE(1, 22); // mono
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write('data', 36, 'ascii');
+  header.writeUInt32LE(data.length, 40);
+  return Buffer.concat([header, data]);
+}
+
 export interface FixtureNoteOptions {
   id: string;
   title?: string;
@@ -109,6 +133,7 @@ export interface FixtureNoteOptions {
   bom?: boolean;
   crlf?: boolean;
   images?: number; // 生成 image-N.webp
+  audios?: number; // 生成 audio-N.wav（最小合法 PCM，ASR 直接可吃）
   videoUrl?: string;
   extraFm?: string;
   fileName?: string;
@@ -134,6 +159,9 @@ export function noteMarkdown(o: FixtureNoteOptions): string {
   let body = o.body ?? `# ${o.title ?? '默认标题'}\n\n正文内容 测试${o.id.slice(0, 4)}\n`;
   for (let i = 1; i <= (o.images ?? 1); i++) {
     body += `\n![[RedNote/Media/${o.id}/image-${i}.webp]]\n`;
+  }
+  for (let i = 1; i <= (o.audios ?? 0); i++) {
+    body += `\n![[RedNote/Media/${o.id}/audio-${i}.wav]]\n`;
   }
   if (o.videoUrl) body += `\n<video controls src="${o.videoUrl}"></video>\n`;
   let raw = `---\n${fm.join('\n')}\n---\n\n${body}`;
@@ -176,6 +204,9 @@ export function createFixture(prefix = 'myinfobase-test'): Fixture {
       fs.writeFileSync(path.join(sourceRoot, 'Bookmarks', name), noteMarkdown(o), 'utf8');
       for (let i = 1; i <= (o.images ?? 1); i++) {
         this.writeMedia(o.id, `image-${i}.webp`, tinyWebp(3 + i, 2 + i));
+      }
+      for (let i = 1; i <= (o.audios ?? 0); i++) {
+        this.writeMedia(o.id, `audio-${i}.wav`, tinyWav());
       }
     },
     writeMedia(id, name, bytes) {

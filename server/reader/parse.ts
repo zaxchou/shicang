@@ -62,7 +62,7 @@ export interface ParseOutcome {
  * 索引里记录该值，不一致就整体重建——否则解析已修好、用户看到的却还是旧索引，
  * 因为扫描按 mtime/size 跳过未变更的源文件（v0.5.1 修「正文图片不显示」时踩到）。
  */
-export const PARSE_VERSION = 4;
+export const PARSE_VERSION = 5;
 
 const IMAGE_EXTS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.svg']);
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v']);
@@ -614,8 +614,10 @@ function parseDiary(
   const rb = basesOf(base);
 
   let body = content;
-  // 图片链接 [x](attachments/...) → 生成图片；音频等保留链接并改写为媒体路由
-  body = body.replace(/\[([^\]]+)\]\((attachments\/[^)]+)\)/g, (full, text: string, href: string) => {
+  // 图片链接 [x](attachments/...) → 生成图片；音频等保留链接并改写为媒体路由。
+  // 前缀允许若干级目录：flomo 导出用的是 **vault 相对**路径 `flomo/attachments/…`（114 处语音全是这个形态），
+  // 旧正则只认裸 `attachments/`，于是语音笔记的音频从来没被登记过——ASR 因此没有目标可转。
+  body = body.replace(/\[([^\]]+)\]\(((?:[^/()]+\/)*attachments\/[^)]+)\)/g, (full, text: string, href: string) => {
     const r = resolveLocal(rb, href);
     if (!r) return full;
     const ext = path.extname(r.relToVault).toLowerCase();
@@ -623,7 +625,7 @@ function parseDiary(
     if (IMAGE_EXTS.has(ext)) return `![${text}](media://${mediaToken(item.id)})`; // 图片转内联
     return `[${text}](${mediaUrl(base.sourceRelativePath, item.id)})`;
   });
-  body = body.replace(/!\[([^\]]*)\]\((attachments\/[^)]+)\)/g, (full, alt: string, href: string) => {
+  body = body.replace(/!\[([^\]]*)\]\(((?:[^/()]+\/)*attachments\/[^)]+)\)/g, (full, alt: string, href: string) => {
     const r = resolveLocal(rb, href);
     if (!r) return full;
     const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);

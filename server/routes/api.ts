@@ -98,6 +98,11 @@ const ocrSchema = z.object({
   mediaId: z.string().min(1).max(300).optional(),
 });
 
+/** 按需转录语音：不带 mediaId = 转录这篇里还没结果的段（服务端有单次上限） */
+const transcribeSchema = z.object({
+  mediaId: z.string().min(1).max(300).optional(),
+});
+
 /** 变更类请求的 Origin 校验；同源浏览器地址栏访问无 Origin，直接放行 */
 function originGuard(req: express.Request, deps: ApiDeps): void {
   if (req.method === 'GET' || req.method === 'HEAD') return;
@@ -337,6 +342,33 @@ export function apiRouter(deps: ApiDeps): express.Router {
       } catch (e) {
         if (e instanceof NotFoundError) throw new HttpError(404, 'NOTE_NOT_FOUND', e.message);
         if (e instanceof ValidationError) throw new HttpError(400, 'INVALID_OCR_TARGET', e.message);
+        throw e;
+      }
+    })
+  );
+
+  router.post(
+    '/notes/:id/transcribe',
+    wrap(async (req, res) => {
+      const id = requireParam(req, 'id');
+      const body = transcribeSchema.safeParse(req.body ?? {});
+      if (!body.success) {
+        throw new HttpError(400, 'INVALID_BODY', '请求体无效', body.error.flatten());
+      }
+      let gone = false;
+      res.on('close', () => {
+        if (!res.writableEnded) gone = true;
+      });
+      try {
+        res.json(
+          await deps.library().transcribeNote(id, {
+            mediaId: body.data.mediaId,
+            shouldStop: () => gone,
+          })
+        );
+      } catch (e) {
+        if (e instanceof NotFoundError) throw new HttpError(404, 'NOTE_NOT_FOUND', e.message);
+        if (e instanceof ValidationError) throw new HttpError(400, 'INVALID_TRANSCRIBE_TARGET', e.message);
         throw e;
       }
     })

@@ -30,6 +30,9 @@ import {
  */
 const OCR_BATCH = 8;
 
+/** 一次点击最多转录几段语音：与后端 `AI_ASR_MAX_PER_NOTE` 默认一致（按秒计费，不替用户一次烧完） */
+const ASR_BATCH = 4;
+
 /** 识别文本的折叠阈值（em）：超过这个高度才裁切。约 5 行。 */
 const OCR_CLAMP_EM = 9;
 
@@ -176,7 +179,7 @@ export function DetailDialog({
   const [ocrRunning, setOcrRunning] = useState(false);
   /** 图片文字默认**折叠**：它是附加内容，不该一进来就把正文顶下去（用户明确反馈过） */
   const [ocrOpen, setOcrOpen] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number } | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number; phase: 'ocr' | 'asr' } | null>(null);
   const [ocrMsg, setOcrMsg] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -244,6 +247,18 @@ export function DetailDialog({
   const ocrTargets = (detail?.media ?? []).filter(
     (m) => m.kind === 'image' && m.localRelativePath && m.available !== false
   );
+  /** 这篇能转录的本地音频（flomo 语音） */
+  const asrTargets = (detail?.media ?? []).filter(
+    (m) => m.kind === 'audio' && m.localRelativePath && m.available !== false
+  );
+  // 面板计数与「其余 N」都按 kind 分开算：mediaText 混着图与语音，拿总数减目标数会互相打架
+  const imgDone = mediaText.filter((t) => t.kind === 'ocr').length;
+  const asrDone = mediaText.length - imgDone;
+  const pendingImg = ocrTargets.filter((m) => !mediaText.some((t) => t.mediaId === m.id)).length;
+  const pendingAsr = asrTargets.filter((m) => !mediaText.some((t) => t.mediaId === m.id)).length;
+  const targetHint = [ocrTargets.length ? `${ocrTargets.length} 张图` : '', asrTargets.length ? `${asrTargets.length} 段语音` : '']
+    .filter(Boolean)
+    .join('、');
 
   /** 组件是否还挂着：识别是**逐张、可能持续一分钟**的付费长任务，
    *  关掉详情后必须立刻停下——否则关了窗还在后台烧额度，回来还弹"识别完成"（深审发现） */
@@ -257,36 +272,49 @@ export function DetailDialog({
 
   const runOcr = useCallback(async () => {
     if (ocrRunning || !detail) return;
-    const pending = ocrTargets.filter((m) => !mediaText.some((t) => t.mediaId === m.id));
-    if (pending.length === 0) {
-      setOcrMsg('这篇的图片都已经识别过了');
+    const imgPending = ocrTargets.filter((m) => !mediaText.some((t) => t.mediaId === m.id));
+    const asrPending = asrTargets.filter((m) => !mediaText.some((t) => t.mediaId === m.id));
+    const imgBatch = imgPending.slice(0, OCR_BATCH);
+    const asrBatch = asrPending.slice(0, ASR_BATCH);
+    const total = imgBatch.length + asrBatch.length;
+    if (total === 0) {
+      setOcrMsg(
+        ocrTargets.length + asrTargets.length === 0 ? '这篇没有可识别的本地图片或语音' : '这篇的图片与语音都已经识别过了'
+      );
       return;
     }
-    // 逐张请求，不一次闷完：8 张要 40-60 秒，中间必须有反馈，
+    // 逐条请求，不一次闷完：图片每张 5–10 秒、语音每段更久，中间必须有反馈，
     // 否则用户看到的就是"点了没反应"（实测就是这个原因找上来的）。
-    const batch = pending.slice(0, OCR_BATCH);
     setOcrRunning(true);
     setOcrOpen(true); // 刚识别完就让用户看见结果；下次进来仍是折叠的
     setOcrMsg(null);
-    setOcrProgress({ done: 0, total: batch.length });
-    onNotice?.(`开始识别 ${batch.length} 张图…（每张约 5–10 秒，可以继续看页面）`);
+    setOcrProgress({ done: 0, total, phase: imgBatch.length > 0 ? 'ocr' : 'asr' });
+    const intro: string[] = [];
+    if (imgBatch.length) intro.push(`${imgBatch.length} 张图`);
+    if (asrBatch.length) intro.push(`${asrBatch.length} 段语音（最长 10 分钟/段）`);
+    onNotice?.(`开始识别 ${intro.join('、')}…（逐条请求，可以继续看页面）`);
 
-    let okCount = 0;
+    let imgOk = 0;
+    let asrOk = 0;
     let cachedCount = 0;
     const failures: string[] = [];
-    for (let i = 0; i < batch.length; i++) {
+    for (let i = 0; i < total; i++) {
       if (!aliveRef.current) return; // 详情已关闭：立刻停，不再发下一次请求
-      setOcrProgress({ done: i, total: batch.length });
+      const isImg = i < imgBatch.length;
+      const target = isImg ? imgBatch[i] : asrBatch[i - imgBatch.length];
+      setOcrProgress({ done: i, total, phase: isImg ? 'ocr' : 'asr' });
       try {
-        const target = batch[i];
         if (!target) break;
-        const out = await api.ocrNote(summary.id, target.id);
+        const out = isImg
+          ? await api.ocrNote(summary.id, target.id)
+          : await api.transcribeNote(summary.id, target.id);
         if (!aliveRef.current) return; // 请求期间被关掉：结果照旧写进了服务端，但不再更新界面
         const r = out.results[0];
         if (r?.ok) {
-          okCount++;
+          if (isImg) imgOk++;
+          else asrOk++;
           if (r.cached) cachedCount++;
-          setMediaText(out.recognized); // 每张完成后立即出现，不等全部跑完
+          setMediaText(out.recognized); // 每条完成后立即出现，不等全部跑完
         } else if (r) {
           failures.push(r.reason ?? '未知原因');
         }
@@ -294,22 +322,26 @@ export function DetailDialog({
         failures.push(e instanceof ApiError ? e.message : '请求失败');
         break; // 网络/服务端异常时不再继续打接口
       }
-      setOcrProgress({ done: i + 1, total: batch.length });
+      setOcrProgress({ done: i + 1, total, phase: isImg ? 'ocr' : 'asr' });
     }
 
     setOcrProgress(null);
     setOcrRunning(false);
-    // 还剩多少 = 这批里**没成功**的（失败的 + break 后没跑的）。
-    // 旧算法 pending - batch 在"全部失败"时会算出 0，嘴上说"识别完成"实际一张没成（深审发现）
-    const left = pending.length - okCount;
-    const parts = [`识别完成：${okCount} 张`];
-    if (cachedCount) parts.push(`${cachedCount} 张用了已有结果`);
-    if (failures.length) parts.push(`${failures.length} 张失败（${failures[0]}）`);
-    if (left > 0) parts.push(`还有 ${left} 张没识别，点「识别其余 ${left} 张」继续`);
+    // 还剩多少 = 各自 pending 里**没成功**的（失败的 + break 后没跑的），图文与语音分开报
+    const parts: string[] = [];
+    if (imgOk) parts.push(`识别完成：${imgOk} 张`);
+    if (asrOk) parts.push(`转录完成：${asrOk} 段`);
+    if (imgOk + asrOk === 0) parts.push('一条都没成功');
+    if (cachedCount) parts.push(`${cachedCount} 项用了已有结果`);
+    if (failures.length) parts.push(`${failures.length} 项失败（${failures[0]}）`);
+    const leftImg = imgPending.length - imgOk;
+    const leftAsr = asrPending.length - asrOk;
+    if (leftImg > 0) parts.push(`还有 ${leftImg} 张没识别，点「识别其余 ${leftImg} 张」继续`);
+    if (leftAsr > 0) parts.push(`还有 ${leftAsr} 段没转录，点「转录其余 ${leftAsr} 段」继续`);
     const summaryText = parts.join(' · ');
     setOcrMsg(summaryText);
     onNotice?.(summaryText);
-  }, [detail, ocrRunning, ocrTargets, mediaText, onNotice, summary.id]);
+  }, [detail, ocrRunning, ocrTargets, asrTargets, mediaText, onNotice, summary.id]);
 
   const dropMediaText = useCallback(
     async (mediaId: string) => {
@@ -521,19 +553,19 @@ export function DetailDialog({
             >
               <IconArchive size={15} />
             </button>
-            {/* 识别图片文字：只在有本地图片时出现；结果按媒体内容 hash 缓存，不会重复烧额度 */}
-            {ocrTargets.length > 0 && (
+            {/* 识别图片文字 / 转录语音：有哪类目标就出哪个入口；结果按媒体内容 hash 缓存，不会重复烧额度 */}
+            {(ocrTargets.length > 0 || asrTargets.length > 0) && (
               <button
                 type="button"
                 className={`btn-icon btn-ocr${ocrRunning ? ' running' : ''}${mediaText.length ? ' has-text' : ''}`}
                 disabled={ocrRunning}
-                aria-label="识别图片文字"
+                aria-label={ocrTargets.length === 0 && asrTargets.length > 0 ? '转录语音' : '识别图片文字'}
                 title={
                   ocrRunning
-                    ? '识别中…（大图可能要十几秒）'
+                    ? '识别中…（逐条请求，语音每段最长 10 分钟）'
                     : mediaText.length
-                      ? `识别图片文字（已有 ${mediaText.length} 张的结果，重复的图不会重复识别）`
-                      : `识别这篇 ${ocrTargets.length} 张图里的文字，识别后可以被搜索到`
+                      ? `继续识别（已有 ${mediaText.length} 条结果，重复的媒体不会重复识别）`
+                      : `把${targetHint}里的文字转成可搜索的文本（识别后参与搜索与语料导出）`
                 }
                 onClick={() => void runOcr()}
               >
@@ -699,17 +731,24 @@ export function DetailDialog({
                       onClick={() => setOcrOpen((v) => !v)}
                     >
                       <IconChevronDown size={12} className={ocrOpen ? 'caret open' : 'caret'} />
-                      <span className="ocr-title">图片文字</span>
-                      {mediaText.length > 0 && <span className="ocr-count">{mediaText.length} 张</span>}
+                      <span className="ocr-title">识别文字</span>
+                      {imgDone > 0 && <span className="ocr-count">{imgDone} 张</span>}
+                      {asrDone > 0 && <span className="ocr-count">{asrDone} 段</span>}
                     </button>
                     {ocrRunning && ocrProgress && (
                       <span className="ocr-progress" role="status">
-                        识别中 {Math.min(ocrProgress.done + 1, ocrProgress.total)}/{ocrProgress.total}…
+                        {ocrProgress.phase === 'asr' ? '转录中' : '识别中'}{' '}
+                        {Math.min(ocrProgress.done + 1, ocrProgress.total)}/{ocrProgress.total}…
                       </span>
                     )}
-                    {!ocrRunning && ocrTargets.length > 0 && mediaText.length < ocrTargets.length && (
+                    {!ocrRunning && pendingImg > 0 && (
                       <button type="button" className="link-clear" onClick={() => void runOcr()}>
-                        识别其余 {ocrTargets.length - mediaText.length} 张
+                        识别其余 {pendingImg} 张
+                      </button>
+                    )}
+                    {!ocrRunning && pendingAsr > 0 && (
+                      <button type="button" className="link-clear" onClick={() => void runOcr()}>
+                        转录其余 {pendingAsr} 段
                       </button>
                     )}
                   </div>
@@ -726,28 +765,34 @@ export function DetailDialog({
                   {ocrOpen && (
                     <div className="ocr-list">
                       {mediaText.map((t) => {
-                        const idx = ocrTargets.findIndex((m) => m.id === t.mediaId);
+                        const isAudio = t.kind === 'asr';
+                        const list = isAudio ? asrTargets : ocrTargets;
+                        const idx = list.findIndex((m) => m.id === t.mediaId);
+                        const label = idx >= 0 ? `${isAudio ? '语音' : '图'} ${idx + 1}` : t.mediaId;
                         const noText = /^无文字[。.]?$/.test(t.text.trim());
                         // 要不要裁切由 OcrText 自己量（不数 \n——换行数不等于视觉行数）
                         const expanded = expandedOcr.has(t.mediaId);
+                        const mediaUrl = `/api/media/${encodeURIComponent(summary.id)}/${encodeURIComponent(t.mediaId)}`;
                         return (
                           <div key={t.mediaId} className="ocr-item">
                             <a
-                              className="ocr-thumb"
-                              href={`/api/media/${encodeURIComponent(summary.id)}/${encodeURIComponent(t.mediaId)}`}
+                              className={`ocr-thumb${isAudio ? ' audio' : ''}`}
+                              href={mediaUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="在新标签里看这张原图"
+                              title={isAudio ? '在新标签里播放这段语音' : '在新标签里看这张原图'}
                             >
-                              <img
-                                src={`/api/media/${encodeURIComponent(summary.id)}/${encodeURIComponent(t.mediaId)}`}
-                                alt={idx >= 0 ? `图 ${idx + 1}` : ''}
-                                loading="lazy"
-                              />
+                              {isAudio ? (
+                                <span className="ocr-audio-mark" aria-hidden>
+                                  ♪
+                                </span>
+                              ) : (
+                                <img src={mediaUrl} alt={label} loading="lazy" />
+                              )}
                             </a>
                             <div className="ocr-content">
                               <div className="ocr-item-head">
-                                <span className="ocr-item-label">{idx >= 0 ? `图 ${idx + 1}` : t.mediaId}</span>
+                                <span className="ocr-item-label">{label}</span>
                                 <span className="ocr-item-actions">
                                   <button
                                     type="button"

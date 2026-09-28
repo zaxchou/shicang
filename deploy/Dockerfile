@@ -20,6 +20,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN npm config set registry "$NPM_REGISTRY" && npm ci --omit=dev --no-fund --no-audit && npm cache clean --force
+# 语音转录（ASR）：网关只收 wav/mp3，源库语音全是 m4a，服务端必须能转码（apk 版本，比静态构建小）
+RUN apk add --no-cache ffmpeg
 COPY --from=build /build/dist ./dist
 COPY config ./config
 COPY data-seed ./data-seed

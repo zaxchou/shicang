@@ -1586,6 +1586,18 @@ img {
   object-fit: cover;
   display: block;
 }
+/* 语音没有封面图：给一个安静的音符底（不是按钮，只是"这条对的是一段音频"的视觉提示） */
+.ocr-thumb.audio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-raised, var(--surface));
+}
+.ocr-audio-mark {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-secondary);
+}
 .ocr-content {
   flex: 1;
   min-width: 0;

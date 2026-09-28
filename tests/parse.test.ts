@@ -195,3 +195,45 @@ describe('媒体路径安全', () => {
     expect(out.record!.bodyHtml).not.toContain('javascript:');
   });
 });
+
+describe('flomo 式 vault 相对附件链接（flomo/attachments/…）', () => {
+  it('普通链接也会登记媒体并改写成媒体路由（114 处语音就是这个形态）', () => {
+    // 真实 flomo 导出写的是 `[音频: x](flomo/attachments/<日期>/<hash>.m4a)`——
+    // 旧正则只认裸 `attachments/`，语音从未被登记，ASR 没有目标（做转录时发现）。
+    // 走 diary 分支（parseDiary），与生产里 flomo 笔记同一条路径。
+    const fx = createFixture();
+    const DIA: CollectionDef = { id: 'diary', name: '日记', root: 'flomo', type: 'diary' };
+    const dir = path.join(fx.sourceRoot, 'flomo', 'attachments', '2026', '05', '31');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'voice.m4a'), Buffer.from([0, 0, 0, 20, 102, 116, 121, 112, 109, 112, 52, 50]));
+    const noteName = '2026-05-31_但是刷完之后_MjM5NjAwODMw.md';
+    fs.writeFileSync(
+      path.join(fx.sourceRoot, 'flomo', noteName),
+      '---\ncreated_at: "2026-05-31 23:55:52"\nupdated_at: "2026-05-31 23:56:37"\ntags: []\n---\n\n但是刷完之后，它会自动地把我刷掉。\n\n**附件:**\n[音频: 17802429536800161E9D8D549F3E0](flomo/attachments/2026/05/31/voice.m4a)\n',
+      'utf8'
+    );
+    const abs = path.join(fx.sourceRoot, 'flomo', noteName);
+    const out = parseNote({
+      absolutePath: abs,
+      relativePath: `flomo/${noteName}`,
+      vaultRoot: fx.sourceRoot,
+      collection: DIA,
+      sourceRelativePath: `flomo/${noteName}`,
+      mtimeMs: 1,
+      size: 1,
+    });
+    expect(out.error).toBeNull();
+    const r = out.record!;
+    expect(r.collection).toBe('diary');
+    expect(r.media).toHaveLength(1);
+    expect(r.media[0]).toMatchObject({
+      kind: 'audio',
+      id: 'voice.m4a',
+      available: true,
+      localRelativePath: 'flomo/attachments/2026/05/31/voice.m4a',
+    });
+    // 链接被改写成媒体路由（详情里能直接打开播放，而不是指向一个网页相对路径）
+    expect(r.bodyHtml).toContain('/api/media/');
+    expect(r.bodyHtml).toContain('voice.m4a');
+  });
+});

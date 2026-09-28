@@ -35,8 +35,12 @@ interface Props {
 /** 状态三选一：互斥，所以用分段控件而不是下拉——一眼能看出"现在是什么状态" */
 const STATUS_OPTIONS = [
   { key: 'active', label: '在用', title: '还在我的工作集里（默认）' },
-  { key: 'expired', label: '已过期', title: '内容用过一次，不再需要 → 移入归档' },
-  { key: 'uncollected', label: '已取消', title: '打算去小红书取消收藏 → 移入归档，等源文件消失即视为完成' },
+  { key: 'expired', label: '已过期', title: '内容用过一次，不再需要 → 从默认视图移入归档' },
+  {
+    key: 'uncollected',
+    label: '已取消收藏',
+    title: '不再需要这条，就在本站取消掉（只影响拾藏，不动 Obsidian，也不需要在别的 App 里再操作）',
+  },
 ] as const;
 
 export function DetailDialog({
@@ -322,6 +326,10 @@ export function DetailDialog({
                     </button>
                   ))}
                 </div>
+                {/* 这句是为了消掉一个真实的误会：有人会以为"取消收藏"得回到小红书再点一次 */}
+                {currentStatus === 'uncollected' && (
+                  <span className="ann-hint">已在本站取消，不会改动 Obsidian，也不用去别处操作</span>
+                )}
               </div>
 
               {videoFailed && (

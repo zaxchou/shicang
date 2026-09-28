@@ -412,7 +412,7 @@ describe('状态与归档视图', () => {
     expect(svc.tagCounts('rednote').find((t) => t.tag === '茶器')?.count).toBe(1);
   });
 
-  it('取消收藏后源文件消失：归档视图带着它，默认视图看不到（"已完成取消"这条链路）', async () => {
+  it('取消收藏后源文件消失：归档视图带着它，默认视图看不到（标注不随文件消失）', async () => {
     const fx = createFixture();
     fx.writeNote({ id: 'id-0001', title: '笔记一' });
     const svc = new LibraryService(makeCfg(fx));

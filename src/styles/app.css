@@ -947,7 +947,7 @@ img {
   box-shadow: var(--trough);
   color: var(--text-secondary);
 }
-/* 已取消收藏：这是"打算去小红书取消"的待办，用暖色轻提示（与标星同一个色系但不是金色满填） */
+/* 已取消收藏：本站的终态（不是"待去小红书处理"），用暖色轻提示区别于已过期 */
 .card-status.uncollected {
   color: var(--star);
 }
@@ -1325,6 +1325,11 @@ img {
 .ann-label {
   font-size: 12.5px;
   color: var(--text-weak);
+}
+.ann-hint {
+  font-size: 12px;
+  color: var(--text-weak);
+  line-height: 1.5;
 }
 .status-picker {
   display: inline-flex;

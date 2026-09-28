@@ -59,17 +59,6 @@ export function Sidebar({
         {hasCategories && (
           <>
             <div className="nav-section">分类</div>
-            {(cur!.uncategorized > 0 || collection === 'rednote') && (
-              <button
-                className={`nav-item${!tagsView && activeCategoryId === 'uncategorized' ? ' active' : ''}`}
-                onClick={() => onSelectCategory('uncategorized')}
-                aria-current={!tagsView && activeCategoryId === 'uncategorized' ? 'page' : undefined}
-              >
-                <IconInbox size={15} />
-                <span className="nav-label">未分类</span>
-                <span className="nav-count">{cur!.uncategorized}</span>
-              </button>
-            )}
             {cur!.categories.map((c) => {
               // 派生分类（收藏分类/日记主题）统一用标签图标；rednote 用类目图标
               const Icon = collection === 'rednote' ? categoryIcon(c.id) : IconTag;
@@ -87,6 +76,18 @@ export function Sidebar({
                 </button>
               );
             })}
+            {/* 未分类固定排在分类列表末尾，不参与上面的类目排序 */}
+            {(cur!.uncategorized > 0 || collection === 'rednote') && (
+              <button
+                className={`nav-item nav-item-last${!tagsView && activeCategoryId === 'uncategorized' ? ' active' : ''}`}
+                onClick={() => onSelectCategory('uncategorized')}
+                aria-current={!tagsView && activeCategoryId === 'uncategorized' ? 'page' : undefined}
+              >
+                <IconInbox size={15} />
+                <span className="nav-label">未分类</span>
+                <span className="nav-count">{cur!.uncategorized}</span>
+              </button>
+            )}
           </>
         )}
 

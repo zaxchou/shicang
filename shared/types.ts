@@ -218,7 +218,7 @@ export interface OcrRunResult {
   results: Array<{ mediaId: string; ok: boolean; cached: boolean; text?: string; reason?: string }>;
   /** 识别后这篇笔记的全部识别文本（按媒体顺序，界面直接渲染） */
   recognized: RecognizedText[];
-  /** 这次没轮到、还没识别的图片数（受 maxPerNote 限制） */
+  /** 这篇笔记整体还有多少张图没识别（与本次请求了几张无关；界面按它显示「识别其余 N 张」） */
   remaining: number;
   /** 实际使用的视觉模型；未配置凭据时为 null */
   model: string | null;

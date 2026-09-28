@@ -444,6 +444,26 @@ describe('LibraryService.ocrNote：缓存、去重、防护', () => {
     expect(svc.mediaTextFor('id-0002')[0].text).toBe('同一张图');
   });
 
+  it('指定 mediaId 时只识别那一张（界面逐张请求走的就是这条路）', async () => {
+    const fx = createFixture();
+    const svc = await boot(fx, 3);
+    const { calls } = stubVision({ text: '指定的这张' });
+
+    const one = await svc.ocrNote('id-0001', { mediaId: 'image-2.webp' });
+    expect(calls).toHaveLength(1);
+    expect(one.results).toHaveLength(1);
+    expect(one.results[0]).toMatchObject({ mediaId: 'image-2.webp', ok: true, cached: false });
+    // remaining 是"这篇还没识别的张数"，与本次请求了几张无关
+    expect(one.remaining).toBe(2);
+    expect(one.recognized.map((r) => r.mediaId)).toEqual(['image-2.webp']);
+
+    // 再点第一张：只多一次调用，且两张都在结果里
+    const two = await svc.ocrNote('id-0001', { mediaId: 'image-1.webp' });
+    expect(calls).toHaveLength(2);
+    expect(two.recognized.map((r) => r.mediaId).sort()).toEqual(['image-1.webp', 'image-2.webp']);
+    expect(two.remaining).toBe(1);
+  });
+
   it('单次上限真的生效，剩下的明确告诉用户还剩几张', async () => {
     const fx = createFixture();
     const svc = await boot(fx, 3);

@@ -973,6 +973,7 @@ export default function App() {
           }
           onRemarkChanged={onRemarkChanged}
           onAnnotationError={onAnnotationError}
+          onNotice={(msg) => showToast(msg)}
           onClose={closeDetail}
         />
       )}

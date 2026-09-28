@@ -25,7 +25,12 @@ import {
 } from './Icons';
 
 /**
- * 复制到剪贴板。
+ * 一次点击最多识别几张：与后端 `AI_OCR_MAX_PER_NOTE` 的默认值一致。
+ * 前端按这个数分批，剩下的用「识别其余 N 张」显式再点一次——不替用户一次烧掉几十张的额度。
+ */
+const OCR_BATCH = 8;
+
+/** 复制到剪贴板。
  * 局域网 http 访问时 `navigator.clipboard` 不存在（非安全上下文），所以必须留 execCommand 一路，
  * 两路都不行时返回 false，由界面提示"手动选中复制"——不能假装复制成功了。
  */
@@ -78,6 +83,8 @@ interface Props {
   onRemarkChanged(noteId: string, remark: string | null, revision: number): void;
   /** 标注类操作（归档 / 备注）出错时的统一提示 */
   onAnnotationError(message: string): void;
+  /** 普通提示（识别开始/完成这类"过程通知"）——详情里跑长任务时必须让用户看见 */
+  onNotice?(message: string): void;
   onClose(): void;
 }
 
@@ -94,6 +101,7 @@ export function DetailDialog({
   onStatusChanged,
   onRemarkChanged,
   onAnnotationError,
+  onNotice,
   onClose,
 }: Props) {
   const [detail, setDetail] = useState<NoteDetail | null>(null);
@@ -109,6 +117,7 @@ export function DetailDialog({
   const [mediaText, setMediaText] = useState<RecognizedText[]>([]);
   const [expandedOcr, setExpandedOcr] = useState<Set<string>>(new Set());
   const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number } | null>(null);
   const [ocrMsg, setOcrMsg] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -167,32 +176,55 @@ export function DetailDialog({
   );
 
   const runOcr = useCallback(async () => {
-    if (ocrRunning) return;
+    if (ocrRunning || !detail) return;
+    const pending = ocrTargets.filter((m) => !mediaText.some((t) => t.mediaId === m.id));
+    if (pending.length === 0) {
+      setOcrMsg('这篇的图片都已经识别过了');
+      return;
+    }
+    // 逐张请求，不一次闷完：8 张要 40-60 秒，中间必须有反馈，
+    // 否则用户看到的就是"点了没反应"（实测就是这个原因找上来的）。
+    const batch = pending.slice(0, OCR_BATCH);
     setOcrRunning(true);
     setOcrMsg(null);
-    try {
-      const out = await api.ocrNote(summary.id);
-      setMediaText(out.recognized);
-      const failed = out.results.filter((r) => !r.ok);
-      const okCount = out.results.filter((r) => r.ok).length;
-      const cached = out.results.filter((r) => r.cached).length;
-      if (out.results.length === 0) {
-        setOcrMsg('这篇的图片都已经识别过了');
-      } else if (failed.length > 0 && okCount === 0) {
-        setOcrMsg(failed[0]?.reason ?? '识别失败');
-      } else {
-        const parts = [`识别 ${okCount} 张`];
-        if (cached) parts.push(`其中 ${cached} 张用了已有结果`);
-        if (failed.length) parts.push(`${failed.length} 张失败：${failed[0]?.reason ?? ''}`);
-        if (out.remaining > 0) parts.push(`还有 ${out.remaining} 张没识别，再点一次继续`);
-        setOcrMsg(parts.join(' · '));
+    setOcrProgress({ done: 0, total: batch.length });
+    onNotice?.(`开始识别 ${batch.length} 张图…（每张约 5–10 秒，可以继续看页面）`);
+
+    let okCount = 0;
+    let cachedCount = 0;
+    const failures: string[] = [];
+    for (let i = 0; i < batch.length; i++) {
+      setOcrProgress({ done: i, total: batch.length });
+      try {
+        const target = batch[i];
+        if (!target) break;
+        const out = await api.ocrNote(summary.id, target.id);
+        const r = out.results[0];
+        if (r?.ok) {
+          okCount++;
+          if (r.cached) cachedCount++;
+          setMediaText(out.recognized); // 每张完成后立即出现，不等全部跑完
+        } else if (r) {
+          failures.push(r.reason ?? '未知原因');
+        }
+      } catch (e) {
+        failures.push(e instanceof ApiError ? e.message : '请求失败');
+        break; // 网络/服务端异常时不再继续打接口
       }
-    } catch (e) {
-      setOcrMsg(e instanceof ApiError ? e.message : '识别失败');
-    } finally {
-      setOcrRunning(false);
+      setOcrProgress({ done: i + 1, total: batch.length });
     }
-  }, [ocrRunning, summary.id]);
+
+    setOcrProgress(null);
+    setOcrRunning(false);
+    const left = pending.length - batch.length;
+    const parts = [`识别完成：${okCount} 张`];
+    if (cachedCount) parts.push(`${cachedCount} 张用了已有结果`);
+    if (failures.length) parts.push(`${failures.length} 张失败（${failures[0]}）`);
+    if (left > 0) parts.push(`还有 ${left} 张没识别，点「识别其余 ${left} 张」继续`);
+    const summaryText = parts.join(' · ');
+    setOcrMsg(summaryText);
+    onNotice?.(summaryText);
+  }, [detail, ocrRunning, ocrTargets, mediaText, onNotice, summary.id]);
 
   const dropMediaText = useCallback(
     async (mediaId: string) => {
@@ -416,19 +448,39 @@ export function DetailDialog({
           </div>
         </div>
 
-        {/* 识别文本（图片里的字）：有了就显示——用户要的是"能看见、能搜到、能复制走" */}
-        {(ocrMsg || mediaText.length > 0) && (
-          <div className="detail-ocr-panel">
+        {/* 识别文本（图片里的字）：有了就显示——用户要的是"能看见、能搜到、能复制走"。
+            识别**过程中**也要显示（否则一次点击闷 40 秒，看着像没反应）。 */}
+        {(ocrRunning || ocrMsg || mediaText.length > 0) && (
+          <div className="detail-ocr-panel" aria-busy={ocrRunning}>
             <div className="ocr-head">
               <span className="ocr-title">图片文字</span>
               {mediaText.length > 0 && <span className="ocr-count">{mediaText.length} 张</span>}
-              {ocrTargets.length > 0 && mediaText.length < ocrTargets.length && (
+              {ocrRunning && ocrProgress && (
+                <span className="ocr-progress" role="status">
+                  识别中 {ocrProgress.done + (ocrProgress.done < ocrProgress.total ? 1 : 0)}/{ocrProgress.total}…
+                </span>
+              )}
+              {!ocrRunning && ocrTargets.length > 0 && mediaText.length < ocrTargets.length && (
                 <button type="button" className="link-clear" onClick={() => void runOcr()} disabled={ocrRunning}>
-                  {ocrRunning ? '识别中…' : `识别其余 ${ocrTargets.length - mediaText.length} 张`}
+                  识别其余 {ocrTargets.length - mediaText.length} 张
+                </button>
+              )}
+              {!ocrRunning && ocrTargets.length > 0 && mediaText.length >= ocrTargets.length && (
+                <button type="button" className="link-clear" onClick={() => void runOcr()} disabled={ocrRunning}>
+                  重新识别
                 </button>
               )}
             </div>
-            {ocrMsg && <div className="ocr-msg">{ocrMsg}</div>}
+            {ocrRunning && (
+              <div className="ocr-bar" aria-hidden>
+                <span
+                  style={{
+                    width: `${ocrProgress ? Math.round((ocrProgress.done / Math.max(1, ocrProgress.total)) * 100) : 0}%`,
+                  }}
+                />
+              </div>
+            )}
+            {ocrMsg && !ocrRunning && <div className="ocr-msg">{ocrMsg}</div>}
             {mediaText.map((t) => {
               const idx = ocrTargets.findIndex((m) => m.id === t.mediaId);
               const noText = /^无文字[。.]?$/.test(t.text.trim());

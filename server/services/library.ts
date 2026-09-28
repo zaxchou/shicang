@@ -552,9 +552,8 @@ export class LibraryService {
     if (!r) throw new NotFoundError(`未找到笔记 ${noteId}`);
 
     const cfg = aiVisionConfigFromEnv();
-    const targets = opts.mediaId
-      ? this.ocrTargets(noteId).filter((m) => m.id === opts.mediaId)
-      : this.ocrTargets(noteId);
+    const allTargets = this.ocrTargets(noteId);
+    const targets = opts.mediaId ? allTargets.filter((m) => m.id === opts.mediaId) : allTargets;
     if (opts.mediaId && targets.length === 0) {
       throw new ValidationError(`这篇笔记里没有可识别的本地图片：${opts.mediaId}`);
     }
@@ -563,13 +562,12 @@ export class LibraryService {
     // 已经有结果的跳过（不重复烧额度）；但缓存命中要补 ref，所以下面按 hash 再判一次
     const pending = targets.filter((m) => !this.mediaText.hasFor(noteId, m.id));
     const limited = cfg ? pending.slice(0, cfg.maxPerNote) : [];
-    const remaining = cfg ? Math.max(0, pending.length - limited.length) : pending.length;
 
     if (!cfg) {
       for (const m of limited.length ? limited : pending.slice(0, 1)) {
         results.push({ mediaId: m.id, ok: false, cached: false, reason: '未配置 AI 凭据（AI_CLASSIFY_API_KEY）' });
       }
-      return { noteId, results, recognized: this.mediaTextFor(noteId), remaining, model: null };
+      return { noteId, results, recognized: this.mediaTextFor(noteId), remaining: pending.length, model: null };
     }
 
     for (const m of limited) {
@@ -624,6 +622,9 @@ export class LibraryService {
     if (okCount) {
       log.info(`OCR 完成: ${noteId} 识别 ${okCount} 张（缓存 ${results.filter((x) => x.cached).length} 张）`);
     }
+    // 处理完之后再数：**这篇笔记整体还剩几张没识别**，与"本次请求了几张"无关——
+    // 界面按这个数显示「识别其余 N 张」，按请求批次算会显示成 0，那是错的。
+    const remaining = allTargets.filter((m) => !this.mediaText.hasFor(noteId, m.id)).length;
     return { noteId, results, recognized: this.mediaTextFor(noteId), remaining, model: cfg.model };
   }
 

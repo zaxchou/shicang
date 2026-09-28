@@ -144,14 +144,20 @@ git config --global credential.credentialStore wincredman # 补上，然后完�
 host=github.com
 
 ' | git credential fill | awk -F= '/^password=/{print length(substr($0,10))}'`
-- **`credential.interactive=false` 会让 GCM 干脆不返回已存好的 token**（实测：允许交互 = 40 字符，禁止 = 0），
-  所以别指望用它来"禁止弹窗"；要让推送永不等待，应改用静态 PAT 存进凭据管理器：
-  `printf 'protocol=https
+- **本机 2026-09-28 起的做法：静态 PAT + 禁止交互**，这样推送永不弹窗、也永不等待：
+  1. 在 GitHub 生成一条 fine-grained token（只需 `Contents: Read and write` 该仓库），存进凭据管理器（用户名写死）：
+     `printf 'protocol=https
 host=github.com
 username=<账号>
 password=<PAT>
 
 ' | git credential approve`
+  2. remote 带上用户名，保证每次命中这条：`git remote set-url origin https://<账号>@github.com/<owner>/<repo>.git`
+  3. `git config --global credential.interactive false` —— **静态令牌不需要刷新，所以 GCM 不再需要任何交互**。
+  换 token（过期/撤销后）：重跑第 1 步即可，其余不动。
+  注意：**token 只放在凭据管理器里**，不要写进仓库文件、脚本或文档。
+- 为什么不能只靠第 3 步：`credential.interactive=false` 时 GCM 对**需要刷新的 OAuth 凭据**会干脆拒答
+  （实测：允许交互 = 40 字符，禁止 = 0），只有静态 PAT 才两头都满足。
 - **推送请走 `npm run push`**（= `scripts/git-push.mjs --tags`）：它带硬性超时（默认 240s），
   超时就放弃并报错，提交留在本地——这样即使凭据助手需要人工确认，**长时间无人值守的任务也不会被挂死**。
   仓库在网络盘上，打包本身就要几十秒到两分钟，不加超时会把"慢"误判成"卡住等你确认"。

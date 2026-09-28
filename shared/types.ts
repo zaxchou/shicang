@@ -209,6 +209,91 @@ export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown };
 }
 
+/** 语料导出格式版本：corpus.jsonl 每条与前后的 manifest 都带它，外部管道据此判断兼容性 */
+export const CORPUS_SCHEMA_VERSION = 1;
+
+/**
+ * OCR / 转录的产物。**本版恒为空数组**——识别能力（plan §18.2）还没接，
+ * 但语料 schema 先把位置留好，外部管道可以照着最终形态写死，不必等我们改版。
+ */
+export interface RecognizedText {
+  kind: 'ocr' | 'asr';
+  /** 对应媒体 id（图片 image-1.webp / 语音文件名） */
+  mediaId: string;
+  text: string;
+  model: string;
+  at: string;
+}
+
+/** corpus.jsonl 的一行：一篇笔记的可索引形态 */
+export interface CorpusRecord {
+  schemaVersion: number;
+  id: string;
+  collection: string;
+  collectionName: string;
+  title: string;
+  author: string;
+  tags: string[];
+  categoryId: string | null;
+  categoryName: string | null;
+  categorySource: NoteSummary['categorySource'];
+  starred: boolean;
+  status: NoteStatus;
+  remark: string | null;
+  publishedAt: string | null;
+  syncedAt: string | null;
+  originalUrl: string;
+  sourcePath: string;
+  sourceStatus: 'available' | 'missing';
+  mediaCount: number;
+  hasVideo: boolean;
+  extra: ExtraFields | null;
+  /** 正文纯文本（从已消毒的 bodyHtml 提取） */
+  text: string;
+  recognized: RecognizedText[];
+  /** 源 .md 原始字节的 SHA-256；null = 该笔记类型未记录（历史索引） */
+  sourceHash: string | null;
+  /**
+   * 语义内容 hash：只覆盖**文本内容**（标题 / 作者 / 标签 / 分类 / 备注 / 正文 / 附加字段 / 识别文本）。
+   * 星标、归档状态、时间、路径都不进这个 hash——归档一篇不该让外部 embedding 重算一遍。
+   */
+  contentHash: string;
+}
+
+export interface CorpusCounts {
+  total: number;
+  active: number;
+  archived: number;
+  starred: number;
+  missing: number;
+  byCollection: Array<{ id: string; name: string; count: number }>;
+}
+
+export interface CorpusManifest {
+  schemaVersion: number;
+  app: string;
+  appVersion: string;
+  generatedAt: string;
+  contentSource: string;
+  indexRevision: number;
+  annotationRevision: number;
+  categoryRevision: number;
+  parseVersion: number;
+  counts: CorpusCounts;
+  files: {
+    corpus: { path: string; bytes: number; lines: number };
+    catalog: { path: string; bytes: number };
+  };
+  /** 全部 contentHash 排序后的摘要：不变 = 没有任何一篇需要外部管道重算 */
+  contentDigest: string;
+  /**
+   * 全部**记录**（含星标/状态/时间等）的摘要，只用来判断"这次要不要重写文件"。
+   * 不能拿 `contentDigest` 代替它：那个**有意不含**星标与归档状态，用它判断会让
+   * "只归档一篇"被当成没有变化，`corpus.jsonl` 里的状态就停在旧值了。
+   */
+  digest: string;
+}
+
 export const DEFAULT_PAGE_SIZE = 60;
 export const MAX_PAGE_SIZE = 100;
 

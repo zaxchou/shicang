@@ -222,6 +222,8 @@ describe('多库集成（LibraryService）', () => {
       extraAllowedOrigins: [],
       dataDir: path.join(root, 'data'),
       backupDir: path.join(root, 'backups'),
+      exportDir: path.join(root, '..', path.basename(root) + '-export'),
+      exportAfterRefresh: false,
       logDir: path.join(root, 'logs'),
       isProduction: false,
       version: 'test',

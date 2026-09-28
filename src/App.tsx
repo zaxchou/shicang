@@ -64,6 +64,7 @@ export default function App() {
   const [listError, setListError] = useState<string | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   /** 表格里勾选的条目（批量归档用）；换筛选/视图/库就清空 */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailSummary, setDetailSummary] = useState<NoteSummary | null>(null);
@@ -434,6 +435,26 @@ export default function App() {
     }
   }, [refreshing, loadLibrary, loadTags, reload, showToast]);
 
+  // ---- 导出语料（plan §18.3）：刷新后会自动更新，这里是手动补一次 ----
+  const startExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const { manifest, written } = await api.exportCorpus();
+      const mb = (manifest.files.corpus.bytes / 1048576).toFixed(2);
+      // 「内容没变」是正常结果而不是失败：跳过写入是设计（省掉 NAS 上几 MB 的无谓写入）
+      showToast(
+        written
+          ? `语料已导出：${manifest.counts.total} 篇 · ${manifest.files.corpus.lines} 行 · ${mb} MB`
+          : `语料已是最新，无需重写（${manifest.counts.total} 篇）`
+      );
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.message : '导出语料失败', 'error');
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, showToast]);
+
   useEffect(
     () => () => {
       if (pollingRef.current) window.clearTimeout(pollingRef.current);
@@ -743,6 +764,8 @@ export default function App() {
           onChange={patchQuery}
           onRefresh={() => void startRefresh()}
           refreshing={refreshing || library?.indexStatus === 'scanning'}
+          onExportCorpus={() => void startExport()}
+          exporting={exporting}
           title={headerTitle}
           scopeCount={scopeCount}
           countUnit="篇"

@@ -147,6 +147,8 @@ export interface Fixture {
   sourceRoot: string;
   dataDir: string;
   backupDir: string;
+  /** 语料导出目录：**故意放在 root 之外**，否则会撞上"导出目录不得落在内容源里"的断言 */
+  exportDir: string;
   writeNote(o: FixtureNoteOptions): void;
   writeMedia(id: string, name: string, bytes: Buffer): void;
   removeNote(id: string): void;
@@ -161,12 +163,14 @@ export function createFixture(prefix = 'myinfobase-test'): Fixture {
   const backupDir = path.join(root, 'backups');
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(backupDir, { recursive: true });
+  const exportDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix + '-export-'));
 
   return {
     root,
     sourceRoot,
     dataDir,
     backupDir,
+    exportDir,
     writeNote(o) {
       const name = o.fileName ?? `${o.title ?? 'note'}-${o.id}.md`;
       fs.writeFileSync(path.join(sourceRoot, 'Bookmarks', name), noteMarkdown(o), 'utf8');

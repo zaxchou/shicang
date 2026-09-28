@@ -17,6 +17,8 @@ function makeCfg(fx: Fixture): AppConfig {
     extraAllowedOrigins: [],
     dataDir: fx.dataDir,
     backupDir: fx.backupDir,
+    exportDir: fx.exportDir,
+    exportAfterRefresh: false,
     logDir: path.join(fx.root, 'logs'),
     isProduction: false,
     version: 'test',

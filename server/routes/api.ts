@@ -300,6 +300,25 @@ export function apiRouter(deps: ApiDeps): express.Router {
     })
   );
 
+  // 语料导出（plan §18.3）：GET 看上次导出，POST 立刻重导。
+  // 导出物在 runtime/export/（生产）/ .local/export/（开发），不在 vault 里，也不进发布包。
+  router.get(
+    '/export/corpus',
+    wrap((req, res) => {
+      const lib = deps.library();
+      res.json({ manifest: lib.corpusManifest(), dir: lib.corpusDir });
+    })
+  );
+
+  router.post(
+    '/export/corpus',
+    wrap(async (req, res) => {
+      const lib = deps.library();
+      const result = await lib.exportCorpus();
+      res.json({ manifest: result.manifest, written: result.written, dir: result.dir });
+    })
+  );
+
   // API 404
   router.use((req, res) => {
     res.status(404).json({ error: { code: 'NOT_FOUND', message: `未知 API 路径: ${req.path}` } });

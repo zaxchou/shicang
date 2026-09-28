@@ -1,6 +1,7 @@
 // API client：统一错误封装、请求序号防过期覆盖。
 import type {
   Category,
+  CorpusManifest,
   LibraryInfo,
   NoteDetail,
   NoteListResult,
@@ -126,4 +127,9 @@ export const api = {
     }),
   startRefresh: () => request<{ job: RefreshJobInfo }>('/api/refresh', { method: 'POST' }),
   refreshJob: (jobId: string) => request<{ job: RefreshJobInfo }>(`/api/refresh/${encodeURIComponent(jobId)}`),
+  /** 上次导出的 manifest（没导过为 null） */
+  corpusManifest: () => request<{ manifest: CorpusManifest | null; dir: string }>('/api/export/corpus'),
+  /** 立刻重导语料；内容没变时 written=false（服务端跳过写入） */
+  exportCorpus: () =>
+    request<{ manifest: CorpusManifest; written: boolean; dir: string }>('/api/export/corpus', { method: 'POST' }),
 };

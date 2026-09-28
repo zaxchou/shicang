@@ -5,6 +5,8 @@ import type {
   Category,
   CollectionDef,
   CollectionInfo,
+  CorpusManifest,
+  CorpusRecord,
   ExtraFieldInfo,
   LibraryInfo,
   NoteDetail,
@@ -23,6 +25,13 @@ import { PARSE_VERSION, type NoteRecord } from '../reader/parse.js';
 import { classifyRednote } from './classify.js';
 import { aiClassifyConfigFromEnv, classifyByAi } from './ai-classify.js';
 import { JsonStore } from '../storage/json-store.js';
+import {
+  buildCorpusRecords,
+  exportCorpus as writeCorpus,
+  readCorpusManifest,
+  type CorpusCollectionMeta,
+  type CorpusExportResult,
+} from './corpus.js';
 import {
   CategoriesService,
   CategoryConflictError,
@@ -416,6 +425,73 @@ export class LibraryService {
       .filter((x): x is CollectionInfo => x !== null);
   }
 
+  // ---------- 语料导出（plan §18.3）----------
+
+  /** catalog.md 的分类顺序与 id→name 映射直接复用侧栏口径，两边不会打架 */
+  private corpusCollections(): CorpusCollectionMeta[] {
+    return this.cfg.collections.map((def) => ({
+      id: def.id,
+      name: def.name,
+      categories: (this.collectionInfo(def.id)?.categories ?? []).map((c) => ({ id: c.id, name: c.name })),
+    }));
+  }
+
+  private corpusCategoryOf(r: NoteRecord): { id: string | null; source: NoteSummary['categorySource'] } {
+    if (r.collection === 'rednote') {
+      const eff = this.categories.effective(r.id);
+      return { id: eff.categoryId, source: eff.source };
+    }
+    return { id: r.derivedCategory ?? null, source: 'derived' };
+  }
+
+  /**
+   * 语料用的全部记录：**含已归档与源文件已消失的**。
+   * 归档不等于删除（"现在对我来说没用了"，但笔记还是我的），源文件消失也不该让语料凭空少一篇；
+   * 由 status / sourceStatus 字段交给外部管道自己决定要不要用。
+   */
+  corpusRecords(): CorpusRecord[] {
+    return buildCorpusRecords(this.doc.notes, {
+      collections: this.corpusCollections(),
+      categoryIdOf: (r) => this.corpusCategoryOf(r),
+      annotationOf: (id) => this.annotations.effective(id),
+    });
+  }
+
+  /** 导出语料（corpus.jsonl / catalog.md / manifest.json）；内容没变时不写盘 */
+  async exportCorpus(): Promise<CorpusExportResult> {
+    const result = await writeCorpus({
+      dir: this.cfg.exportDir,
+      vaultRoot: this.cfg.vaultRoot,
+      records: this.corpusRecords(),
+      collections: this.corpusCollections(),
+      meta: {
+        app: this.cfg.app,
+        appVersion: this.cfg.version,
+        contentSource: this.cfg.vaultRoot,
+        indexRevision: this.doc.revision,
+        annotationRevision: this.annotations.revision,
+        categoryRevision: this.categories.revision,
+        parseVersion: PARSE_VERSION,
+      },
+    });
+    log.info(
+      result.written
+        ? `语料导出完成: ${result.manifest.counts.total} 篇 → ${result.dir}`
+        : '语料导出: 内容未变，跳过写入'
+    );
+    return result;
+  }
+
+  /** 上次导出的 manifest（读盘，重启后仍能看到）；从未导出或文件坏了返回 null */
+  corpusManifest(): CorpusManifest | null {
+    return readCorpusManifest(this.cfg.exportDir);
+  }
+
+  /** 导出目录（前端提示"文件在哪"用） */
+  get corpusDir(): string {
+    return this.cfg.exportDir;
+  }
+
   libraryInfo(): LibraryInfo {
     // 顶层字段保持 rednote 口径（兼容）；前端以 collections 为准
     const rnIds = this.doc.notes.filter((n) => n.collection === 'rednote').map((n) => n.id);
@@ -705,6 +781,18 @@ export class LibraryService {
     // 首扫没有 job（诊断只走 onProgress），把自动分类结果放进页面诊断；
     // 只留在内存里（不再多写一次索引文件），重启后从日志里查
     if (classifyMsg && !job) this.doc.diagnostics = [classifyMsg, ...this.doc.diagnostics].slice(0, 200);
+
+    // 刷新后重导语料。**导出失败绝不能拖垮刷新**——语料是派生产物，索引才是主线；
+    // 内容没变时 exportCorpus 自己会跳过写入，所以这里的开销通常只是读一遍内存。
+    if (this.cfg.exportAfterRefresh) {
+      try {
+        await this.exportCorpus();
+      } catch (e) {
+        const msg = `语料导出失败: ${(e as Error).message}`;
+        log.warn(msg);
+        if (job) job.diagnostics.push(msg);
+      }
+    }
 
     if (job) {
       job.state = outcome.counts.errors > 0 ? 'partial' : 'completed';

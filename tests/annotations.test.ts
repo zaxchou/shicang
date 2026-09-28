@@ -201,6 +201,8 @@ function makeCfg(fx: Fixture, collections = [{ id: 'rednote', name: '小红书�
     extraAllowedOrigins: [],
     dataDir: fx.dataDir,
     backupDir: fx.backupDir,
+    exportDir: fx.exportDir,
+    exportAfterRefresh: false,
     logDir: path.join(fx.root, 'logs'),
     isProduction: false,
     version: 'test',

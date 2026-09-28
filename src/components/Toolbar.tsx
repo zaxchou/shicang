@@ -1,5 +1,5 @@
 import { shanghaiDateDaysAgo } from '../../shared/time';
-import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconRefresh, IconSearch, IconStar } from './Icons';
+import { IconArrowLeft, IconChevronDown, IconClose, IconExport, IconGrid, IconList, IconRefresh, IconSearch, IconStar } from './Icons';
 
 export interface QueryState {
   q: string;
@@ -20,6 +20,9 @@ interface Props {
   onChange(patch: Partial<QueryState>): void;
   onRefresh(): void;
   refreshing: boolean;
+  /** 导出语料（corpus.jsonl / catalog.md / manifest.json）；刷新后也会自动更新 */
+  onExportCorpus(): void;
+  exporting: boolean;
   /** 标题与范围计数由 App 计算传入（库视图 / 标签结果视图） */
   title: string;
   scopeCount: number | null;
@@ -51,6 +54,8 @@ export function Toolbar({
   onChange,
   onRefresh,
   refreshing,
+  onExportCorpus,
+  exporting,
   title,
   scopeCount,
   countUnit = '篇',
@@ -88,16 +93,33 @@ export function Toolbar({
           <span className="title-text">{title}</span>
           <span className="title-count">{scopeCount != null ? `${scopeCount} ${countUnit}` : ''}</span>
         </h1>
-        {/* 刷新：统一使用 CSS 柔和玻璃胶囊（LiquidGlass 的 SVG 位移滤镜每次指针移动都要重建，帧耗过高） */}
-        <button
-          className={`btn-refresh${refreshing ? ' spinning' : ''}`}
-          onClick={onRefresh}
-          disabled={refreshing}
-          title={refreshing ? '刷新中…' : '读取 Obsidian 中新增的收藏'}
-        >
-          <IconRefresh size={14} />
-          {refreshing ? '刷新中…' : '刷新收藏库'}
-        </button>
+        {/* 动作区包一层：header-row 是 space-between，三个平级子元素会把两个按钮撑到两边去 */}
+        <div className="header-actions">
+          {/* 刷新：统一使用 CSS 柔和玻璃胶囊（LiquidGlass 的 SVG 位移滤镜每次指针移动都要重建，帧耗过高） */}
+          <button
+            className={`btn-refresh${refreshing ? ' spinning' : ''}`}
+            onClick={onRefresh}
+            disabled={refreshing}
+            title={refreshing ? '刷新中…' : '读取 Obsidian 中新增的收藏'}
+          >
+            <IconRefresh size={14} />
+            {refreshing ? '刷新中…' : '刷新收藏库'}
+          </button>
+          {/* 导出语料：低频维护动作，用安静一点的次级按钮，不和「刷新收藏库」抢注意力 */}
+          <button
+            className={`btn-export${exporting ? ' spinning' : ''}`}
+            onClick={onExportCorpus}
+            disabled={exporting}
+            title={
+              exporting
+                ? '正在导出…'
+                : '把全部笔记导成可检索的语料（corpus.jsonl / catalog.md / manifest.json），供整理素材与外部检索使用；刷新收藏库后会自动更新'
+            }
+          >
+            <IconExport size={14} />
+            {exporting ? '导出中…' : '导出语料'}
+          </button>
+        </div>
       </div>
 
       {showViewToggle && (

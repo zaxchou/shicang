@@ -797,3 +797,87 @@ toast「已归档 3 条」+ 撤销、行数 605→602、归档 1→4、勾选清
 
 **浏览器实测**：头部元素顺序确认为上述五项、归档按钮的前一个兄弟节点就是星标、旧的独立行已消失；
 点归档 → `aria-pressed=true` + 金色 + label 变「取回」+ toast「已归档」，且**星标状态不受影响**；再点取回 → 复原。
+
+## 语料导出（2026-09-28，v0.8.0）
+
+用户在三项候选里选了**先做语料导出**（原计划里它排最后）：零 AI 调用、零新依赖，
+先把"上下文可索引的库"交付出来，同时把 OCR/转录结果的**落点**与外部消费格式定下来。
+设计见 `plan.md` §18.3。
+
+### 实现
+
+- `server/services/corpus.ts`（新）：`htmlToText`（正文 HTML → 纯文本）、`computeContentHash`、
+  `buildCorpusRecords`、`buildCatalog`、`exportCorpus`、`assertOutsideVault`、`readCorpusManifest`。
+- `LibraryService`：`corpusRecords()` / `exportCorpus()` / `corpusManifest()` / `corpusDir`；
+  扫描成功后自动重导（`EXPORT_AFTER_REFRESH`，默认开），**失败只进刷新诊断、不拖垮刷新**。
+- 路由 `GET /api/export/corpus`（上次导出）与 `POST /api/export/corpus`（立刻重导）；
+  CLI `npm run export:corpus`（NAS 上不经浏览器也能跑）；工具栏「导出语料」按钮（安静版次级按钮）。
+
+### 真实数据实测
+
+| 项 | 结果 |
+| --- | --- |
+| 规模 | 1205 篇（小红书 606 / 我的宝贝 331 / 日记 268） |
+| 产出 | `corpus.jsonl` 1.93 MB · 1205 行；`catalog.md` 206 KB；`manifest.json` 1.1 KB |
+| 耗时 | **150 ms** |
+| 正文质量 | 残留 HTML 标签 **0**、残留实体 **0**；平均正文 284 字 |
+| 字段完整 | title/author/tags/sourceHash 1205/1205；`extra` 323（只有宝贝有结构化字段）；`originalUrl` 606（只有小红书有原文链接） |
+| 幂等 | 二次导出「内容未变，跳过写入」，mtime 与 `generatedAt` 都不变（判据是 `digest`，见下） |
+| 目录结构 | 小红书 6 类（书画 271 / 数码硬件 41 / 学习语言 49 / 设计与创作 69 / AI 工具 105 / 生活 70）+ 已归档 1；宝贝 8 类 + 未分类 1；日记 10 类；标签 1059 个按热度排列 |
+
+顺带用 `contentHash` 抓到 flomo 里一对**真实重复文件**（标题与正文完全相同的两份 .md）。
+只报告，不代删——源库只读。
+
+### 两个既有缺口（本次未修，OCR 那步必须面对）
+
+- **53 篇正文为空，其中 49 篇有图**：文字全在图里，今天在全文搜索里等于不存在。
+- **`mediaCount` 只数本地图片**：7 篇只引用远程图的笔记（都在「我的收藏品」）看起来"没有媒体"，
+  其中 4 篇既无正文也无媒体。远端图要 OCR 得先下载。
+
+### 写测试时发现的一个真实缺陷（已修）
+
+`corpus.jsonl` 里每条都带 `starred` / `status`，而 `contentHash` **有意不含**这两项
+（为的是"归档一篇不该让外部 embedding 重算"）。第一版把**跳过写入**也建立在 `contentHash`
+派生出来的 `contentDigest` 上——于是**"只归档 / 只标星"会被判成"内容没变"，文件不重写，
+`corpus.jsonl` 里的状态就停在旧值**，`manifest.json` 里的 counts 也跟着撒谎。
+
+补两条用例先复现（都是 `expected false to be true`：跳过写入本该发生却没发生），再修：
+manifest 增加 `digest`（整条记录的摘要）作为"要不要重写"的判据，`contentDigest` 归位为
+**只给外部管道做增量**；同时把 `appVersion` 纳入重写条件（否则升级后导出物一直写着旧版本号）；
+`revision` 明确**不进**条件（每次扫描都 +1，拿它判断等于每次刷新重写几 MB）。
+两条用例现在同时断言两侧：文件重写了、状态是新的，而 `contentDigest` **不变**。
+
+### 测试：146 → 174（新增 28 条）
+
+
+`tests/corpus.test.ts` 25 条：HTML→文本（结构、实体、`&lt;p&gt;` 字面量、script/style 整块丢弃、
+空白归一）、内容 hash（稳定、随备注/正文/分类/识别文本变化、**不随归档与标星变化**）、
+记录构造（归档与 missing 都保留、分类名回落、`recognized` 预留、决定论排序、空 extra → null）、
+目录排版（分类顺序跟侧栏、归档另起一节、星标与备注摘要、标签计数）、落盘（三件套、幂等跳过、
+改备注重写、**目录落在 vault 里拒绝写入**、坏 manifest 返回 null、空库可导出）；
+`tests/http.test.ts` 新增 1 条：GET 未导出返回 null → POST 写出 → 再 POST 跳过。
+
+### 证伪（把实现故意改坏，确认测试真的会红）
+
+一次改坏 5 处 → **11 条失败**，每条都能对上：过滤掉归档/missing（`['a']` vs `['a','b','c']`、行数 4→2）、
+关掉 vault 断言（两处「落在内容源里」不再抛错）、`contentDigest` 掺进时间戳（跳过写入失效 ×2）、
+把实体解码挪到剥标签之前（`&` 丢失、`&lt;p&gt;` 字面量被吃掉）、把标注来源换成常量
+（语料里的标星/归档/备注全空、目录里的 ★ 消失）。恢复后 172 条全绿，
+且**真实数据的 `contentDigest` 与改坏前完全一致**（`ac2c68965379…`）——实现是逐字节回到原样的。
+
+### 浏览器实测（1440×900，明暗两主题）
+
+- 工具栏出现「导出语料」，紧贴「刷新收藏库」右侧（用 `header-actions` 包住，否则 `space-between`
+  会把两个按钮撑到两边）；初始无导出目录 → 点击 → toast「语料已导出：1205 篇 · 1205 行 · 1.93 MB」；
+  再点 → 「语料已是最新，无需重写（1205 篇）」。
+- `__uiLayout()`：`overflowing: []`、`cardOverlaps: []`。
+- **量出来的一个问题**：安静版按钮最初用 `--text-weak`，深色主题下对比度只有 **4.42**（13px 正文需 4.5），
+  而 `__uiAudit()` 并不认识这个新按钮、不会报——**是靠手工量对比度才发现的**。
+  改用 `--text-secondary` 后用"无底色 + 无投影"体现层级，两主题实测均为 **6.74 / 7.95**，`__uiAudit()` 零失败。
+- 既有功能回归：瀑布流 60 卡；列表 605 行含「标注」列与每行星标/归档按钮；详情头部
+  备注/取消标星/归档/关闭 且 Esc 可关；切库「我的宝贝 331 篇」；归档视图「归档 1 篇」+「已归档」标记
+  （在"我的宝贝"下显示 0 是对的——那条归档属于小红书）。
+- 截图：`docs/screenshots/corpus-export-light.png`、`corpus-export-dark.png`。
+
+**数据未被改动**：`annotationRevision` 全程保持 45（用户自己标星/归档的两条没动过）。
+**只读边界**：`source-hash.mjs --check` → 4222 个文件 `added 0 / removed 0 / changed 0`。

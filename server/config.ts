@@ -17,6 +17,10 @@ export interface AppConfig {
   extraAllowedOrigins: string[];
   dataDir: string;
   backupDir: string;
+  /** 语料导出目录（corpus.jsonl / catalog.md / manifest.json）；开发 .local/export，生产 runtime/export */
+  exportDir: string;
+  /** 刷新成功后自动重导语料（内容没变时不会真写盘）；设 EXPORT_AFTER_REFRESH=false 关掉 */
+  exportAfterRefresh: boolean;
   logDir: string;
   isProduction: boolean;
   version: string;
@@ -94,6 +98,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       .filter(Boolean),
     dataDir,
     backupDir: path.resolve(backupDir),
+    // 默认与数据目录同级：开发 .local/export，生产 runtime/export（runtime/ 不进 git、不进发布包）
+    exportDir: env.EXPORT_DIR ? normalizeDir(env.EXPORT_DIR) : path.join(dataDir, '..', 'export'),
+    exportAfterRefresh: (env.EXPORT_AFTER_REFRESH ?? 'true').trim().toLowerCase() !== 'false',
     logDir: env.LOG_DIR ? normalizeDir(env.LOG_DIR) : path.join(projectRoot(), 'logs'),
     isProduction,
     version: readVersion(),

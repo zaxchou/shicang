@@ -26,6 +26,8 @@ function makeCfg(fx: Fixture): AppConfig {
     extraAllowedOrigins: [],
     dataDir: fx.dataDir,
     backupDir: fx.backupDir,
+    exportDir: fx.exportDir,
+    exportAfterRefresh: false,
     logDir: path.join(fx.root, 'logs'),
     isProduction: false,
     version: 'test',
@@ -510,6 +512,40 @@ describe('HTTP 路由', () => {
       expect((await detail.json()).sourceStatus).toBe('available');
       const uncategorized = await (await fetch(`${base}/api/notes?category=uncategorized`)).json();
       expect(uncategorized.total).toBe(1);
+    });
+
+    it('语料导出路由：还没导过时 GET 返回 null，POST 写出三件套，再 POST 因内容未变而跳过', async () => {
+      const before = await (await fetch(`${base}/api/export/corpus`)).json();
+      expect(before.manifest).toBeNull();
+      expect(before.dir).toBe(fx.exportDir);
+
+      const post = await fetch(`${base}/api/export/corpus`, { method: 'POST', headers: { Origin: ALLOWED_ORIGIN } });
+      expect(post.status).toBe(200);
+      const body = await post.json();
+      expect(body.written).toBe(true);
+      expect(body.manifest.schemaVersion).toBe(1);
+      expect(body.manifest.counts.total).toBeGreaterThan(0);
+      expect(body.dir).toBe(fx.exportDir);
+
+      // 文件真的落盘了，而且是每行一条可解析的 JSON
+      const lines = fs
+        .readFileSync(path.join(fx.exportDir, 'corpus.jsonl'), 'utf8')
+        .trim()
+        .split('\n');
+      expect(lines).toHaveLength(body.manifest.counts.total);
+      expect(JSON.parse(lines[0]).schemaVersion).toBe(1);
+      expect(fs.existsSync(path.join(fx.exportDir, 'catalog.md'))).toBe(true);
+
+      // GET 读回来的就是刚写的 manifest
+      const got = await (await fetch(`${base}/api/export/corpus`)).json();
+      expect(got.manifest.contentDigest).toBe(body.manifest.contentDigest);
+
+      // 幂等：内容没变就不重复写（NAS 上不该每次都写几 MB）
+      const again = await (
+        await fetch(`${base}/api/export/corpus`, { method: 'POST', headers: { Origin: ALLOWED_ORIGIN } })
+      ).json();
+      expect(again.written).toBe(false);
+      expect(again.manifest.generatedAt).toBe(body.manifest.generatedAt);
     });
   });
 });

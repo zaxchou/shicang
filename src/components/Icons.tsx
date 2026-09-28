@@ -227,6 +227,15 @@ export const IconPen = ({ size, className }: IconProps) => (
   </svg>
 );
 
+/** 导出语料：一叠数据往下落到托盘里 */
+export const IconExport = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M12 3.5v10.2" />
+    <path d="M8.2 10 12 13.8 15.8 10" />
+    <path d="M4.5 16.2v2.3A1.5 1.5 0 0 0 6 20h12a1.5 1.5 0 0 0 1.5-1.5v-2.3" />
+  </svg>
+);
+
 export const CATEGORY_ICONS: Record<string, (p: IconProps) => ReactElement> = {
   shuhua: IconBrush,
   'ai-programming': IconCpu,

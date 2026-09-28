@@ -1,7 +1,7 @@
 {
   "name": "myinfobase",
   "private": true,
-  "version": "0.7.7",
+  "version": "0.8.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -16,6 +16,7 @@
     "dev:web": "vite",
     "test": "vitest run",
     "scan": "tsx scripts/scan-cli.ts",
+    "export:corpus": "tsx scripts/export-corpus.ts",
     "classify": "tsx scripts/classify.ts",
     "probe:ai": "node scripts/probe-ai.mjs",
     "push": "node scripts/git-push.mjs --tags"

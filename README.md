@@ -38,10 +38,10 @@
 三组后续能力，完整方案（含实测依据与实施顺序）见 `plan.md` §18。共同前提：**索引是缓存，人工与 AI 产物是资产**——一律存 `runtime/data/`，绝不写回 Obsidian 源笔记。
 
 - **人工层**（**标星、归档、备注已完成**；下一件是批量归档与表格列）：星标 / 归档（在用 ↔ 已归档）/ 每条一条备注，存 `runtime/data/annotations.json`（一个文件、一条 revision，字段级浅合并）。
-- **AI 识别**：对需要的图片做 OCR、对需要的视频与语音备忘做文稿转录（"一键转成文档"）。按需触发 + 按媒体内容 hash 缓存，**不在刷新管道里自动跑**（一次刷新触发几百个视频会打爆配额）。
+- **AI 识别**：对需要的图片做 OCR、对需要的视频与语音备忘做文稿转录（"一键转成文档"）。按需触发 + 按媒体内容 hash 缓存，**不在刷新管道里自动跑**（一次刷新触发几百个视频会打爆配额）。两条链路的前置依赖**已实测清楚**：OCR 直接吃 webp（无新依赖、镜像不变重）；转录因为 `input_audio.format` **只收 wav/mp3**、而源库 110 个语音全是 m4a，**必须先转码**，所以生产镜像要装 ffmpeg（本机已有 9.0.2）。
 - **可索引语料库**：导出 `runtime/export/corpus.jsonl`（含正文纯文本与内容 hash）+ 人读目录 + manifest，供外部检索与 embedding 管道增量消费。
 
-AI 通道的能力边界（视觉直接接受 webp、ASR 必须 audio-only 的 `input_audio` 形态）已固化为可复跑脚本：`npm run probe:ai`（默认只用合成素材，不上传任何用户内容）。
+AI 通道的能力边界（视觉直接接受 webp、ASR 必须 audio-only 的 `input_audio` 形态、**ASR 的 `format` 只收 wav/mp3**）已固化为可复跑脚本：`npm run probe:ai`（默认只用合成素材，不上传任何用户内容，共 6 项）。
 
 ## 快速开始（Windows 开发预览）
 
@@ -177,7 +177,7 @@ password=<PAT>
 
 ```bash
 npm run typecheck   # 前后端类型检查
-npm test            # vitest：解析/媒体路由/扫描完整性/分类优先级/幂等刷新等 104 个用例
+npm test            # vitest：解析/媒体路由/扫描完整性/分类优先级/幂等刷新/人工标注层等 146 个用例
 npm run build       # 构建服务端 + 前端到 dist/
 npm run dev:server  # 服务端热重载（开发）
 npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）
@@ -199,7 +199,7 @@ cp scripts/probe-client.js dist/web/_probe.js      # 注入浏览器
 
 node scripts/pngview.cjs <png> 100 32              # 截图 → 亮度字符视图（看构图）
 node scripts/scanline.cjs <png> <y> <x0> <x1> 2    # 明度扫描线（验证阴影/玻璃亮边）
-npm run probe:ai                                   # AI 通道探测：/models + 视觉（合成图）+ ASR（合成音）
+npm run probe:ai                                   # AI 通道探测：/models + 视觉（合成图）+ ASR（合成音）+ 格式约束（m4a 必被拒 / mp3 必通过）
 npm run probe:ai -- --image <本地图片>              # 追加一项：把指定本地图片（如库里的 webp）交给视觉模型转写
 ```
 

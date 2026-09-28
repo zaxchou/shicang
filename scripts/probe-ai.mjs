@@ -4,6 +4,10 @@
 //   · 视觉走 POST /chat/completions + image_url（data URI），且直接接受 webp；
 //   · ASR 走 POST /chat/completions + model=mimo-v2.5-asr + input_audio，
 //     且 **content 里不能带文字部分**（网关会自己注入提示词）；
+//   · ASR 的 input_audio.format **只收 wav / mp3**（2026-09-28 实测）——喂 m4a/mp4 会被
+//     参数校验直接拒（"must be one of: wav, mp3"）；网关自己的解码器其实认 m4a/flac/ogg，
+//     但参数层更严，且它按**内容真实格式**解码（m4a 字节冒充 wav 会返回 400）。
+//     后果：库里 110 个语音备忘全是 m4a，**每次转录都必须先转码**（本机 ffmpeg 9.0.2 可做）；
 //   · /v1/audio/transcriptions 在这个网关上是 404。
 // 换供应商、换模型、或怀疑接口行为变了时，先跑这个脚本，别按习惯猜。
 //
@@ -21,7 +25,9 @@
 // 密钥只用于请求头，**不打印**。
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
@@ -315,6 +321,77 @@ try {
   );
 } catch (e) {
   record('ASR /chat/completions + input_audio', false, `请求失败 ${e.message}`);
+}
+
+// 4b) ASR 的 format 约束：参数层只放行 wav / mp3。
+// 这里故意用合成 wav 的字节配 format='m4a'——参数校验在解码之前，所以它一定会先报
+// "must be one of: wav, mp3"，正好把约束记录下来（成功条件是**拿到这个 400**，不是 200）。
+try {
+  const { status, text } = await callChat({
+    model: ASR_MODEL,
+    thinking: { type: 'disabled' },
+    messages: [
+      {
+        role: 'user',
+        content: [{ type: 'input_audio', input_audio: { data: synthWav().toString('base64'), format: 'm4a' } }],
+      },
+    ],
+  });
+  const constrained = status === 400 && /must be one of:\s*wav,\s*mp3/i.test(text);
+  record(
+    'ASR format 约束（format=m4a 应被拒）',
+    constrained,
+    constrained
+      ? 'HTTP 400「input_audio.format must be one of: wav, mp3」——源库全是 m4a，故转录前必须转码'
+      : `预期 400 + 参数报错，实际 HTTP ${status} ${oneLine(text, 200)}`
+  );
+} catch (e) {
+  record('ASR format 约束', false, `请求失败 ${e.message}`);
+}
+
+// 4c) mp3 通路：有 ffmpeg 才测（脚本要在无 ffmpeg 的机器上也能跑）。
+// 为什么专门测 mp3 而不是 wav：库里的语音最长 9 分钟，wav 未压缩（16k 单声道约 32 KB/s
+// → 9 分钟约 17 MB），mp3 64 kbps 只有 4.2 MB。转码的目标格式就是 mp3。
+try {
+  let ffmpegOk = true;
+  try {
+    execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' });
+  } catch {
+    ffmpegOk = false;
+  }
+  if (!ffmpegOk) {
+    record('ASR format=mp3（ffmpeg 转码通路）', true, '跳过：本机没有 ffmpeg，无法合成 mp3（生产镜像需要它才能转码 m4a）');
+  } else {
+    const tmp = path.join(os.tmpdir(), `probe-ai-tone-${process.pid}.mp3`);
+    try {
+      execFileSync(
+        'ffmpeg',
+        ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1.5', '-ar', '16000', '-ac', '1',
+         '-c:a', 'libmp3lame', '-b:a', '64k', tmp],
+        { stdio: 'ignore' }
+      );
+      const bytes = fs.readFileSync(tmp);
+      const { status, text } = await callChat({
+        model: ASR_MODEL,
+        thinking: { type: 'disabled' },
+        messages: [
+          {
+            role: 'user',
+            content: [{ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: 'mp3' } }],
+          },
+        ],
+      });
+      record(
+        `ASR format=mp3（${(bytes.length / 1024).toFixed(1)} KB 合成 mp3）`,
+        status === 200,
+        status === 200 ? 'HTTP 200（mp3 通路可用，9 分钟语音约 4.2 MB）' : `HTTP ${status} ${oneLine(text, 200)}`
+      );
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  }
+} catch (e) {
+  record('ASR format=mp3', false, `请求失败 ${e.message}`);
 }
 
 // 5) 反例：OpenAI 习惯的 /audio/transcriptions 在这家网关上是 404 —— 记录形态，避免下次误判

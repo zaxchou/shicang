@@ -1608,9 +1608,12 @@ img {
   word-break: break-word;
   user-select: text;
 }
-/* 折叠态：渐隐到透明，明确"下面还有"；展开后完整显示，全程没有内滚动条 */
-.ocr-text:not(.expanded) {
-  max-height: 6.4em;
+/* 折叠态：只在**真的溢出**时加（.clamped 由 JS 量出来），渐隐到透明表示"下面还有"。
+   反面教材（v0.9.2 的 bug）：无条件给所有文字块加这个遮罩 + 裁切，于是
+   ① 短文本（4 行）也被渐隐吞掉最后一行，② 它又因为"换行数不足 5"没有展开按钮，永远看不到。
+   判别必须基于**实测内容高度**，不能数 `\n`。 */
+.ocr-text.clamped {
+  max-height: 9em;
   overflow: hidden;
   -webkit-mask-image: linear-gradient(180deg, #000 46%, rgba(0, 0, 0, 0.18) 90%, transparent);
   mask-image: linear-gradient(180deg, #000 46%, rgba(0, 0, 0, 0.18) 90%, transparent);

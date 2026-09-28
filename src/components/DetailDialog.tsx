@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   MAX_REMARK,
   type NoteDetail,
@@ -29,6 +29,59 @@ import {
  * 前端按这个数分批，剩下的用「识别其余 N 张」显式再点一次——不替用户一次烧掉几十张的额度。
  */
 const OCR_BATCH = 8;
+
+/** 识别文本的折叠阈值（em）：超过这个高度才裁切。约 5 行。 */
+const OCR_CLAMP_EM = 9;
+
+/**
+ * 一条识别文本。
+ * **必须测量真实溢出，不能数 `\n`**——上一版按"换行数 > 4"决定要不要给「展开全部」，
+ * 而裁切是 CSS 无条件施加的，于是"4 行的短文本"既没有展开按钮、又被渐隐吞掉最后一行
+ * （用户截图里 `12 Jun 2005` 就是这么消失的）。而且遮罩加在整个块上时，短文本也会被渐隐。
+ * 现在：先按未裁切状态量出内容高度，只有真的超过阈值才加裁切与渐隐，并同时给出展开入口。
+ */
+function OcrText({
+  text,
+  noText,
+  expanded,
+  onToggle,
+}: {
+  text: string;
+  noText: boolean;
+  expanded: boolean;
+  onToggle(): void;
+}) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [overflow, setOverflow] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // scrollHeight 不受 max-height 影响（裁切时也返回完整内容高度），所以这个判断在
+    // 裁切前后都成立：换宽度、换主题重排后重新量一次即可。
+    const check = () => {
+      const limit = OCR_CLAMP_EM * parseFloat(getComputedStyle(el).fontSize);
+      setOverflow(el.scrollHeight > limit + 1);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [text]);
+
+  const clamped = overflow && !expanded;
+  return (
+    <>
+      <p ref={ref} className={`ocr-text${noText ? ' empty' : ''}${clamped ? ' clamped' : ''}`}>
+        {text}
+      </p>
+      {overflow && (
+        <button type="button" className="link-clear ocr-more" aria-expanded={expanded} onClick={onToggle}>
+          {expanded ? '收起' : `展开全部（${text.split('\n').length} 行）`}
+        </button>
+      )}
+    </>
+  );
+}
 
 /** 复制到剪贴板。
  * 局域网 http 访问时 `navigator.clipboard` 不存在（非安全上下文），所以必须留 execCommand 一路，
@@ -627,10 +680,7 @@ export function DetailDialog({
                       {mediaText.map((t) => {
                         const idx = ocrTargets.findIndex((m) => m.id === t.mediaId);
                         const noText = /^无文字[。.]?$/.test(t.text.trim());
-                        const lines = t.text.split('\n').length;
-                        // 折叠时用渐隐 + 「展开全部」说明还有多少，**不再用内滚动条**：
-                        // 一个需要滚动的小框既看不出有多少内容，也把页面挤得难读
-                        const collapsible = !noText && lines > 4;
+                        // 要不要裁切由 OcrText 自己量（不数 \n——换行数不等于视觉行数）
                         const expanded = expandedOcr.has(t.mediaId);
                         return (
                           <div key={t.mediaId} className="ocr-item">
@@ -668,24 +718,19 @@ export function DetailDialog({
                                   </button>
                                 </span>
                               </div>
-                              <p className={`ocr-text${noText ? ' empty' : ''}${expanded ? ' expanded' : ''}`}>{t.text}</p>
-                              {collapsible && (
-                                <button
-                                  type="button"
-                                  className="link-clear ocr-more"
-                                  aria-expanded={expanded}
-                                  onClick={() =>
-                                    setExpandedOcr((prev) => {
-                                      const next = new Set(prev);
-                                      if (next.has(t.mediaId)) next.delete(t.mediaId);
-                                      else next.add(t.mediaId);
-                                      return next;
-                                    })
-                                  }
-                                >
-                                  {expanded ? '收起' : `展开全部（${lines} 行）`}
-                                </button>
-                              )}
+                              <OcrText
+                                text={t.text}
+                                noText={noText}
+                                expanded={expanded}
+                                onToggle={() =>
+                                  setExpandedOcr((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(t.mediaId)) next.delete(t.mediaId);
+                                    else next.add(t.mediaId);
+                                    return next;
+                                  })
+                                }
+                              />
                             </div>
                           </div>
                         );

@@ -53,11 +53,22 @@ export interface ParseOutcome {
   record: NoteRecord | null;
   warnings: string[];
   error: string | null;
+  /** 有意跳过（收藏索引页 / 空笔记等非条目内容）：扫描计为 skipped，不算错误 */
+  skippedReason?: string | null;
 }
+
+/**
+ * 解析器版本：**改动解析逻辑（路径解析、媒体改写、字段提取）时必须 +1**。
+ * 索引里记录该值，不一致就整体重建——否则解析已修好、用户看到的却还是旧索引，
+ * 因为扫描按 mtime/size 跳过未变更的源文件（v0.5.1 修「正文图片不显示」时踩到）。
+ */
+export const PARSE_VERSION = 3;
 
 const IMAGE_EXTS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif']);
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v']);
 const AUDIO_EXTS = new Set(['.m4a', '.mp3', '.wav', '.ogg', '.aac']);
+/** 浏览器（Chrome/Firefox/Edge）无法直接显示：文件照常提供，但不选作封面 */
+const NON_DISPLAYABLE_EXTS = new Set(['.heic', '.heif', '.tif', '.tiff']);
 
 /** treasures 表格字段顺序（同时决定表格列的默认排序） */
 export const TREASURES_EXTRA_KEYS = [
@@ -119,6 +130,7 @@ export function parseNote(input: ParseInput): ParseOutcome {
     vaultRoot: input.vaultRoot,
     relativePath: input.relativePath,
     noteDir: path.dirname(input.absolutePath),
+    collectionRoot: path.join(input.vaultRoot, input.collection.root),
     sourceRelativePath: input.sourceRelativePath,
     mtimeMs: input.mtimeMs,
     size: input.size,
@@ -138,11 +150,28 @@ interface ParseBase {
   vaultRoot: string;
   relativePath: string;
   noteDir: string;
+  /** 收藏库根目录（vaultRoot/collection.root）：treasures 的 frontmatter 路径相对它 */
+  collectionRoot: string;
   sourceRelativePath: string;
   mtimeMs: number;
   size: number;
   collection: string;
   raw: string;
+}
+
+/** 相对路径解析基准，按「笔记目录 → 笔记父目录 → 收藏库根 → vault 根」顺序尝试 */
+interface ResolveBases {
+  vaultRoot: string;
+  dirs: string[];
+}
+
+function basesOf(base: ParseBase): ResolveBases {
+  // 笔记父目录：藏品库常把附件放在分类文件夹的 Attachments/ 里，而条目可能在更深的子目录
+  const parent = path.dirname(base.noteDir);
+  return {
+    vaultRoot: base.vaultRoot,
+    dirs: [base.noteDir, parent, base.collectionRoot, base.vaultRoot],
+  };
 }
 
 function sha(raw: string): string {
@@ -153,13 +182,25 @@ function mediaUrl(noteId: string, mediaId: string): string {
   return `/api/media/${encodeURIComponent(noteId)}/${encodeURIComponent(mediaId)}`;
 }
 
-/** 解析本地相对路径（相对笔记目录或 vault 根），返回相对 vault 的路径 */
-function resolveLocal(vaultRoot: string, noteDir: string, rel: string): { abs: string; relToVault: string } | null {
+/**
+ * 媒体 id 作为 markdown 链接目标时的安全形态。
+ * 文件名常带空格（如 `Pasted image 20260426145213.png`）——不编码的话 marked 会把
+ * `![图](media://Pasted image ….png)` 的链接在空格处截断，媒体查不到，图片直接消失。
+ * `#`（重名后缀）不编码会被当成 fragment，括号会破坏链接边界，故一并编码。
+ */
+function mediaToken(id: string): string {
+  return encodeURIComponent(id).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/** 解析本地相对路径（按 bases 顺序尝试每个基准目录），返回相对 vault 根的路径 */
+function resolveLocal(rb: ResolveBases, rel: string): { abs: string; relToVault: string } | null {
   const norm = rel.replace(/\\/g, '/').replace(/^\.\//, '');
-  if (/^https?:\/\//i.test(norm)) return null;
-  for (const cand of [path.resolve(noteDir, norm), path.resolve(vaultRoot, norm)]) {
-    if (cand.startsWith(path.resolve(vaultRoot) + path.sep) && fs.existsSync(cand)) {
-      return { abs: cand, relToVault: path.relative(path.resolve(vaultRoot), cand).replace(/\\/g, '/') };
+  if (!norm || /^https?:\/\//i.test(norm)) return null;
+  const rootAbs = path.resolve(rb.vaultRoot);
+  for (const dir of rb.dirs) {
+    const cand = path.resolve(dir, norm);
+    if (cand.startsWith(rootAbs + path.sep) && fs.existsSync(cand)) {
+      return { abs: cand, relToVault: path.relative(rootAbs, cand).replace(/\\/g, '/') };
     }
   }
   return null;
@@ -172,6 +213,9 @@ function registerLocal(
   abs: string,
   relToVault: string
 ): MediaItem {
+  // 同一文件被正文与封面重复引用时复用同一条，避免出现 `xxx.png#2` 这类冗余条目
+  const seen = media.find((m) => m.localRelativePath === relToVault);
+  if (seen) return seen;
   const base = path.basename(relToVault);
   const ext = path.extname(base).toLowerCase();
   const kind = VIDEO_EXTS.has(ext) ? 'video' : AUDIO_EXTS.has(ext) ? 'audio' : 'image';
@@ -191,6 +235,12 @@ function registerLocal(
   return item;
 }
 
+/** 浏览器无法直接渲染的图片格式：不能当封面（否则封面永远空白），也不适合当作可显示图片 */
+function isDisplayableImage(relPath: string | undefined): boolean {
+  if (!relPath) return false;
+  return !NON_DISPLAYABLE_EXTS.has(path.extname(relPath).toLowerCase());
+}
+
 function normalizeDate(v: unknown): string | null {
   if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString();
   if (typeof v === 'string' && v.trim()) {
@@ -204,6 +254,14 @@ function normalizeDate(v: unknown): string | null {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : '';
+}
+
+/** 规范化 markdown 图片目标：去掉 <...> 包裹与尾部的 "标题" */
+function normalizeLinkDest(raw: string): string {
+  let d = raw.trim();
+  if (d.startsWith('<') && d.endsWith('>')) return d.slice(1, -1).trim();
+  d = d.replace(/\s+("[^"]*"|'[^']*')\s*$/, '');
+  return d.trim();
 }
 
 // ======================================================================
@@ -223,7 +281,7 @@ function parseRednote(base: ParseBase, fm: Record<string, unknown>, input: Parse
   let body = bodyWithoutH1.replace(/!\[\[([^\]\n]+)\]\]/g, (_a, targetRaw: string) => {
     const item = resolveEmbed(vault, String(targetRaw).trim(), id, media, mediaIds, warnings);
     if (!item) return '';
-    return `![媒体](media://${item.id})`;
+    return `![媒体](media://${mediaToken(item.id)})`;
   });
 
   body = body.replace(/<video\b[^>]*>/gi, (tag) => {
@@ -374,12 +432,26 @@ function parseTreasures(
   warnings: string[]
 ): ParseOutcome {
   const filename = path.basename(base.sourceRelativePath, '.md');
-  const title = str(fm['CSV标题']) || filename;
 
-  // 分类：frontmatter 收藏分类 > 规范分类文件夹名（我的收藏-X）；其它文件夹/顶层不猜
-  const parentDir = path.dirname(base.relativePath);
-  const folderMatch = /^我的收藏-(.+)$/.exec(path.basename(parentDir));
-  const folder = folderMatch ? folderMatch[1] : '';
+  // 索引/总览页（vault 自己用「笔记类型」标注）与空笔记不是藏品条目：
+  // 显式跳过而不是报错，扫描计为 skipped（此前混进库里，标题显示成 MOC/未命名页面）
+  const noteType = str(fm['笔记类型']);
+  if (/^收藏(多维|总)?索引$/.test(noteType)) {
+    return { record: null, warnings, error: null, skippedReason: `收藏索引页（笔记类型=${noteType}）` };
+  }
+  if (!base.raw.trim()) {
+    return { record: null, warnings, error: null, skippedReason: '空笔记' };
+  }
+
+  // 标题：CSV标题 > 正文 H1 > 文件名（MOC.md 这类无 frontmatter 的笔记，H1 才是真实标题）
+  const h1 = /^#\s+(.+?)\s*$/m.exec(matterContent(base.raw))?.[1]?.trim();
+  const title = str(fm['CSV标题']) || (h1 ? h1.slice(0, 60) : '') || filename;
+
+  // 分类：frontmatter 收藏分类 > 路径里的分类段（我的收藏-X，允许藏在子目录下，
+  // 如「我的收藏-书法/豪翰斋/MOC.md」也归书法）；两者都没有则未分类
+  const segs = path.dirname(base.relativePath).split(/[\\/]+/);
+  const seg = segs.map((x) => /^我的收藏-(.+)$/.exec(x)).find(Boolean);
+  const folder = seg ? seg[1] : '';
   const derivedCategory = str(fm['收藏分类']) || folder || null;
 
   const author = str(fm['作者品牌']) || str(fm['作者']) || str(fm['作者索引']) || '佚名';
@@ -405,41 +477,48 @@ function parseTreasures(
 
   const media: MediaItem[] = [];
   const mediaIds = new Set<string>();
+  const rb = basesOf(base);
 
   // 正文预处理：本地 md 图片改写为媒体路由；wiki 嵌入按裸文件名解析
   let body = input.relativePath ? matterContent(base.raw) : '';
-  body = body.replace(/!\[([^\]]*)\]\(([^)\s]+)([^)]*)\)/g, (full, alt: string, src: string, rest: string) => {
-    if (/^https?:\/\//i.test(src)) return full; // 远程图保留
-    const r = resolveLocal(base.vaultRoot, base.noteDir, src);
+  body = body.replace(/!\[([^\]]*)\]\(\s*(<[^>\n]+>|[^)\n]+?)\s*\)/g, (full, alt: string, rawDest: string) => {
+    const src = normalizeLinkDest(rawDest);
+    if (!src || /^https?:\/\//i.test(src)) return full; // 远程图保留
+    // 直查各基准目录；再按 <基准>/Attachments/<文件名> 兜底（子目录笔记引用库级附件目录时）
+    const r = resolveLocal(rb, src) ?? resolveLocal(rb, path.join('Attachments', path.basename(src)));
     if (!r) return full;
     const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
-    return `![${alt || ''}](media://${item.id})`;
+    return `![${alt || ''}](media://${mediaToken(item.id)})`;
   });
   body = body.replace(/!\[\[([^\]\n]+)\]\]/g, (full, target: string) => {
     const t = String(target).trim();
     if (/^https?:\/\//i.test(t)) return full;
-    const r =
-      resolveLocal(base.vaultRoot, base.noteDir, t) ??
-      resolveLocal(base.vaultRoot, base.noteDir, path.join('我的收藏品', 'Attachments', path.basename(t))) ??
-      resolveLocal(base.vaultRoot, base.noteDir, path.join('Attachments', path.basename(t)));
+    // `![[裸文件名]]`：先按各基准目录直查，再按笔记/收藏库下的 Attachments/<文件名> 兜底
+    const r = resolveLocal(rb, t) ?? resolveLocal(rb, path.join('Attachments', path.basename(t)));
     if (!r) {
       warnings.push(`嵌入图片缺失: ${t.slice(0, 60)}`);
       return '';
     }
     const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
-    return `![图](media://${item.id})`;
+    return `![图](media://${mediaToken(item.id)})`;
   });
 
-  // 封面：优先 frontmatter 封面图（vault 相对路径），否则正文第一张本地图
+  // 封面：优先 frontmatter 封面图（相对笔记/收藏库/vault 的路径），否则正文第一张可显示的本地图
   let coverId: string | null = null;
   const coverPath = str(fm['封面图']);
   if (coverPath) {
-    const r = resolveLocal(base.vaultRoot, base.noteDir, coverPath);
-    if (r) coverId = registerLocal(media, mediaIds, r.abs, r.relToVault).id;
-    else warnings.push(`封面图缺失: ${coverPath.slice(0, 60)}`);
+    const r = resolveLocal(rb, coverPath);
+    if (r && isDisplayableImage(r.relToVault)) {
+      coverId = registerLocal(media, mediaIds, r.abs, r.relToVault).id;
+    } else if (r) {
+      warnings.push(`封面图格式浏览器不支持，改用正文首图: ${coverPath.slice(0, 60)}`);
+    } else if (!/^https?:\/\//i.test(coverPath)) {
+      warnings.push(`封面图缺失: ${coverPath.slice(0, 60)}`);
+    }
+    // 远程封面：当前媒体模型只服务本地文件，静默回退到正文首图（不当作缺失告警）
   }
   if (!coverId) {
-    const first = media.find((m) => m.kind === 'image');
+    const first = media.find((m) => m.kind === 'image' && isDisplayableImage(m.localRelativePath));
     if (first) coverId = first.id;
   }
 
@@ -509,26 +588,27 @@ function parseDiary(
 
   const media: MediaItem[] = [];
   const mediaIds = new Set<string>();
+  const rb = basesOf(base);
 
   let body = content;
   // 图片链接 [x](attachments/...) → 生成图片；音频等保留链接并改写为媒体路由
   body = body.replace(/\[([^\]]+)\]\((attachments\/[^)]+)\)/g, (full, text: string, href: string) => {
-    const r = resolveLocal(base.vaultRoot, base.noteDir, href);
+    const r = resolveLocal(rb, href);
     if (!r) return full;
     const ext = path.extname(r.relToVault).toLowerCase();
     const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
-    if (IMAGE_EXTS.has(ext)) return `![${text}](media://${item.id})`; // 图片转内联
+    if (IMAGE_EXTS.has(ext)) return `![${text}](media://${mediaToken(item.id)})`; // 图片转内联
     return `[${text}](${mediaUrl(base.sourceRelativePath, item.id)})`;
   });
   body = body.replace(/!\[([^\]]*)\]\((attachments\/[^)]+)\)/g, (full, alt: string, href: string) => {
-    const r = resolveLocal(base.vaultRoot, base.noteDir, href);
+    const r = resolveLocal(rb, href);
     if (!r) return full;
     const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
-    return `![${alt || ''}](media://${item.id})`;
+    return `![${alt || ''}](media://${mediaToken(item.id)})`;
   });
 
   const bodyHtml = renderBody(body, base.sourceRelativePath, media, mediaIds, warnings);
-  const cover = media.find((m) => m.kind === 'image');
+  const cover = media.find((m) => m.kind === 'image' && isDisplayableImage(m.localRelativePath));
   const excerpt = buildExcerpt(body);
 
   return {

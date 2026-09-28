@@ -127,6 +127,12 @@ export async function scanVault(
 
       const abs = path.join(vaultRoot, ...meta.relPath.split('/'));
       const outcome = await readAndParseStable(abs, meta, vaultRoot, colMap.get(meta.collection)!);
+      if (outcome.skippedReason) {
+        // 有意跳过（收藏索引页/空笔记等）：不算错误；若之前在库里则这次直接移除
+        counts.skipped++;
+        if (prev) diagnostics.push(`${meta.relPath}: ${outcome.skippedReason}；已从库中移除`);
+        continue;
+      }
       if (outcome.error || !outcome.record) {
         counts.errors++;
         if (prev) {
@@ -176,14 +182,14 @@ async function readAndParseStable(
   meta: FileMeta,
   vaultRoot: string,
   collection: CollectionDef
-): Promise<{ record: NoteRecord | null; error: string | null }> {
+): Promise<{ record: NoteRecord | null; error: string | null; skippedReason: string | null }> {
   for (let attempt = 0; attempt <= STAT_RETRY; attempt++) {
     let before: { mtimeMs: number; size: number };
     try {
       const st = await fs.stat(abs);
       before = { mtimeMs: st.mtimeMs, size: st.size };
     } catch (e) {
-      return { record: null, error: `stat 失败: ${(e as Error).message}` };
+      return { record: null, error: `stat 失败: ${(e as Error).message}`, skippedReason: null };
     }
     const outcome = parseNote({
       vaultRoot,
@@ -199,15 +205,18 @@ async function readAndParseStable(
       const st = await fs.stat(abs);
       after = { mtimeMs: st.mtimeMs, size: st.size };
     } catch {
-      return { record: null, error: '读取后 stat 失败（文件可能被移走）' };
+      return { record: null, error: '读取后 stat 失败（文件可能被移走）', skippedReason: null };
     }
     const stable = Math.abs(before.mtimeMs - after.mtimeMs) < 1 && before.size === after.size;
-    if (outcome.error) return { record: null, error: outcome.error };
-    if (stable && outcome.record) return { record: outcome.record, error: null };
+    if (outcome.error) return { record: null, error: outcome.error, skippedReason: null };
+    if (outcome.skippedReason) {
+      return { record: null, error: null, skippedReason: outcome.skippedReason };
+    }
+    if (stable && outcome.record) return { record: outcome.record, error: null, skippedReason: null };
     if (attempt < STAT_RETRY) await sleep(RETRY_DELAY_MS);
-    else return { record: null, error: '文件持续变化（可能正被写入），本次跳过' };
+    else return { record: null, error: '文件持续变化（可能正被写入），本次跳过', skippedReason: null };
   }
-  return { record: null, error: 'unreachable' };
+  return { record: null, error: 'unreachable', skippedReason: null };
 }
 
 function sleep(ms: number): Promise<void> {

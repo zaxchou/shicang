@@ -43,6 +43,34 @@ function makeVault() {
     '---\n收藏分类: 茶器\n封面图: 我的收藏品/Attachments/cover.jpg\n价格: 7800\n购买时间: 2026-09-04\n器型: 紫砂壶\n作者品牌: 陈俊\ntags:\n  - 收藏\n---\n\n测试茶壶\n\n![主图](Attachments/测试茶壶/a.jpg)\n\n![远程图](https://example.com/x.jpg)\n',
     'utf8'
   );
+  // treasures：文件名/路径带空格、封面相对收藏库根、wiki 裸文件名嵌入（v0.5.1 回归）
+  const shuDir = path.join(root, '我的收藏品', '我的收藏-书法');
+  fs.mkdirSync(path.join(shuDir, 'Attachments'), { recursive: true });
+  fs.writeFileSync(path.join(shuDir, 'Attachments', 'Pasted image 20260426145213.png'), tinyWebp(7, 5));
+  fs.writeFileSync(path.join(shuDir, 'Attachments', 'image 1.png'), tinyWebp(6, 6));
+  fs.mkdirSync(path.join(shuDir, 'Attachments', '某帖'), { recursive: true });
+  fs.writeFileSync(path.join(shuDir, 'Attachments', '某帖', 'mm 1.jpg'), tinyWebp(3, 4));
+  fs.writeFileSync(
+    path.join(shuDir, '无辨色.md'),
+    '---\n收藏分类: 书法\n封面图: 我的收藏-书法/Attachments/某帖/mm 1.jpg\n价格: 2800\n---\n\n' +
+      '## 图片\n![[Pasted image 20260426145213.png]]\n\n![带空格](Attachments/image 1.png)\n',
+    'utf8'
+  );
+  // treasures：子目录里的 MOC.md（无 frontmatter，靠 H1 当标题、靠路径段归分类）
+  fs.mkdirSync(path.join(shuDir, '豪翰斋'), { recursive: true });
+  fs.writeFileSync(
+    path.join(shuDir, '豪翰斋', 'MOC.md'),
+    '# 豪翰斋\n\n张羽翔 999\n\n![图](Attachments/image 1.png)\n',
+    'utf8'
+  );
+  // 收藏总索引（vault 自带「笔记类型」标注）与空笔记：应被有意跳过
+  fs.writeFileSync(
+    path.join(root, '我的收藏品', '我的收藏品-首页.md'),
+    '---\n笔记类型: "收藏总索引"\n收藏库: "我的收藏品"\n---\n\n# 我的收藏品\n',
+    'utf8'
+  );
+  fs.mkdirSync(path.join(root, '我的收藏品', '我的收藏-篆刻'), { recursive: true });
+  fs.writeFileSync(path.join(root, '我的收藏品', '我的收藏-篆刻', '未命名页面.md'), '', 'utf8');
   // treasures：索引与 MOC（应被排除）
   fs.writeFileSync(path.join(root, '我的收藏品', '我的收藏-茶器-索引.md'), '# 索引\n', 'utf8');
   fs.writeFileSync(path.join(root, '我的收藏品', 'MOC.md'), '# MOC\n', 'utf8');
@@ -95,6 +123,49 @@ describe('多源解析', () => {
     expect(r.bodyHtml).toContain('https://example.com/x.jpg');
     // 索引与 MOC 被排除由 scan 负责；此处确认解析独立于它们
     expect(r.sourceStatus).toBe('available');
+  });
+
+  it('treasures：路径含空格的正文图片必须真正渲染（v0.5.1 回归）', () => {
+    const root = makeVault();
+    const out = parseAt(root, TR, '我的收藏-书法/无辨色.md');
+    expect(out.error).toBeNull();
+    const r = out.record!;
+
+    // 封面图字段相对「收藏库根」（我的收藏-书法/...），不在 vault 根也不在笔记目录下
+    const cover = r.media.find((m) => m.id === r.coverMediaId);
+    expect(cover?.localRelativePath).toBe('我的收藏品/我的收藏-书法/Attachments/某帖/mm 1.jpg');
+
+    // wiki 裸文件名嵌入：按 <笔记目录>/Attachments/<文件名> 解析
+    expect(r.media.some((m) => m.id === 'Pasted image 20260426145213.png')).toBe(true);
+    // md 图片：目标含空格，也必须解析成功
+    expect(r.media.some((m) => m.id === 'image 1.png')).toBe(true);
+
+    // 三张图都要出现在正文里，且不残留未解析的 markdown / media:// 占位
+    const imgs = r.bodyHtml.split('<img ').length - 1;
+    expect(imgs).toBe(2); // 正文两张（封面是第 3 张，不进正文）
+    expect(r.bodyHtml).not.toContain('media://');
+    expect(r.bodyHtml).not.toMatch(/!\[[^\]]*\]\(/);
+    expect(r.bodyHtml).not.toContain('Pasted image'); // 文件名只应出现在 URL 里（已百分号编码）
+  });
+
+  it('treasures：子目录 MOC 归所属分类且标题取 H1；索引页与空笔记被有意跳过', () => {
+    const root = makeVault();
+    const moc = parseAt(root, TR, '我的收藏-书法/豪翰斋/MOC.md');
+    expect(moc.error).toBeNull();
+    expect(moc.skippedReason).toBeFalsy();
+    expect(moc.record!.derivedCategory).toBe('书法'); // 路径段「我的收藏-书法」，尽管 MOC 在子目录里
+    expect(moc.record!.title).toBe('豪翰斋'); // 无 CSV标题/文件名叫 MOC → 用正文 H1
+    expect(moc.record!.bodyHtml).toContain('<img'); // 正文图片要真的渲染
+
+    const home = parseAt(root, TR, '我的收藏品-首页.md');
+    expect(home.record).toBeNull();
+    expect(home.error).toBeNull();
+    expect(home.skippedReason).toContain('收藏索引页');
+
+    const blank = parseAt(root, TR, '我的收藏-篆刻/未命名页面.md');
+    expect(blank.record).toBeNull();
+    expect(blank.error).toBeNull();
+    expect(blank.skippedReason).toBe('空笔记');
   });
 
   it('diary：日期标题、主题分类、附件图片转内联、时间字段', () => {
@@ -158,17 +229,17 @@ describe('多库集成（LibraryService）', () => {
     const info = svc.libraryInfo();
     const byId = Object.fromEntries(info.collections.map((c) => [c.id, c]));
     expect(byId['rednote'].total).toBe(1);
-    expect(byId['treasures'].total).toBe(1); // 索引与 MOC 被排除
+    expect(byId['treasures'].total).toBe(3); // 茶器1 + 书法2（无辨色/豪翰斋MOC）；索引页与空笔记被跳过
     expect(byId['diary'].total).toBe(1); // 概览被排除
-    expect(info.total).toBe(3);
+    expect(info.total).toBe(5);
   });
 
   it('按库查询：分类过滤用派生值；treasures 表格字段有计数', async () => {
     const svc = await boot();
     const tr = svc.query({ ...base, collection: 'treasures' } as never);
-    expect(tr.total).toBe(1);
-    expect(tr.items[0]!.categorySource).toBe('derived');
-    expect(tr.items[0]!.extra!['价格']).toBe(7800);
+    expect(tr.total).toBe(3);
+    expect(tr.items.every((i) => i.categorySource === 'derived')).toBe(true);
+    expect(tr.items.find((i) => i.title.includes('测试茶壶7800'))!.extra!['价格']).toBe(7800);
 
     const byCat = svc.query({ ...base, collection: 'treasures', categoryId: '茶器' } as never);
     expect(byCat.total).toBe(1);
@@ -177,7 +248,8 @@ describe('多库集成（LibraryService）', () => {
 
     const info = svc.collectionInfo('treasures')!;
     expect(info.categories.find((c) => c.name === '茶器')?.count).toBe(1);
-    expect(info.extraFields.find((f) => f.key === '价格')?.count).toBe(1);
+    expect(info.categories.find((c) => c.name === '书法')?.count).toBe(2); // 无辨色 + 豪翰斋 MOC
+    expect(info.extraFields.find((f) => f.key === '价格')?.count).toBe(2);
 
     // 跨库隔离：rednote 库里查不到 diary 内容
     const rn = svc.query({ ...base } as never);

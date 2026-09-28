@@ -146,6 +146,68 @@
 skill：`~/.agents/skills/soft-glass-ui/`（`SKILL.md` + `references/tokens.css`
 + `references/design-rules.md` + 三个探针脚本），项目内说明见 `docs/design-language.md`。
 
+## 收藏库解析修复（2026-09-28，v0.5.1）
+
+触发：用户报告「我的宝贝 / 无辨色」详情内页图片全部不显示（缩略图正常）。排查后发现是
+ treasures 库的一组解析问题，共修四类，并顺带修了用户指出的 MOC 笔记分类与标题问题。
+
+### 1) 正文图片不显示（根因：文件名带空格）
+
+`![[Pasted image 20260426145213.png]]` 这类嵌入被改写成 markdown 图片
+`![图](media://Pasted image ….png)`——**媒体 id 里有空格**，marked 把链接目标在空格处截断，
+后续 `media://` 回查查不到，图片被整体丢弃；而缩略图走的是 `cover.url`（不经 markdown），
+所以"缩略图正常、内页全空"，与用户观察一致。修复：媒体 id 写入 markdown 时按
+`encodeURIComponent`（外加 `!'()*`）编码，`renderBody` 回查时解码。同样修复了 md 语法
+`![图](Attachments/image 1.png)` 目标带空格时直接不匹配的问题（原正则 `[^)\s]+` 在空格截断）。
+此前 parse.test.ts 的「中文与空格文件名」用例只断言"登记了媒体"，没断言"渲染出 <img>"，
+所以一直没抓到——已补断言。附带收益：重名后缀 `#2`（`#` 不编码会被当 fragment）与
+文件名含括号的情况一并修复。
+
+### 2) 封面路径解析基准不全
+
+frontmatter 的 `封面图: 我的收藏-书法/Attachments/xxx/….jpg` 是**相对收藏库根**的路径，
+而 `resolveLocal` 只试「笔记目录」与「vault 根」两个基准 → 318 篇里 301 篇解析失败，
+静默回退到"正文第一张图"（所以看起来正常，其实大多不是用户指定的封面）。
+修复：解析基准改为「笔记目录 → 笔记父目录 → 收藏库根 → vault 根」逐级尝试。
+另：同一文件被正文和封面重复引用时复用同一条媒体（消除 `xxx.png#2` 冗余条目）；
+HEIC/HEIF/TIFF 浏览器无法显示，不再选作封面（改用正文首图，正文里保留原文并给加载失败提示）；
+`/api/media` 补 `.svg` 的 MIME（39 篇的统一占位封面是 SVG，此前按二进制下发导致 `<img>` 不渲染），
+并对 SVG 响应加 `Content-Security-Policy: sandbox` 禁脚本。
+
+### 3) MOC 笔记进了「未分类」、标题显示成 MOC（用户指出）
+
+`我的收藏-书法/豪翰斋/MOC.md` 这类笔记在**分类文件夹的子目录**里，原分类推导只看直接父目录
+→ 归不进分类；且无 frontmatter，标题回退到文件名 → 显示成 "MOC"。修复：
+① 分类改按路径段推导（路径里任意一段是 `我的收藏-X` 即归入 X）；
+② 标题改为「CSV标题 > 正文 H1 > 文件名」（限 60 字），4 篇 MOC 现在显示
+豪翰斋 / 苏孝慈墓志铭 / 大红袍+水平+1200，且归入正确分类。
+说明：库里本来就同时存在 `豪翰斋.md`（CSV 条目）与 `豪翰斋/MOC.md`（手写笔记）两个文件，
+现在两者都以真实标题出现，属数据本身的结构，未做合并。
+
+### 4) 索引/总览页混进藏品库
+
+`我的收藏品-首页.md`（笔记类型=收藏总索引）、3 个「收藏多维索引」、空的`未命名页面.md`
+此前都进了库（旧的 `-索引\.md$` 排除规则匹配不到它们）。修复：解析器按 vault 自带的
+`笔记类型` 字段识别 `收藏索引 / 收藏多维索引 / 收藏总索引`，与空笔记一起**有意跳过**
+（`ParseOutcome.skippedReason`，扫描计为 skipped 而非 error；若之前在库里则移除）。
+
+### 索引失效机制（本次新加）
+
+解析结果缓存在 `library-index.json`，扫描按 mtime/size 跳过未变更文件——**解析逻辑修好了，
+用户看到的却还是旧索引**。故给索引加入指纹：`收藏库结构 + PARSE_VERSION`，任一变化即整体重建；
+`PARSE_VERSION` 常量注释写明"改解析逻辑必须 +1"。本次上线即自动重建（诊断里可见
+「收藏库结构或解析器版本已变化，索引作废并重建」）。
+
+### 验收（真实 vault 全量解析 + HTTP + 浏览器）
+
+- 全量 341 篇 treasures 逐篇解析：正文残留 markdown 0 篇（修复前 18 篇）；标题仍为 MOC/未命名 0 篇。
+- 条目 336 → 331（移除 1 首页 + 3 多维索引 + 1 空笔记）；未分类 9 → 1（只剩真·未分类的 `最近买纸.md`）；
+  分类计数 茶器 111 / 拓片 104 / 书法 40 / 篆刻 35（各 +1，来自 MOC 归类）。
+- 无辨色详情：6 张图全部 `naturalWidth>0` 且实际渲染；无 `media://` 残留、无残留 markdown 文本。
+- `/api/media/.../Pasted image ….png` → 200 image/png（约 2.5MB）；默认封面 SVG → 200 image/svg+xml。
+- 意翠 封面从 HEIC 改为可显示的 image.png。
+- 自动化测试 45/45（新增：空格路径必须真正渲染、子目录 MOC 归类与 H1 标题、索引页/空笔记跳过）。
+
 ## NAS 实际部署（2026-09-27 已完成，此前为未验证项）
 
 - 环境（现场核实）：DSM 7.3.1、x86_64、docker 位于 `/usr/local/bin`（需 sudo + 显式 PATH）、Compose v2.20.1；项目与源库路径 `/volume2/Media/BaiduNetdiskWorkspace/...`；端口 4317 空闲；共享目录属主 uid=1026/gid=100。
@@ -176,7 +238,7 @@ skill：`~/.agents/skills/soft-glass-ui/`（`SKILL.md` + `references/tokens.css`
 ## 证据清单
 
 - 截图：`docs/screenshots/`（softglass-light-masonry / softglass-dark-masonry / softglass-light-table / softglass-dark-detail 为 v0.5.0；早期 home-1280 / home-1440 / home-1920 / shuhua-1440 / detail-1440 为 v0.1.0）。
-- 测试：`npm test` 43/43 通过（vitest；日志见会话记录）。
+- 测试：`npm test` 45/45 通过（vitest；日志见会话记录）。
 - 源哈希清单：`.local/source-hash.json`（基线与复查一致）。
 - 发布包：`releases/0.1.0/`（59 个文件，含 manifest.json 与逐文件 SHA-256）。
 - 分类 seed：`data-seed/categories-seed.json`；人工覆盖：`<DATA_DIR>/overrides.json`。

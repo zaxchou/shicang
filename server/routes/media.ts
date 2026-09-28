@@ -12,6 +12,8 @@ const CONTENT_TYPES: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.avif': 'image/avif',
+  // 藏品库的统一占位封面就是 SVG（39 篇引用）：缺了会按 application/octet-stream 下发，<img> 不渲染
+  '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
@@ -70,6 +72,10 @@ export function mediaRouter(getLibrary: () => LibraryService): express.Router {
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    // SVG 以文档形式直接打开时可执行脚本；虽然媒体只来自索引登记过的库内文件，仍禁掉脚本
+    if (contentType === 'image/svg+xml') {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    }
     if (req.headers['if-none-match'] === etag) {
       res.status(304).end();
       return;

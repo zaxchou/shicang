@@ -19,7 +19,7 @@ import { lastNDaysRangeMs, customRangeMs } from '../../shared/time.js';
 import { projectRoot, type AppConfig } from '../config.js';
 import { log } from '../log.js';
 import { scanVault } from '../reader/scan.js';
-import type { NoteRecord } from '../reader/parse.js';
+import { PARSE_VERSION, type NoteRecord } from '../reader/parse.js';
 import { JsonStore } from '../storage/json-store.js';
 import {
   CategoriesService,
@@ -32,8 +32,8 @@ interface IndexDoc {
   revision: number;
   generatedAt: string;
   contentSource: string;
-  /** 收藏库配置指纹（结构变化 → 索引作废重建） */
-  collectionsSig?: string;
+  /** 索引指纹（收藏库结构 + 解析器版本；任一变化 → 索引作废重建） */
+  indexSig?: string;
   notes: NoteRecord[];
   diagnostics: string[];
   lastScan: {
@@ -124,9 +124,12 @@ export class LibraryService {
     return this.cfg.vaultRoot;
   }
 
-  /** 收藏库配置指纹：结构（id/root/exclude）变化时索引作废 */
-  private collectionsSig(): string {
-    return JSON.stringify(this.cfg.collections.map((c) => ({ id: c.id, root: c.root, exclude: c.exclude ?? [] })));
+  /** 索引指纹：收藏库结构（id/root/exclude）+ 解析器版本，任一变化即索引作废 */
+  private indexSig(): string {
+    return JSON.stringify({
+      collections: this.cfg.collections.map((c) => ({ id: c.id, root: c.root, exclude: c.exclude ?? [] })),
+      parseVersion: PARSE_VERSION,
+    });
   }
 
   async init(): Promise<void> {
@@ -135,9 +138,13 @@ export class LibraryService {
     diagnostics.push(...(await this.categories.init(seedPath)));
 
     const loaded = this.indexStore.load();
-    const sig = this.collectionsSig();
-    if (loaded.doc && loaded.doc.collectionsSig !== sig) {
-      diagnostics.push('收藏库结构已变化（新增/调整 collection），索引作废并重建');
+    const sig = this.indexSig();
+    if (loaded.doc && loaded.doc.indexSig !== sig) {
+      diagnostics.push(
+        loaded.doc.indexSig === undefined
+          ? '索引缺少指纹（旧版本），作废并重建'
+          : '收藏库结构或解析器版本已变化，索引作废并重建'
+      );
       this.doc = { ...this.doc, revision: loaded.doc.revision }; // 保留 revision 序号
       loaded.doc = null as never;
     }
@@ -462,7 +469,7 @@ export class LibraryService {
       revision: this.doc.revision + 1,
       generatedAt: new Date().toISOString(),
       contentSource: this.cfg.vaultRoot,
-      collectionsSig: this.collectionsSig(),
+      indexSig: this.indexSig(),
       notes: outcome.records,
       diagnostics: outcome.diagnostics.slice(0, 200),
       lastScan: {

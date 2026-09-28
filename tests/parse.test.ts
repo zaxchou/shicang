@@ -159,6 +159,11 @@ describe('媒体路径安全', () => {
     });
     expect(out.record!.media).toHaveLength(1);
     expect(out.record!.media[0]!.width).toBe(5);
+    // 关键：必须真的渲染出 <img>；此前只断言「登记成功」，
+    // 漏掉了链接在空格处被截断、图片其实没显示的问题
+    expect(out.record!.bodyHtml).toContain('<img');
+    expect(out.record!.bodyHtml).not.toContain('media://');
+    expect(out.record!.bodyHtml).not.toContain('中文 图');
   });
 
   it('远程视频进入媒体清单并保留在 HTML 中', () => {

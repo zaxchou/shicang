@@ -1441,4 +1441,49 @@ groups 聚合计数与组内标星跨成员、组标签跨成员聚合、setCate
 - **只读边界**：`source-hash.mjs --check` → 4 个根（新增 Clippings）；added 14 = 11 篇剪藏（新纳入哈希清单）
   + 用户当晚 3 个新文件；changed 4 = Obsidian 索引重算——无应用侧写入。
 
+## 网页剪藏封面与站内播放（2026-09-29，v0.13.0）
+
+用户问「从哔哩哔哩导入的有没有视频缩略图和播放器的信息，有的话需要特殊处理，让它在卡片里可以显示」。
+**查实：剪藏里没有**——Web Clipper 的 frontmatter 只有 title/source/author/published/created/description/tags，
+正文也没有图或播放器标记；但 B 站公开 API 可用（实测 `view?bvid=` 返回封面与时长 9611 秒）。
+两个设计点经用户确认：**主动抓封面并缓存 ✅ / 详情内嵌官方播放器 ✅**。
+
+### 实现
+
+- `server/services/web-cover.ts`（新）：`bvidFromUrl`、`publicHttpUrl`（SSRF 守卫）、`firstRemoteImage`、
+  `WebCoverService`（JsonStore + 单飞 + 串行落盘 + 负缓存 6h）。B 站封面走
+  `api.bilibili.com/x/web-interface/view`（封面 URL + `duration`），下载时加 `@480w_270h_1c.webp` 小图参数
+  （实测 12.9KB/张）；其它站点取正文首图（微信 mmbiz / 新浪 sinaimg 均实测成功，服务端带 UA/Referer 绕开防盗链）。
+  出网闸：12s 超时、≤6MB、必须 image/*、只放行公网 http(s)。
+- 摘要三态（`NoteSummary.webCover`）：对象=已有 / null=试过没有 / **键不存在=还没试过**——
+  JSON 序列化天然丢掉 undefined，网页库卡片据此按需探测（先 `?meta=1` 拿时长、再挂 `<img>`）。
+- `GET /api/web-cover/:id`（图片流，ETag/no-cache/304）与 `?meta=1`（JSON 时长）。
+- 前端：卡片缩略图 + 右下时长角标；详情 B 站剪藏渲染封面+播放按钮，**点了才加载**官方 iframe
+  （React 直接渲染，不经过正文消毒白名单；播放器来源只可能是 player.bilibili.com）。
+
+### 实测与踩到的一个坑
+
+- 真实链路：陈天奇那篇封面 **1.1s** 抓到（480×270 WebP 12.9KB）；微信首图 521KB PNG 0.4s；
+  缓存命中 304 / 9ms；宿命论（无来源）404 且进负缓存。11 篇卡片最终 **10 篇有封面**（唯一没封面的就是那篇手写总结）。
+- **踩坑**：卡片封面一开始全是黑块——`.card-media img` 有既有的 `opacity:0 → .loaded` 淡入机制，
+  新加的网页封面 img 没挂 `loaded` class。浏览器探针查 computedStyle 定位后修复；教训与 v0.9.x 同源：
+  **同一个容器里的新元素要继承既有的可见性机制**。
+- 修了一个真缺陷：首版 `toSummary` 把 `webCover` 恒写成「对象或 null」——卡片于是只在**已缓存**时才探测，
+  没探测过的永远不拉（浏览器实测 6 篇无封面暴露）。三态语义就是为此引入的。
+
+### 测试（256 → 264，新增 8 条）
+
+`tests/web-cover.test.ts`：bvid 提取（含查询串/非视频链接/null）；SSRF 守卫（localhost/.local/各类私网 IP/IPv6
+字面量/非 http 协议全拒）；首图提取（`&amp;` 还原、跳过 data:/media:）；B 站抓取落盘且二次零请求；
+非 B 站回退首图（且不去打 B 站 API）、私网首图拒绝；失败进负缓存且 6h 内不重试、单飞并发只抓一次；
+HTTP 路由（200 图片 / 304 / `?meta=1` JSON / 未知笔记 404）+ 摘要三态合并。全程 mock fetch，绝不真访问外站。
+
+### 验收
+
+- `npm run typecheck` 0 错；`npx vitest run` **264/264 全绿**（17 文件）；build 通过。
+- 浏览器：网页库 10/11 卡片有缩略图、7 篇 B 站全带时长角标（2:17:24 / 16:36 / 2:02:45 / 2:40:11 / 3:04:20 / 1:29:42 / 13:15）；
+  详情播放器实测播放（0:00:02/2:40:11 画面在放）。
+- vault 只读核验：无应用侧写入（Cl Ippings 与用户文件之外无变动）。
+- 未做（记录在案）：DNS 重绑定型 SSRF 的二次解析校验；封面定期刷新（现在一次抓取长期复用，B 站换封面不会跟进）。
+
 

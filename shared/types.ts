@@ -62,6 +62,9 @@ export interface NoteSummary {
     available: boolean;
   } | null;
   sourceStatus: 'available' | 'missing';
+  /** 网页剪藏的封面（B 站走 API、其它站点取正文首图；服务端按需抓取并缓存在数据目录）。
+   *  列表/卡片只拿 url 与时长，图本身走 /api/web-cover/:noteId 按需拉（失败就当作没有封面） */
+  webCover?: { url: string; durationSec: number | null } | null;
   /** 人工标注（星标/状态/备注）；与索引无关，索引重建不影响 */
   annotation: NoteAnnotation;
   /** 结构化附加字段（treasures：价格/购买时间/朝代等，供表格展示） */

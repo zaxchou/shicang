@@ -161,4 +161,9 @@ export const api = {
       `/api/notes/${encodeURIComponent(id)}/media-text/${encodeURIComponent(mediaId)}`,
       { method: 'DELETE' }
     ),
+  /** 网页封面元信息（卡片按需探测：有没有封面、视频多久）；没有封面时 404（ApiError） */
+  webCoverMeta: (id: string) =>
+    request<{ durationSec: number | null; contentType: string }>(
+      `/api/web-cover/${encodeURIComponent(id)}?meta=1`
+    ),
 };

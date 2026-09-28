@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   MAX_REMARK,
   type NoteDetail,
@@ -11,7 +11,7 @@ interface CategoryOption {
   id: string;
   name: string;
 }
-import { formatShanghai } from '../../shared/time';
+import { formatDurationSec, formatShanghai } from '../../shared/time';
 import { api, ApiError } from '../api/client';
 import {
   IconArchive,
@@ -20,6 +20,7 @@ import {
   IconClose,
   IconExternal,
   IconPen,
+  IconPlay,
   IconScanText,
   IconStar,
 } from './Icons';
@@ -182,6 +183,8 @@ export function DetailDialog({
   const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number; phase: 'ocr' | 'asr' } | null>(null);
   const [ocrMsg, setOcrMsg] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
+  /** B 站剪藏：点封面才加载官方播放器（iframe 默认不拉，省流量也避免第三方脚本常驻） */
+  const [playerOpen, setPlayerOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -259,6 +262,28 @@ export function DetailDialog({
   const targetHint = [ocrTargets.length ? `${ocrTargets.length} 张图` : '', asrTargets.length ? `${asrTargets.length} 段语音` : '']
     .filter(Boolean)
     .join('、');
+
+  /** B 站剪藏的 BV 号（从原文链接取）：详情里嵌官方播放器用它 */
+  const bvid = useMemo(() => {
+    const m = /\/video\/(BV[0-9A-Za-z]{10})/.exec(detail?.originalUrl ?? '');
+    return m ? m[1]! : null;
+  }, [detail?.originalUrl]);
+  // 时长：摘要里没有（undefined = 还没探测过）时补探一次（其它情况：对象=已有；null=试过没有封面）
+  const [probedDurationSec, setProbedDurationSec] = useState<number | null>(null);
+  useEffect(() => {
+    if (!bvid || summary.webCover !== undefined) return;
+    let alive = true;
+    api
+      .webCoverMeta(summary.id)
+      .then((r) => {
+        if (alive) setProbedDurationSec(r.durationSec);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [bvid, summary.id, summary.webCover]);
+  const playerDuration = formatDurationSec(summary.webCover?.durationSec ?? probedDurationSec);
 
   /** 组件是否还挂着：识别是**逐张、可能持续一分钟**的付费长任务，
    *  关掉详情后必须立刻停下——否则关了窗还在后台烧额度，回来还弹"识别完成"（深审发现） */
@@ -716,6 +741,45 @@ export function DetailDialog({
                     '稍后重试'
                   )}
                   。图文内容仍可正常阅读。
+                </div>
+              )}
+
+              {/* B 站剪藏：封面 + 时长，点一下就地展开官方播放器（iframe 由 React 直接渲染，
+                  不经过正文消毒白名单——播放器永远只可能是 player.bilibili.com 这一个来源） */}
+              {bvid && (
+                <div className="web-player">
+                  {playerOpen ? (
+                    <iframe
+                      className="web-player-frame"
+                      src={`https://player.bilibili.com/player.html?bvid=${encodeURIComponent(bvid)}&autoplay=1&high_quality=1&danmaku=0`}
+                      title="哔哩哔哩播放器"
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="web-player-cover"
+                      onClick={() => setPlayerOpen(true)}
+                      aria-label="在拾藏里播放这个视频"
+                      title="在拾藏里播放这个视频"
+                    >
+                      <img
+                        src={summary.webCover?.url ?? `/api/web-cover/${encodeURIComponent(summary.id)}`}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <span className="web-player-play" aria-hidden>
+                        <IconPlay size={22} />
+                      </span>
+                      {playerDuration && <span className="web-player-duration">{playerDuration}</span>}
+                    </button>
+                  )}
+                  <div className="web-player-hint">播放器来自哔哩哔哩官方嵌入；只在这篇笔记里按需加载</div>
                 </div>
               )}
 

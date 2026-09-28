@@ -71,3 +71,15 @@ export function formatShanghai(iso: string | null | undefined): string | null {
   const mm = String(dt.getUTCMinutes()).padStart(2, '0');
   return `${d} ${hh}:${mm}`;
 }
+
+/** 视频时长角标：秒 → "m:ss" / "h:mm:ss"（B 站封面角标用） */
+export function formatDurationSec(sec: number | null | undefined): string | null {
+  if (sec === null || sec === undefined || !Number.isFinite(sec) || sec <= 0) return null;
+  const s = Math.round(sec);
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return hh > 0
+    ? `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+    : `${mm}:${String(ss).padStart(2, '0')}`;
+}

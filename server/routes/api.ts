@@ -1,4 +1,5 @@
 // API 路由：统一错误封装、查询校验、Origin 白名单。
+import fs from 'node:fs';
 import express from 'express';
 import { z } from 'zod';
 import type {
@@ -371,6 +372,46 @@ export function apiRouter(deps: ApiDeps): express.Router {
         if (e instanceof ValidationError) throw new HttpError(400, 'INVALID_TRANSCRIBE_TARGET', e.message);
         throw e;
       }
+    })
+  );
+
+  // 网页封面（B 站剪藏走官方 API 拿视频封面/时长，其它站点取正文首图）：按需抓取并缓存在数据目录。
+  // 拿不到就 404——前端把 404 当作"没有封面"直接隐藏，不显示碎图、更不报错。
+  router.get(
+    '/web-cover/:id',
+    wrap(async (req, res) => {
+      const id = requireParam(req, 'id');
+      let out: { abs: string; contentType: string } | null;
+      try {
+        out = await deps.library().ensureWebCover(id);
+      } catch (e) {
+        if (e instanceof NotFoundError) throw new HttpError(404, 'NOTE_NOT_FOUND', e.message);
+        throw e;
+      }
+      if (!out) {
+        res.status(404).json({ error: { code: 'WEB_COVER_UNAVAILABLE', message: '这篇没有可用的封面' } });
+        return;
+      }
+      // 轻量探测：卡片先问一句"有没有封面、多久"，拿到了再挂 <img>（首屏就能出时长角标，也避免碎图请求）
+      if (String(req.query.meta) === '1') {
+        const entry = deps.library().webCoverMeta(id);
+        res.json({ durationSec: entry?.durationSec ?? null, contentType: out.contentType });
+        return;
+      }
+      const stat = fs.statSync(out.abs);
+      const etag = `"${stat.size}-${Math.round(stat.mtimeMs)}"`;
+      res.setHeader('Content-Type', out.contentType);
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('ETag', etag);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (req.headers['if-none-match'] === etag) {
+        res.status(304).end();
+        return;
+      }
+      res.setHeader('Content-Length', String(stat.size));
+      fs.createReadStream(out.abs)
+        .on('error', () => res.destroy())
+        .pipe(res);
     })
   );
 

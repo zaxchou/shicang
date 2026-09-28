@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { NoteSummary } from '../../shared/types';
+import { formatDurationSec } from '../../shared/time';
+import { api } from '../api/client';
 import { IconLayers, IconPlay, IconStar } from './Icons';
 
 interface Props {
@@ -46,10 +48,38 @@ function coverStyle(note: NoteSummary): React.CSSProperties {
 
 export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleStar, registerEl }: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  // 网页剪藏封面三态（与 summary.webCover 的语义对应）：
+  //   对象 = 服务端已有封面；null = 试过没有；undefined = 还没试过 → 这里按需探测一次
+  const [webCoverFailed, setWebCoverFailed] = useState(false);
+  const [probedReady, setProbedReady] = useState(false);
+  const [probedDuration, setProbedDuration] = useState<number | null>(null);
+  const needProbe = !note.cover && note.collection === 'web' && note.webCover === undefined;
+  useEffect(() => {
+    if (!needProbe) return;
+    let alive = true;
+    api
+      .webCoverMeta(note.id)
+      .then((r) => {
+        if (!alive) return;
+        setProbedDuration(r.durationSec);
+        setProbedReady(true);
+      })
+      .catch(() => {
+        // 404 = 这篇没有封面（服务端已进负缓存）：本会话就不再折腾，当作无封面卡片
+        if (alive) setWebCoverFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [needProbe, note.id]);
+  const showWebCover = !note.cover && !webCoverFailed && (note.webCover ? true : probedReady);
+  const webCoverUrl = note.webCover?.url ?? `/api/web-cover/${encodeURIComponent(note.id)}`;
+  const webDuration = formatDurationSec(note.webCover?.durationSec ?? probedDuration);
+  const hasMedia = !!note.cover || showWebCover;
   return (
     <article
       ref={(el) => registerEl(note.id, el)}
-      className={`note-card${note.cover ? '' : ' card-no-cover'}${enterDelay > 0 ? ' enter' : ''}`}
+      className={`note-card${hasMedia ? '' : ' card-no-cover'}${enterDelay > 0 ? ' enter' : ''}`}
       style={enterDelay > 0 ? { animationDelay: `${enterDelay}ms` } : undefined}
       role="button"
       tabIndex={0}
@@ -62,32 +92,50 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
         }
       }}
     >
-      {note.cover && (
+      {hasMedia && (
         <div className="card-media">
-          {note.cover.available ? (
-            /* 缓存命中时不触发 load 事件：挂载时若图片已完成就补一次，否则封面永远停在 opacity: 0 */
+          {note.cover ? (
+            note.cover.available ? (
+              /* 缓存命中时不触发 load 事件：挂载时若图片已完成就补一次，否则封面永远停在 opacity: 0 */
+              <img
+                src={note.cover.url}
+                alt={note.title}
+                loading="lazy"
+                decoding="async"
+                style={coverStyle(note)}
+                ref={(el) => {
+                  if (el && el.complete && el.naturalWidth > 0) setImgLoaded(true);
+                }}
+                className={imgLoaded ? 'loaded' : ''}
+                onLoad={() => setImgLoaded(true)}
+                onError={(e) => {
+                  const el = e.currentTarget;
+                  el.style.display = 'none';
+                  el.parentElement?.insertAdjacentHTML(
+                    'beforeend',
+                    '<div class="media-placeholder">图片暂不可用</div>'
+                  );
+                }}
+              />
+            ) : (
+              <div className="media-placeholder">图片缺失</div>
+            )
+          ) : (
+            /* 网页剪藏的封面（B 站/首图，服务端按需抓取）：失败就整块消失，不留碎图；
+               同样要走 .loaded 淡入（.card-media img 默认 opacity:0，不加就是块黑） */
             <img
-              src={note.cover.url}
-              alt={note.title}
+              src={webCoverUrl}
+              alt=""
               loading="lazy"
               decoding="async"
-              style={coverStyle(note)}
+              style={{ aspectRatio: '4 / 3' }}
+              className={imgLoaded ? 'loaded' : ''}
               ref={(el) => {
                 if (el && el.complete && el.naturalWidth > 0) setImgLoaded(true);
               }}
-              className={imgLoaded ? 'loaded' : ''}
               onLoad={() => setImgLoaded(true)}
-              onError={(e) => {
-                const el = e.currentTarget;
-                el.style.display = 'none';
-                el.parentElement?.insertAdjacentHTML(
-                  'beforeend',
-                  '<div class="media-placeholder">图片暂不可用</div>'
-                );
-              }}
+              onError={() => setWebCoverFailed(true)}
             />
-          ) : (
-            <div className="media-placeholder">图片缺失</div>
           )}
           {note.mediaCount > 1 && (
             <span className="card-media-badge">
@@ -101,6 +149,8 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
               视频
             </span>
           )}
+          {/* B 站时长角标（右下，和左下"视频"角标错开） */}
+          {showWebCover && webDuration && <span className="card-media-badge duration-badge">{webDuration}</span>}
           {/* 有封面时星标浮在图片左上角（右上角被多图角标占用、左下角是视频角标） */}
           <StarButton starred={note.annotation.starred} onToggle={() => onToggleStar(note)} />
         </div>

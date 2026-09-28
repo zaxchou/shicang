@@ -35,8 +35,7 @@ import {
   mediaHashOf,
   readMediaBytes,
 } from './media-text.js';
-import { aiVisionConfigFromEnv, ocrImage, OCR_IMAGE_MIMES, MAX_OCR_IMAGE_BYTES, type OcrUsage } from './ai-vision.js';
-import {
+import { aiVisionConfigFromEnv, ocrImage, OCR_IMAGE_MIMES, MAX_OCR_IMAGE_BYTES, type OcrUsage } from './ai-vision.js';import {
   aiAsrConfigFromEnv,
   transcribeAudio,
   transcodeToMp3,
@@ -46,6 +45,9 @@ import {
   type AsrUsage,
   type AudioFormat,
 } from './ai-asr.js';
+import {
+  WebCoverService,
+} from './web-cover.js';
 import { JsonStore } from '../storage/json-store.js';
 import {
   buildCorpusRecords,
@@ -133,6 +135,7 @@ export class LibraryService {
   private categories: CategoriesService;
   private annotations: AnnotationsService;
   private mediaText: MediaTextService;
+  private webCover: WebCoverService;
   private indexStore: JsonStore<IndexDoc>;
   private doc: IndexDoc;
   private byId = new Map<string, NoteRecord>();
@@ -150,6 +153,7 @@ export class LibraryService {
     this.categories = new CategoriesService(cfg.dataDir, cfg.backupDir);
     this.annotations = new AnnotationsService(cfg.dataDir, cfg.backupDir);
     this.mediaText = new MediaTextService(cfg.dataDir, cfg.backupDir);
+    this.webCover = new WebCoverService(cfg.dataDir, cfg.backupDir);
     this.indexStore = new JsonStore<IndexDoc>(
       path.join(cfg.dataDir, 'library-index.json'),
       cfg.backupDir,
@@ -207,6 +211,7 @@ export class LibraryService {
     diagnostics.push(...(await this.categories.init(seedPath)));
     diagnostics.push(...(await this.annotations.init()));
     diagnostics.push(...(await this.mediaText.init()));
+    diagnostics.push(...(await this.webCover.init()));
 
     const loaded = this.indexStore.load();
     const sig = this.indexSig();
@@ -408,6 +413,17 @@ export class LibraryService {
     }
     const derived = r.collection !== 'rednote';
     const ann = this.annotations.effective(r.id);
+    // 网页封面三态（JSON 里 undefined 键会消失，正好表达"还没试过"）：
+    //   对象 = 已有封面；null = 试过、没有（别让卡片反复探测）；undefined = 还没试过（网页库卡片按需探测一次）
+    const wc = this.webCover.get(r.id);
+    let webCover: NoteSummary['webCover'];
+    if (wc && !wc.failedAt) {
+      webCover = { url: `/api/web-cover/${encodeURIComponent(r.id)}`, durationSec: wc.durationSec };
+    } else if (wc) {
+      webCover = null;
+    } else {
+      webCover = undefined;
+    }
     return {
       id: r.id,
       collection: r.collection,
@@ -423,6 +439,7 @@ export class LibraryService {
       hasVideo: r.media.some((m) => m.kind === 'video'),
       cover,
       sourceStatus: r.sourceStatus,
+      webCover,
       annotation: {
         starred: ann.starred,
         starredAt: ann.starredAt,
@@ -1001,6 +1018,27 @@ export class LibraryService {
   /** 识别文本条数（页面诊断/信息展示用） */
   get mediaTextEntryCount(): number {
     return this.mediaText.entryCount;
+  }
+
+  /**
+   * 确保某篇的网页封面存在（B 站走 API、其它站点取正文首图），返回可直接下发的文件信息。
+   * 抓取失败/无来源返回 null——**永不报错**，卡片拿不到图就不显示图。
+   */
+  async ensureWebCover(noteId: string): Promise<{ abs: string; contentType: string } | null> {
+    const rec = this.byId.get(noteId);
+    if (!rec) throw new NotFoundError(`未找到笔记 ${noteId}`);
+    await this.webCover.ensure(rec);
+    const abs = this.webCover.filePathOf(noteId);
+    if (!abs) return null;
+    const entry = this.webCover.get(noteId);
+    return { abs, contentType: entry?.contentType ?? 'image/jpeg' };
+  }
+
+  /** 封面元信息（时长等；给卡片的 &meta=1 轻量探测用） */
+  webCoverMeta(noteId: string): { durationSec: number | null } | null {
+    const e = this.webCover.get(noteId);
+    if (!e || e.failedAt) return null;
+    return { durationSec: e.durationSec };
   }
 
   libraryInfo(): LibraryInfo {

@@ -976,7 +976,26 @@ start.cmd / start.ps1 只负责开发环境：从脚本目录定位项目，支�
 - **微信公众号接入方式**：目录到位后加一条 collection + 把 id 加进 `groups[clippings].collections` 即完成
   （同一种剪藏格式预计零新代码；若格式不同再单独加解析分支）。
 
+### 18.7 网页剪藏的封面与站内播放（2026-09-29，v0.13.0）
 
+> **实施状态**：已完成并验收。用户问「从哔哩哔哩导入的有没有视频缩略图和播放器的信息」——查实
+> **Web Clipper 剪藏里没有封面/播放器字段**（frontmatter 只有 title/source/author/published/created/description/tags），
+> 但 B 站公开 API 可用 → 按用户确认的方案做**主动按需抓取**。
+
+- **封面来源**：B 站剪藏按 `source` 里的 BV 号调 `api.bilibili.com/x/web-interface/view` 拿封面与**时长**；
+  其它站点取正文第一张远程图（微信/新浪实测可用）。图片下载时对 B 站图床加 `@480w_270h_1c.webp` 小图参数（12.9KB/张）。
+- **缓存**：`runtime/data/web-covers.json` + `runtime/data/web-covers/`（app 资产，不进索引、不进 vault、不进语料）；
+  单飞 + 串行落盘 + **负缓存 6 小时**（失败不再反复打）。摘要里 `webCover` 三态：
+  对象=已有 / null=试过没有 / **键不存在=还没试过**（JSON 丢 undefined 正好表达）——网页库卡片据此按需探测。
+- **出网纪律**：解析器绝不联网（parseWeb 保持纯函数），封面全部**按需**（卡片先 `?meta=1` 轻量探测，拿到才挂 `<img>`）；
+  **SSRF 守卫** `publicHttpUrl` 只放行公网 http(s)（拒 localhost/.local/字面私网 IP/IPv6 字面量）；超时 12s、体积 ≤6MB、
+  必须是 image/*。DNS 解析后才落私网的情形属已知残余风险（未做二次解析）。
+- **站内播放**：详情里对 B 站剪藏渲染封面 + 播放按钮 + 时长角标，**点了才加载**官方 iframe
+  （`player.bilibili.com/player.html?bvid=…`）——iframe 由 React 直接渲染，**不经过正文消毒白名单**（播放器来源只可能是这一个域）。
+- **前端**：卡片首屏即可探到封面与时长角标（右下，`h:mm:ss`）；封面 img 必须走 `.loaded` 淡入
+  （`.card-media img` 默认 `opacity:0`，v0.9.x 的既有机制，漏了就是一块黑——实现时真踩到并修了）。
+
+### 对后续接手者
 
 18.2 里那几条接口形态（ASR 不能带文字部分、视觉直吃 webp、TTS 要 assistant 角色）是**实测**出来的，
 不是文档抄的；换供应商或换模型前先按同样方式探一次，别照着 OpenAI 的习惯写。

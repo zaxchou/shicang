@@ -228,29 +228,6 @@ export default function App() {
     return () => window.clearInterval(t);
   }, [library, libraryError, loadLibrary]);
 
-  // 玻璃表面的鼠标跟随高光（rAF 节流，更新根级 CSS 变量）
-  useEffect(() => {
-    let raf = 0;
-    let px = -999;
-    let py = -999;
-    const flush = () => {
-      raf = 0;
-      const root = document.documentElement;
-      root.style.setProperty('--gx', `${px}px`);
-      root.style.setProperty('--gy', `${py}px`);
-    };
-    const onMove = (e: PointerEvent) => {
-      px = e.clientX;
-      py = e.clientY;
-      if (!raf) raf = requestAnimationFrame(flush);
-    };
-    window.addEventListener('pointermove', onMove, { passive: true });
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
   const patchQuery = useCallback((patch: Partial<QueryState>) => {
     setQuery((prev) => ({ ...prev, ...patch }));
   }, []);

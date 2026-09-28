@@ -1,8 +1,10 @@
-# 拾藏 Shícáng — 小红书收藏库（Apple Liquid Glass 风格）
+# 拾藏 Shícáng — 个人收藏库（Soft Glass 风格）
 
 [GitHub 仓库](https://github.com/zaxchou/shicang)（版本管理）。把 Obsidian 库中的小红书收藏（Markdown + 本地图片 + 远程视频）变成一个可以 24 小时常驻访问的深色网页收藏库：浏览、搜索、按分类与时间筛选、阅读详情、播放视频、手动刷新新增内容、调整分类。**Obsidian 库只读**；所有展示端数据保存在本项目目录内。
 
-![首页](docs/screenshots/home-1440.png)
+![首页（亮色）](docs/screenshots/softglass-light-masonry.png)
+
+深色主题与列表模式：`docs/screenshots/softglass-dark-masonry.png`、`softglass-light-table.png`、`softglass-dark-detail.png`
 
 ## 收藏库（三个来源）
 
@@ -25,6 +27,7 @@
 - **亮色 / 深色 / 跟随系统**：侧栏底部三档切换，跟随系统时实时响应系统外观变化，选择持久保存。
 - **动效**：弹层开合、卡片入场、悬停缩放、图片淡入等克制过渡；尊重系统「减弱动态效果」设置。
 - **手动刷新**：点击「刷新收藏库」增量读取 Obsidian 中新增/变更的笔记，报告新增数量；不写入源目录。
+- **质感（Soft Glass）**：三层表面语法（浮起 / 平面 / 凹陷）+ 柔和光影代替描边，近白面板压在淡彩背景上，缓慢漂移的环境光透过玻璃；`backdrop-filter` 只用于三块大玻璃，滚动 + 指针交互实测 0 掉帧（详见 `docs/design-language.md`）。
 
 ## 快速开始（Windows 开发预览）
 
@@ -121,10 +124,28 @@ releases/          版本化发布包
 
 ```bash
 npm run typecheck   # 前后端类型检查
-npm test            # vitest：解析/路径/时间/分类优先级/幂等刷新等 35 个用例
+npm test            # vitest：解析/路径/时间/分类优先级/幂等刷新等 43 个用例
 npm run build       # 构建服务端 + 前端到 dist/
 npm run dev:server  # 服务端热重载（开发）
 npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）
 ```
 
-约定：源库（`Z:\...\mynote\mynote\RedNote`）只读；所有写入收口在项目 `storage` 模块；分类、索引等数据通过 `DATA_DIR` 定位。分类体系与边界见 `docs/category-taxonomy.md`，验收记录见 `docs/verification.md`。
+约定：源库（`Z:\...\mynote\mynote`）只读；所有写入收口在项目 `storage` 模块；分类、索引等数据通过 `DATA_DIR` 定位。分类体系与边界见 `docs/category-taxonomy.md`，设计语言见 `docs/design-language.md`，验收记录见 `docs/verification.md`。
+
+### 改样式前先量一量
+
+界面观感与帧耗都靠数字验收，不要凭感觉调。项目自带三个探针（不参与打包）：
+
+```bash
+cp scripts/probe-client.js dist/web/_probe.js      # 注入浏览器
+# 控制台：await (0,eval)(await (await fetch('/_probe.js')).text())
+#   __uiAudit()                      合成色 / 明度台阶 / WCAG 对比度（4 视图 × 2 主题应为零失败）
+#   __uiBench(150,{mode:'both'})     滚动+指针帧耗（over32ms 必须为 0）
+#   __uiLayout()                     越界与重叠检查
+
+node scripts/pngview.cjs <png> 100 32              # 截图 → 亮度字符视图（看构图）
+node scripts/scanline.cjs <png> <y> <x0> <x1> 2    # 明度扫描线（验证阴影/玻璃亮边）
+```
+
+`src/styles/app.css` 末尾的「性能预算」注释记录了每条硬性约束的实测数字（例如瀑布流条目的
+`will-change: transform`：360 张卡片 23ms → 8ms/帧），改动前请先复测。

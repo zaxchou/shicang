@@ -1,128 +1,123 @@
-/* 设计 token：Apple Liquid Glass 风格。深色为默认主题，[data-theme='light'] 覆盖为亮色。 */
+/* 设计 token：Soft Glass = Glassmorphism（透明玻璃层级）+ Soft UI（柔和光影塑形）。
+   两条原则：
+   1) 层次靠光影与透明叠加表达，不靠描边和装饰；
+   2) 昂贵效果要有预算——backdrop-filter 只留给三块大玻璃，其余用光影模拟。
+   深色为默认主题，[data-theme='light'] 覆盖为亮色。 */
 :root {
   color-scheme: dark;
 
-  /* 环境光背景（供玻璃折射/模糊）——四组色斑，两两反向缓慢漂移 */
-  --ambient: #0a0a10;
-  --ambient-blob-1: rgba(88, 101, 242, 0.22);  /* 靛蓝 */
-  --ambient-blob-2: rgba(255, 83, 107, 0.16);  /* 玫红 */
-  --ambient-blob-3: rgba(45, 212, 191, 0.10);  /* 青 */
-  --ambient-blob-4: rgba(168, 85, 247, 0.13);  /* 紫 */
-  --ambient-blob-5: rgba(255, 159, 67, 0.10);  /* 暖橙 */
+  /* 环境光背景：柔和渐变网格。
+     不使用 filter: blur —— 渐变自身的衰减就是柔的，模糊滤镜只会让超大图层反复光栅化。 */
+  --ambient: #090a0e;
+  --ambient-tint-1: rgba(102, 116, 255, 0.26); /* 靛 */
+  --ambient-tint-2: rgba(255, 83, 107, 0.17);  /* 玫红 */
+  --ambient-tint-3: rgba(45, 205, 190, 0.13);  /* 青 */
+  --ambient-tint-4: rgba(168, 92, 255, 0.16);  /* 紫 */
 
-  /* 玻璃表面 */
-  --glass-bg: rgba(24, 24, 32, 0.58);
-  --glass-bg-strong: rgba(30, 30, 40, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.13);
-  --glass-specular: rgba(255, 255, 255, 0.17);
-  --glass-bevel-bottom: rgba(0, 0, 0, 0.30);
-  --glass-ring: rgba(255, 255, 255, 0.06);
-  --glass-blur: 28px;
-  --glass-sat: 1.7;
+  /* 玻璃表面（backdrop-filter 预算：仅侧栏 / 主面板 / 详情三处） */
+  --glass-bg: rgba(40, 42, 55, 0.70);
+  --glass-bg-strong: rgba(44, 46, 60, 0.90);
+  --glass-edge: rgba(255, 255, 255, 0.085);
+  /* 内部细线（表格行、分隔线）：与所在表面微微对比，不用纯白玻璃边 */
+  --hairline: rgba(255, 255, 255, 0.075);
+  --glass-sheen: rgba(255, 255, 255, 0.055);
+  --glass-blur: 18px;
 
-  --bg-panel: transparent;   /* 面板改用玻璃变量 */
-  --bg-card: #242428;
-  --bg-hover: rgba(255, 255, 255, 0.10);
-  --bg-elevated: rgba(32, 32, 42, 0.78);
-  --bg-menu: rgba(36, 36, 48, 0.86);
-  --bg-inset: rgba(0, 0, 0, 0.28);
-  --bg-inset-2: rgba(255, 255, 255, 0.05);
-  --bg-code: rgba(0, 0, 0, 0.32);
-  --bg-avatar: rgba(255, 255, 255, 0.14);
-  --border: rgba(255, 255, 255, 0.16);
-  --border-soft: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.26);
-  --text-primary: #f4f4f6;
-  --text-secondary: #b6b6c2;
-  --text-weak: #8d8d99;
-  --text-article: #dcdce2;
+  /* 三种表面：平面 / 浮起 / 凹陷（柔性拟态的语法） */
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-raised: rgba(255, 255, 255, 0.10);
+  --surface-raised-hover: rgba(255, 255, 255, 0.17);
+  --surface-sunken: rgba(0, 0, 0, 0.50);
+  --surface-sunken-2: rgba(0, 0, 0, 0.24);
+  --surface-solid: rgba(40, 42, 55, 0.96); /* 需要遮住下层时用（如表头，不叠加 backdrop-filter） */
+  --hover-soft: rgba(255, 255, 255, 0.055);
+
+  /* 光影层级 */
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.32);
+  --elev-2: 0 2px 5px rgba(0, 0, 0, 0.30), 0 10px 22px -10px rgba(0, 0, 0, 0.55);
+  --elev-3: 0 30px 68px -30px rgba(0, 0, 0, 0.88), 0 3px 12px rgba(0, 0, 0, 0.38);
+  --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.075);
+  --trough: inset 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.045);
+  --card-shadow: 0 16px 36px -20px rgba(0, 0, 0, 0.85);
+
+  /* 文本 */
+  --text-primary: #f2f3f5;
+  --text-secondary: #b0b2bd;
+  --text-weak: #8d8f99;
+  --text-article: #d6d8de;
   --link: #7ab3ff;
-  --accent: #ff536b;
-  --accent-soft: rgba(255, 83, 107, 0.16);
 
-  --fill-weak: rgba(255, 255, 255, 0.055);
-  --fill-soft: rgba(255, 255, 255, 0.075);
-  --fill-strong: rgba(255, 255, 255, 0.12);
-  --hover-soft: rgba(255, 255, 255, 0.06);
+  /* 强调色：整屏几乎保持中性，只让少量关键点着色 */
+  --accent: #ff5a6e;
+  --ring: rgba(96, 156, 255, 0.8);
+  --ring-soft: rgba(96, 156, 255, 0.20);
 
-  --overlay: rgba(8, 8, 14, 0.5);
-  --shadow-card: 0 14px 34px rgba(0, 0, 0, 0.45);
-  --shadow-panel: 0 18px 56px rgba(0, 0, 0, 0.42);
-  --shadow-toast: 0 12px 36px rgba(0, 0, 0, 0.45);
-  --shadow-menu: 0 16px 44px rgba(0, 0, 0, 0.5);
+  --overlay: rgba(6, 7, 11, 0.46);
   --skeleton-a: rgba(255, 255, 255, 0.05);
   --skeleton-b: rgba(255, 255, 255, 0.10);
-  --scrollbar: rgba(255, 255, 255, 0.22);
-  --scrollbar-border: transparent;
+  --scrollbar: rgba(255, 255, 255, 0.2);
 
-  /* iOS 圆角体系 */
-  --radius-panel: 26px;
-  --radius-card: 18px;
-  --radius-btn: 12px;
-  --radius-dialog: 30px;
-
-  --gap-outer: 12px;
-  --gap-panel: 10px;
-  --sidebar-w: 212px;
-  --main-pad: 22px;
-  --col-gap: 18px;
-  --row-gap: 24px;
+  /* 圆角与留白 */
+  --radius-panel: 28px;
+  --radius-card: 20px;
+  --radius-dialog: 32px;
+  --gap-outer: 18px;
+  --gap-panel: 14px;
+  --sidebar-w: 226px;
+  --main-pad: 26px;
 
   --font: -apple-system, 'SF Pro Text', 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  --transition: 160ms ease;
+  --transition: 170ms ease;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --ambient: #eef0f6;
-  --ambient-blob-1: rgba(255, 122, 152, 0.34);
-  --ambient-blob-2: rgba(122, 162, 255, 0.32);
-  --ambient-blob-3: rgba(255, 196, 128, 0.28);
-  --ambient-blob-4: rgba(178, 140, 255, 0.26);
-  --ambient-blob-5: rgba(96, 214, 196, 0.22);
+  --ambient: #edeff4;
+  --ambient-tint-1: rgba(255, 138, 162, 0.34);
+  --ambient-tint-2: rgba(126, 164, 255, 0.32);
+  --ambient-tint-3: rgba(255, 198, 138, 0.26);
+  --ambient-tint-4: rgba(178, 148, 255, 0.26);
 
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-bg-strong: rgba(255, 255, 255, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.75);
-  --glass-specular: rgba(255, 255, 255, 0.95);
-  --glass-bevel-bottom: rgba(255, 255, 255, 0.55);
-  --glass-ring: rgba(255, 255, 255, 0.5);
-  --glass-blur: 28px;
-  --glass-sat: 1.8;
+  --glass-bg: rgba(250, 250, 252, 0.78);
+  --glass-bg-strong: rgba(255, 255, 255, 0.90);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --hairline: rgba(24, 32, 60, 0.08);
+  --glass-sheen: rgba(255, 255, 255, 0.5);
+  --glass-blur: 18px;
 
-  --bg-card: #ffffff;
-  --bg-hover: rgba(15, 20, 40, 0.07);
-  --bg-elevated: rgba(255, 255, 255, 0.80);
-  --bg-menu: rgba(255, 255, 255, 0.92);
-  --bg-inset: rgba(15, 20, 40, 0.07);
-  --bg-inset-2: rgba(15, 20, 40, 0.045);
-  --bg-code: rgba(15, 20, 40, 0.06);
-  --bg-avatar: rgba(15, 20, 40, 0.09);
-  --border: rgba(15, 20, 40, 0.14);
-  --border-soft: rgba(15, 20, 40, 0.08);
-  --border-strong: rgba(15, 20, 40, 0.20);
-  --text-primary: #17171d;
-  --text-secondary: #4a4b56;
-  --text-weak: #7f808c;
-  --text-article: #2b2b33;
+  --surface: rgba(24, 32, 60, 0.045);
+  --surface-raised: #ffffff;
+  --surface-raised-hover: #ffffff;
+  --surface-sunken: rgba(24, 32, 60, 0.07);
+  --surface-sunken-2: rgba(24, 32, 60, 0.045);
+  --surface-solid: rgba(255, 255, 255, 0.96);
+  --hover-soft: rgba(24, 32, 60, 0.05);
+
+  --elev-1: 0 1px 2px rgba(32, 42, 78, 0.08);
+  --elev-2: 0 2px 5px rgba(32, 42, 78, 0.07), 0 10px 22px -12px rgba(32, 42, 78, 0.25);
+  --elev-3: 0 30px 64px -30px rgba(38, 48, 88, 0.30), 0 3px 12px rgba(38, 48, 88, 0.07);
+  --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --trough: inset 0 1px 3px rgba(32, 42, 78, 0.10), inset 0 -1px 0 rgba(255, 255, 255, 0.85);
+  --card-shadow: 0 16px 34px -20px rgba(32, 42, 78, 0.34);
+
+  --text-primary: #16181f;
+  --text-secondary: #4b4e59;
+  --text-weak: #656872;
+  --text-article: #2a2c34;
   --link: #2f6bff;
-  --accent: #ff2d55;
-  --accent-soft: rgba(255, 45, 85, 0.12);
 
-  --fill-weak: rgba(255, 255, 255, 0.5);
-  --fill-soft: rgba(255, 255, 255, 0.62);
-  --fill-strong: rgba(255, 255, 255, 0.8);
-  --hover-soft: rgba(15, 20, 40, 0.055);
+  --accent: #ff375f;
+  --ring: rgba(0, 122, 255, 0.55);
+  --ring-soft: rgba(0, 122, 255, 0.14);
 
-  --overlay: rgba(20, 24, 44, 0.34);
-  --shadow-card: 0 14px 34px rgba(30, 40, 80, 0.16);
-  --shadow-panel: 0 20px 60px rgba(30, 40, 80, 0.16);
-  --shadow-toast: 0 12px 36px rgba(30, 40, 80, 0.18);
-  --shadow-menu: 0 16px 44px rgba(30, 40, 80, 0.20);
-  --skeleton-a: rgba(15, 20, 40, 0.05);
-  --skeleton-b: rgba(15, 20, 40, 0.10);
-  --scrollbar: rgba(15, 20, 40, 0.24);
-  --scrollbar-border: transparent;
+  --overlay: rgba(22, 26, 44, 0.30);
+  --skeleton-a: rgba(24, 32, 60, 0.05);
+  --skeleton-b: rgba(24, 32, 60, 0.10);
+  --scrollbar: rgba(24, 32, 60, 0.22);
+
+  --radius-panel: 28px;
+  --radius-card: 20px;
+  --radius-dialog: 32px;
 }

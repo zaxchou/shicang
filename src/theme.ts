@@ -47,16 +47,3 @@ export function subscribeTheme(fn: (mode: ThemeMode) => void): () => void {
     mq.removeEventListener('change', onSystem);
   };
 }
-
-/** 当前生效主题（light/dark），随模式与系统偏好联动 */
-import { useEffect, useState } from 'react';
-
-export function useEffectiveTheme(): 'light' | 'dark' {
-  const [t, setT] = useState<'light' | 'dark'>(() => effectiveTheme(getThemeMode()));
-  useEffect(
-    () =>
-      subscribeTheme(() => setT(effectiveTheme(getThemeMode()))),
-    []
-  );
-  return t;
-}

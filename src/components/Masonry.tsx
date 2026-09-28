@@ -14,9 +14,10 @@ interface Position {
   y: number;
 }
 
-const COL_GAP = 16;
-const ROW_GAP = 22;
-const TARGET_CARD_W = 236;
+const COL_GAP = 18;
+const ROW_GAP = 28;
+/** 目标列宽：决定列数（1600px 视口下为 5 列）；调大会掉到 4 列，密度变化很明显 */
+const TARGET_CARD_W = 230;
 
 /** 估算卡高（渲染后由 ResizeObserver 校正） */
 function estimateHeight(item: NoteSummary, cardW: number): number {
@@ -27,9 +28,7 @@ function estimateHeight(item: NoteSummary, cardW: number): number {
       c.width && c.height ? Math.min(520, cardW * (c.height / c.width)) : cardW * 0.75;
     h += mediaH;
   }
-  h += Math.min(2, Math.ceil(item.title.length / Math.max(8, Math.floor(cardW / 14)))) * 20 + 8;
-  h += 26; // 作者行
-  h += 10; // 底部留白
+  h += Math.min(2, Math.ceil(item.title.length / Math.max(8, Math.floor(cardW / 14)))) * 20 + 53;
   return h;
 }
 
@@ -42,6 +41,7 @@ export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
   const wrapperEls = useRef<Map<string, HTMLElement>>(new Map());
   const heights = useRef<Map<string, number>>(new Map());
   const delays = useRef<Map<string, number>>(new Map());
+  const roRef = useRef<ResizeObserver | null>(null);
   const rafRef = useRef(0);
   const [layout, setLayout] = useState<{
     positions: Map<string, Position>;
@@ -111,14 +111,25 @@ export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
       }
       scheduleLayout();
     });
+    roRef.current = ro;
     ro.observe(el);
+    // 已挂载的条目（含"加载更多"追加的）必须补挂，否则拿不到真实高度
     for (const wrapper of wrapperEls.current.values()) ro.observe(wrapper);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      roRef.current = null;
+    };
   }, [scheduleLayout]);
 
   const registerWrapper = useCallback((id: string, el: HTMLElement | null) => {
-    if (el) wrapperEls.current.set(id, el);
-    else wrapperEls.current.delete(id);
+    const prev = wrapperEls.current.get(id);
+    if (prev && prev !== el) roRef.current?.unobserve(prev);
+    if (el) {
+      wrapperEls.current.set(id, el);
+      roRef.current?.observe(el);
+    } else {
+      wrapperEls.current.delete(id);
+    }
   }, []);
 
   return (

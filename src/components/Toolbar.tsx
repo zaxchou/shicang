@@ -1,7 +1,5 @@
 
 import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconRefresh, IconSearch } from './Icons';
-import LiquidGlass from 'liquid-glass-react';
-import { useEffectiveTheme } from '../theme';
 
 export interface QueryState {
   q: string;
@@ -61,7 +59,6 @@ export function Toolbar({
   viewMode,
   onViewMode,
 }: Props) {
-  const effectiveTheme = useEffectiveTheme();
   const onRangeChange = (range: QueryState['range']) => {
     if (range !== 'custom') {
       onChange({ range, from: '', to: '' });
@@ -87,36 +84,16 @@ export function Toolbar({
           <span className="title-text">{title}</span>
           <span className="title-count">{scopeCount != null ? `${scopeCount} ${countUnit}` : ''}</span>
         </h1>
-        {/* 暗色主题用 LiquidGlass 液态折射按钮；亮色下该库折射层偏暗，退回手写玻璃胶囊 */}
-        {effectiveTheme === 'dark' ? (
-          <div className="liquid-slot">
-            <LiquidGlass
-              displacementScale={64}
-              blurAmount={0.12}
-              saturation={130}
-              aberrationIntensity={2}
-              elasticity={0.32}
-              cornerRadius={999}
-              padding="0 17px"
-              onClick={onRefresh}
-            >
-              <span className={`btn-refresh-liquid${refreshing ? ' spinning' : ''}`}>
-                <IconRefresh size={14} />
-                {refreshing ? '刷新中…' : '刷新收藏库'}
-              </span>
-            </LiquidGlass>
-          </div>
-        ) : (
-          <button
-            className={`btn-refresh${refreshing ? ' spinning' : ''}`}
-            onClick={onRefresh}
-            disabled={refreshing}
-            title={refreshing ? '刷新中…' : '读取 Obsidian 中新增的收藏'}
-          >
-            <IconRefresh size={14} />
-            {refreshing ? '刷新中…' : '刷新收藏库'}
-          </button>
-        )}
+        {/* 刷新：统一使用 CSS 柔和玻璃胶囊（LiquidGlass 的 SVG 位移滤镜每次指针移动都要重建，帧耗过高） */}
+        <button
+          className={`btn-refresh${refreshing ? ' spinning' : ''}`}
+          onClick={onRefresh}
+          disabled={refreshing}
+          title={refreshing ? '刷新中…' : '读取 Obsidian 中新增的收藏'}
+        >
+          <IconRefresh size={14} />
+          {refreshing ? '刷新中…' : '刷新收藏库'}
+        </button>
       </div>
 
       {showViewToggle && (

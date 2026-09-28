@@ -117,6 +117,8 @@ export function DetailDialog({
   const [mediaText, setMediaText] = useState<RecognizedText[]>([]);
   const [expandedOcr, setExpandedOcr] = useState<Set<string>>(new Set());
   const [ocrRunning, setOcrRunning] = useState(false);
+  /** 图片文字默认**折叠**：它是附加内容，不该一进来就把正文顶下去（用户明确反馈过） */
+  const [ocrOpen, setOcrOpen] = useState(false);
   const [ocrProgress, setOcrProgress] = useState<{ done: number; total: number } | null>(null);
   const [ocrMsg, setOcrMsg] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
@@ -186,6 +188,7 @@ export function DetailDialog({
     // 否则用户看到的就是"点了没反应"（实测就是这个原因找上来的）。
     const batch = pending.slice(0, OCR_BATCH);
     setOcrRunning(true);
+    setOcrOpen(true); // 刚识别完就让用户看见结果；下次进来仍是折叠的
     setOcrMsg(null);
     setOcrProgress({ done: 0, total: batch.length });
     onNotice?.(`开始识别 ${batch.length} 张图…（每张约 5–10 秒，可以继续看页面）`);
@@ -448,93 +451,6 @@ export function DetailDialog({
           </div>
         </div>
 
-        {/* 识别文本（图片里的字）：有了就显示——用户要的是"能看见、能搜到、能复制走"。
-            识别**过程中**也要显示（否则一次点击闷 40 秒，看着像没反应）。 */}
-        {(ocrRunning || ocrMsg || mediaText.length > 0) && (
-          <div className="detail-ocr-panel" aria-busy={ocrRunning}>
-            <div className="ocr-head">
-              <span className="ocr-title">图片文字</span>
-              {mediaText.length > 0 && <span className="ocr-count">{mediaText.length} 张</span>}
-              {ocrRunning && ocrProgress && (
-                <span className="ocr-progress" role="status">
-                  识别中 {ocrProgress.done + (ocrProgress.done < ocrProgress.total ? 1 : 0)}/{ocrProgress.total}…
-                </span>
-              )}
-              {!ocrRunning && ocrTargets.length > 0 && mediaText.length < ocrTargets.length && (
-                <button type="button" className="link-clear" onClick={() => void runOcr()} disabled={ocrRunning}>
-                  识别其余 {ocrTargets.length - mediaText.length} 张
-                </button>
-              )}
-              {!ocrRunning && ocrTargets.length > 0 && mediaText.length >= ocrTargets.length && (
-                <button type="button" className="link-clear" onClick={() => void runOcr()} disabled={ocrRunning}>
-                  重新识别
-                </button>
-              )}
-            </div>
-            {ocrRunning && (
-              <div className="ocr-bar" aria-hidden>
-                <span
-                  style={{
-                    width: `${ocrProgress ? Math.round((ocrProgress.done / Math.max(1, ocrProgress.total)) * 100) : 0}%`,
-                  }}
-                />
-              </div>
-            )}
-            {ocrMsg && !ocrRunning && <div className="ocr-msg">{ocrMsg}</div>}
-            {mediaText.map((t) => {
-              const idx = ocrTargets.findIndex((m) => m.id === t.mediaId);
-              const noText = /^无文字[。.]?$/.test(t.text.trim());
-              // 超过约 12 行就限高（否则一张课程表就能把正文顶到屏幕外），
-              // 但要给「展开全部」——硬裁切会把最后一行从中间切断，看着像渲染坏了
-              const collapsible = !noText && t.text.split('\n').length > 12;
-              const expanded = expandedOcr.has(t.mediaId);
-              return (
-                <div key={t.mediaId} className="ocr-item">
-                  <div className="ocr-item-head">
-                    <span className="ocr-item-label">{idx >= 0 ? `图 ${idx + 1}` : t.mediaId}</span>
-                    <span className="ocr-item-actions">
-                      <button
-                        type="button"
-                        className="link-clear"
-                        onClick={() => void copyMediaText(t.text)}
-                        disabled={noText}
-                      >
-                        复制
-                      </button>
-                      <button type="button" className="link-clear" onClick={() => void dropMediaText(t.mediaId)}>
-                        重来
-                      </button>
-                    </span>
-                  </div>
-                  <p className={`ocr-text${noText ? ' empty' : ''}${expanded ? ' expanded' : ''}`}>{t.text}</p>
-                  {collapsible && (
-                    <button
-                      type="button"
-                      className="link-clear ocr-toggle"
-                      aria-expanded={expanded}
-                      onClick={() =>
-                        setExpandedOcr((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(t.mediaId)) next.delete(t.mediaId);
-                          else next.add(t.mediaId);
-                          return next;
-                        })
-                      }
-                    >
-                      {expanded ? '收起' : `展开全部（${t.text.split('\n').length} 行）`}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            {mediaText.length > 0 && (
-              <div className="ann-hint">
-                只存在拾藏里，不写回 Obsidian；已经参与搜索，重新导出语料后会进入语料库
-              </div>
-            )}
-          </div>
-        )}
-
         {remarkOpen && (
           <div className="detail-remark-panel">
             <div className="remark-head">
@@ -668,6 +584,120 @@ export function DetailDialog({
                   )}
                   。图文内容仍可正常阅读。
                 </div>
+              )}
+
+              {/* 图片文字：折叠在正文流里（不再压在正文上方、也不默认全展开），
+                  每条带缩略图——否则"图 1/图 2"这种标签根本认不出对的是哪张图 */}
+              {(ocrRunning || ocrMsg || mediaText.length > 0) && (
+                <section className={`ocr-section${ocrOpen ? ' open' : ''}`} aria-busy={ocrRunning}>
+                  <div className="ocr-head">
+                    <button
+                      type="button"
+                      className="ocr-toggle-btn"
+                      aria-expanded={ocrOpen}
+                      onClick={() => setOcrOpen((v) => !v)}
+                    >
+                      <IconChevronDown size={12} className={ocrOpen ? 'caret open' : 'caret'} />
+                      <span className="ocr-title">图片文字</span>
+                      {mediaText.length > 0 && <span className="ocr-count">{mediaText.length} 张</span>}
+                    </button>
+                    {ocrRunning && ocrProgress && (
+                      <span className="ocr-progress" role="status">
+                        识别中 {Math.min(ocrProgress.done + 1, ocrProgress.total)}/{ocrProgress.total}…
+                      </span>
+                    )}
+                    {!ocrRunning && ocrTargets.length > 0 && mediaText.length < ocrTargets.length && (
+                      <button type="button" className="link-clear" onClick={() => void runOcr()}>
+                        识别其余 {ocrTargets.length - mediaText.length} 张
+                      </button>
+                    )}
+                  </div>
+                  {ocrRunning && (
+                    <div className="ocr-bar" aria-hidden>
+                      <span
+                        style={{
+                          width: `${ocrProgress ? Math.round((ocrProgress.done / Math.max(1, ocrProgress.total)) * 100) : 0}%`,
+                        }}
+                      />
+                    </div>
+                  )}
+                  {!ocrRunning && ocrMsg && <div className="ocr-msg">{ocrMsg}</div>}
+                  {ocrOpen && (
+                    <div className="ocr-list">
+                      {mediaText.map((t) => {
+                        const idx = ocrTargets.findIndex((m) => m.id === t.mediaId);
+                        const noText = /^无文字[。.]?$/.test(t.text.trim());
+                        const lines = t.text.split('\n').length;
+                        // 折叠时用渐隐 + 「展开全部」说明还有多少，**不再用内滚动条**：
+                        // 一个需要滚动的小框既看不出有多少内容，也把页面挤得难读
+                        const collapsible = !noText && lines > 4;
+                        const expanded = expandedOcr.has(t.mediaId);
+                        return (
+                          <div key={t.mediaId} className="ocr-item">
+                            <a
+                              className="ocr-thumb"
+                              href={`/api/media/${encodeURIComponent(summary.id)}/${encodeURIComponent(t.mediaId)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="在新标签里看这张原图"
+                            >
+                              <img
+                                src={`/api/media/${encodeURIComponent(summary.id)}/${encodeURIComponent(t.mediaId)}`}
+                                alt={idx >= 0 ? `图 ${idx + 1}` : ''}
+                                loading="lazy"
+                              />
+                            </a>
+                            <div className="ocr-content">
+                              <div className="ocr-item-head">
+                                <span className="ocr-item-label">{idx >= 0 ? `图 ${idx + 1}` : t.mediaId}</span>
+                                <span className="ocr-item-actions">
+                                  <button
+                                    type="button"
+                                    className="link-clear"
+                                    onClick={() => void copyMediaText(t.text)}
+                                    disabled={noText}
+                                  >
+                                    复制
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="link-clear"
+                                    onClick={() => void dropMediaText(t.mediaId)}
+                                  >
+                                    重来
+                                  </button>
+                                </span>
+                              </div>
+                              <p className={`ocr-text${noText ? ' empty' : ''}${expanded ? ' expanded' : ''}`}>{t.text}</p>
+                              {collapsible && (
+                                <button
+                                  type="button"
+                                  className="link-clear ocr-more"
+                                  aria-expanded={expanded}
+                                  onClick={() =>
+                                    setExpandedOcr((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(t.mediaId)) next.delete(t.mediaId);
+                                      else next.add(t.mediaId);
+                                      return next;
+                                    })
+                                  }
+                                >
+                                  {expanded ? '收起' : `展开全部（${lines} 行）`}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {ocrOpen && mediaText.length > 0 && (
+                    <div className="ann-hint ocr-note">
+                      只存在拾藏里，不写回 Obsidian；已经参与搜索，重新导出语料后会进入语料库
+                    </div>
+                  )}
+                </section>
               )}
 
               <div className="detail-article" dangerouslySetInnerHTML={{ __html: detail.bodyHtml }} />

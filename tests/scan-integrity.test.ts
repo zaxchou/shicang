@@ -13,6 +13,7 @@ function makeCfg(fx: Fixture, collections?: AppConfig['collections']): AppConfig
     vaultRoot: fx.root.replace(/\\/g, '/'),
     collections:
       collections ?? [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' }],
+    groups: [],
     host: '127.0.0.1',
     port: 0,
     timezone: 'Asia/Shanghai',

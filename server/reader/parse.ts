@@ -62,7 +62,7 @@ export interface ParseOutcome {
  * 索引里记录该值，不一致就整体重建——否则解析已修好、用户看到的却还是旧索引，
  * 因为扫描按 mtime/size 跳过未变更的源文件（v0.5.1 修「正文图片不显示」时踩到）。
  */
-export const PARSE_VERSION = 5;
+export const PARSE_VERSION = 6;
 
 const IMAGE_EXTS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.svg']);
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v']);
@@ -140,6 +140,7 @@ export function parseNote(input: ParseInput): ParseOutcome {
   let out: ParseOutcome;
   if (input.collection.type === 'treasures') out = parseTreasures(base, fm, input, warnings);
   else if (input.collection.type === 'diary') out = parseDiary(base, fm, input, warnings);
+  else if (input.collection.type === 'web') out = parseWeb(base, fm, input, warnings);
   else out = parseRednote(base, fm, input, warnings);
 
   if (out.record) out.record.sourceHash = sha(raw);
@@ -662,6 +663,130 @@ function parseDiary(
     warnings,
     error: null,
   };
+}
+
+/**
+ * 网页剪藏（Obsidian Web Clipper 导出）：frontmatter 固定为 title/source/author/published/created/description/tags。
+ * - 身份与标题以 **frontmatter 为准**：文件名落盘时被清洗过（`#`、`|` 等被删），与 title 不一定一致；
+ * - author 是数组、值常为 `[[wiki-link]]`——剥壳取频道名；
+ * - published（来源发布时间）与 created（剪藏时间）都可能为空；
+ * - tags 里的样板标签 'clippings' 每篇都有，滤掉（否则标签目录全是它）；
+ * - **派生分类按 source 域名**（bilibili→哔哩哔哩、mp.weixin.qq.com→微信公众号…，见 categoryFromSource）；
+ * - **没有 frontmatter 的手写笔记也收**（用户确认）：标题用文件名、无原文链接、归未分类。
+ */
+function parseWeb(base: ParseBase, fm: Record<string, unknown>, input: ParseInput, warnings: string[]): ParseOutcome {
+  void input;
+  const fileName = path.basename(base.sourceRelativePath, '.md');
+  const content = matterContent(base.raw);
+  const hasFrontmatter = Object.keys(fm).length > 0;
+
+  const fmTitle = typeof fm.title === 'string' ? fm.title.trim() : '';
+  const h1 = /^#\s+(.+?)\s*$/m.exec(content)?.[1]?.trim() ?? '';
+  const title = (fmTitle || h1 || fileName).slice(0, 160);
+
+  const rawAuthor = fm.author;
+  const authorNames = (Array.isArray(rawAuthor) ? rawAuthor : typeof rawAuthor === 'string' ? [rawAuthor] : [])
+    .map((a) => String(a).trim().replace(/^\[\[/, '').replace(/\]\]$/, '').trim())
+    .filter(Boolean);
+  const author = authorNames.length > 0 ? [...new Set(authorNames)].slice(0, 5).join('、') : hasFrontmatter ? '佚名' : '我';
+
+  const source = typeof fm.source === 'string' ? fm.source.trim() : '';
+  const publishedAt = normalizeDate(fm.published);
+  const syncedAt = normalizeDate(fm.created);
+  const tags = normalizeTags(fm.tags).filter((t) => t.toLowerCase() !== 'clippings');
+  const description = typeof fm.description === 'string' ? fm.description.trim() : '';
+  const derivedCategory = source ? categoryFromSource(source) : null;
+
+  const media: MediaItem[] = [];
+  const mediaIds = new Set<string>();
+  const rb = basesOf(base);
+
+  // 剪藏正文目前全是远程图/远程视频（marked + sanitize 原样放行）；本地附件留同款解析以防万一
+  let body = content;
+  body = body.replace(/\[([^\]]+)\]\(((?:[^/()]+\/)*attachments\/[^)]+)\)/g, (full, text: string, href: string) => {
+    const r = resolveLocal(rb, href);
+    if (!r) return full;
+    const ext = path.extname(r.relToVault).toLowerCase();
+    const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);
+    if (IMAGE_EXTS.has(ext)) return `![${text}](media://${mediaToken(item.id)})`;
+    return `[${text}](${mediaUrl(base.sourceRelativePath, item.id)})`;
+  });
+  body = body.replace(/!\[([^\]]*)\]\(((?:[^/()]+\/)*attachments\/[^)]+)\)/g, (full, alt: string, href: string) => {
+    const r = resolveLocal(rb, href);
+    if (!r) return full;
+    const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);
+    return `![${alt || ''}](media://${mediaToken(item.id)})`;
+  });
+
+  const bodyHtml = renderBody(body, base.sourceRelativePath, media, mediaIds, warnings);
+  const cover = media.find(coverCandidate);
+  // 摘要优先用 description（B 站类剪藏的正文一半是字幕，摘它才是人话）
+  const excerpt = buildExcerpt(description || body);
+
+  return {
+    record: {
+      id: base.sourceRelativePath,
+      collection: base.collection,
+      sourceRelativePath: base.sourceRelativePath,
+      sourceMtimeMs: base.mtimeMs,
+      sourceSize: base.size,
+      sourceHash: null,
+      title,
+      author,
+      tags,
+      excerpt,
+      searchText: buildSearch([
+        title,
+        author,
+        derivedCategory ?? '',
+        description,
+        tags.join(' '),
+        excerpt,
+        content.slice(0, 2000),
+      ]),
+      publishedAt,
+      syncedAt,
+      originalUrl: source,
+      bodyHtml,
+      media,
+      coverMediaId: cover ? cover.id : null,
+      sourceStatus: 'available',
+      warnings,
+      derivedCategory,
+    },
+    warnings,
+    error: null,
+  };
+}
+
+/** 已知站点的可读分类名；没收录的站点回退到去掉 www 的域名（新站点自动出现，想要好名字再补表） */
+const SOURCE_CATEGORY_NAMES: Record<string, string> = {
+  'mp.weixin.qq.com': '微信公众号',
+  'bilibili.com': '哔哩哔哩',
+  'blog.sina.com.cn': '新浪博客',
+  'zhihu.com': '知乎',
+  'xiaohongshu.com': '小红书',
+  'weibo.com': '微博',
+  'juejin.cn': '掘金',
+  'github.com': 'GitHub',
+  'youtube.com': 'YouTube',
+};
+
+/** 从剪藏来源 URL 派生分类名；解析不了返回 null（归未分类） */
+export function categoryFromSource(source: string): string | null {
+  let host: string;
+  try {
+    host = new URL(source).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  host = host.replace(/^www\./, '');
+  const hit = SOURCE_CATEGORY_NAMES[host];
+  if (hit) return hit;
+  // 二级域名落到主域（如 space.bilibili.com→bilibili.com→哔哩哔哩；new-tab.x~ 已被上一步去掉 www）
+  const labels = host.split('.');
+  const main = labels.length > 2 ? labels.slice(-2).join('.') : host;
+  return SOURCE_CATEGORY_NAMES[main] ?? main;
 }
 
 // ---------------- 公共小工具 ----------------

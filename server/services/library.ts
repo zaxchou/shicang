@@ -4,6 +4,7 @@ import path from 'node:path';
 import type {
   Category,
   CollectionDef,
+  CollectionGroupInfo,
   CollectionInfo,
   CorpusManifest,
   CorpusRecord,
@@ -253,14 +254,22 @@ export class LibraryService {
 
   // ---------- 查询 ----------
 
+  /** query/tagCounts 的 collection 参数可能是**分组 id**（如 clippings）——解析成成员库 id 列表；普通库 id 返回 [它自己] */
+  private scopeMemberIds(scope: string): string[] {
+    const g = this.cfg.groups.find((x) => x.id === scope);
+    return g ? [...g.collections] : [scope];
+  }
+
   query(params: NoteQuery): NoteListResult {
     const cid = params.collection || 'rednote';
+    // 组查询 = 成员合集（点「剪藏」看小红书+网页的全部笔记，搜索天然跨库）
+    const members = this.scopeMemberIds(cid);
     // 归档视图要能看见源文件已消失的记录（"取消收藏已完成"那条链路），其它视图只看文件还在的
     const includeMissing = params.includeMissing === true;
     const view = params.status ?? 'active';
     let items = this.doc.notes.filter(
       (r) =>
-        r.collection === cid &&
+        members.includes(r.collection) &&
         (includeMissing || r.sourceStatus === 'available') &&
         this.matchesStatus(r.id, view)
     );
@@ -484,6 +493,30 @@ export class LibraryService {
     return this.cfg.collections
       .map((c) => this.collectionInfo(c.id))
       .filter((x): x is CollectionInfo => x !== null);
+  }
+
+  /** 分组的聚合信息（成员各计数之和；**分类不聚合**——分类是各子库自己的概念，组视图下侧栏不显示分类区） */
+  groupInfo(gid: string): CollectionGroupInfo | null {
+    const g = this.cfg.groups.find((x) => x.id === gid);
+    if (!g) return null;
+    const agg = { total: 0, active: 0, archived: 0, starred: 0, uncategorized: 0 };
+    for (const cid of g.collections) {
+      const info = this.collectionInfo(cid);
+      if (!info) continue;
+      agg.total += info.total;
+      agg.active += info.active;
+      agg.archived += info.archived;
+      agg.starred += info.starred;
+      agg.uncategorized += info.uncategorized;
+    }
+    return { id: g.id, name: g.name, collectionIds: [...g.collections], ...agg };
+  }
+
+  /** 全部分组信息（侧栏两级用） */
+  groupInfos(): CollectionGroupInfo[] {
+    return this.cfg.groups
+      .map((g) => this.groupInfo(g.id))
+      .filter((x): x is CollectionGroupInfo => x !== null);
   }
 
   // ---------- 语料导出（plan §18.3）----------
@@ -983,6 +1016,7 @@ export class LibraryService {
       total: this.doc.notes.length,
       uncategorized,
       collections: this.collectionInfos(),
+      groups: this.groupInfos(),
       categories: cats
         .slice()
         .sort((a, b) => a.order - b.order)
@@ -1009,9 +1043,13 @@ export class LibraryService {
   private tagCountCache: Map<string, { indexRevision: number; annotationRevision: number; tags: TagCount[] }> =
     new Map();
 
-  /** 指定收藏库的标签与使用次数（按次数降序），按索引 + 标注两个 revision 缓存 */
-  tagCounts(cid = 'rednote'): TagCount[] {
-    const cached = this.tagCountCache.get(cid);
+  /** 指定收藏库（或分组）的标签与使用次数（按次数降序），按索引 + 标注两个 revision 缓存 */
+  tagCounts(scope = 'rednote'): TagCount[] {
+    // 组查询跨成员聚合（剪藏组 = 小红书 + 网页的标签合在一起）；缓存键用成员列表而不是原始参数，
+    // 这样"同名组"与"同名库"不会串（配置校验已禁止撞名，这里再兜一层）
+    const members = this.scopeMemberIds(scope);
+    const key = members.join('\u0001');
+    const cached = this.tagCountCache.get(key);
     // 标注 revision 必须一起参与缓存键：改状态会让条目标签计数变化，而索引 revision 不动
     if (cached && cached.indexRevision === this.doc.revision && cached.annotationRevision === this.annotations.revision) {
       return cached.tags;
@@ -1019,13 +1057,13 @@ export class LibraryService {
     const m = new Map<string, number>();
     for (const r of this.doc.notes) {
       // 与列表同一口径：归档/源文件消失的条目不参与标签计数
-      if (!this.inWorkSet(r) || r.collection !== cid) continue;
+      if (!this.inWorkSet(r) || !members.includes(r.collection)) continue;
       for (const t of r.tags) m.set(t, (m.get(t) ?? 0) + 1);
     }
     const tags = [...m.entries()]
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh-Hans-CN'));
-    this.tagCountCache.set(cid, {
+    this.tagCountCache.set(key, {
       indexRevision: this.doc.revision,
       annotationRevision: this.annotations.revision,
       tags,

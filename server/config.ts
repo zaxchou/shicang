@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CollectionDef } from '../shared/types.js';
+import type { CollectionDef, CollectionGroupDef } from '../shared/types.js';
 import { assertOutsideVault } from './storage/vault-guard.js';
 
 export interface AppConfig {
@@ -11,6 +11,8 @@ export interface AppConfig {
   /** Obsidian vault 根（含 RedNote / 我的收藏品 / flomo） */
   vaultRoot: string;
   collections: CollectionDef[];
+  /** 收藏库分组（剪藏等大类；纯视图/查询层，不参与解析与索引指纹） */
+  groups: CollectionGroupDef[];
   host: string;
   port: number;
   timezone: string;
@@ -43,7 +45,7 @@ export function projectRoot(): string {
 /** 内置默认值：与 config/app.json 保持一致，避免配置文件缺失时行为悄悄变差。
  * 导出给测试直接断言——走 loadConfig 会读到真实的 config/app.json，这个默认值分支根本执行不到（深审发现的假绿）。 */
 export const DEFAULT_COLLECTIONS: CollectionDef[] = [
-  { id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' },
+  { id: 'rednote', name: '小红书', root: 'RedNote/Bookmarks', type: 'rednote' },
   {
     id: 'treasures',
     name: '我的宝贝',
@@ -59,7 +61,11 @@ export const DEFAULT_COLLECTIONS: CollectionDef[] = [
     // flomo 导出工具自带的首页/导航页不是日记条目（v0.5.3 修的就是这几篇）
     exclude: ['^闪念笔记概览\\.md$', '^flomo-首页\\.md$', '^flomo-.+-首页\\.md$'],
   },
+  { id: 'web', name: '网页', root: 'Clippings', type: 'web' },
 ];
+
+/** 内置默认分组：剪藏 = 小红书 + 网页（微信公众号的目录定了以后加进成员即可） */
+export const DEFAULT_GROUPS: CollectionGroupDef[] = [{ id: 'clippings', name: '剪藏', collections: ['rednote', 'web'] }];
 
 function readConfigFile(): Record<string, unknown> {
   const p = path.join(projectRoot(), 'config', 'app.json');
@@ -91,6 +97,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const collections = Array.isArray(file['collections'])
     ? (file['collections'] as CollectionDef[])
     : DEFAULT_COLLECTIONS;
+  const groups = Array.isArray(file['groups']) ? (file['groups'] as CollectionGroupDef[]) : DEFAULT_GROUPS;
+  validateGroups(collections, groups);
 
   // 端口必须是合法的 1..65535 整数：PORT=abc → NaN 会让 listen 抛看不懂的错，
   // PORT=（空串）→ 0 变成随机端口而 Origin 白名单还按 0 校验，全部回退默认值。
@@ -101,6 +109,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     app: (file['app'] as string) ?? 'myinfobase',
     vaultRoot,
     collections,
+    groups,
     host: env.HOST ?? (file['host'] as string | undefined) ?? '127.0.0.1',
     port,
     timezone: env.TZ ?? (file['timezone'] as string | undefined) ?? 'Asia/Shanghai',
@@ -139,6 +148,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
 function normalizeDir(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+/** 分组配置的启动校验：组 id 与库 id 撞名的话，query 的 collection 参数就无法区分两者；成员写错宁可在启动时炸 */
+export function validateGroups(collections: CollectionDef[], groups: CollectionGroupDef[]): void {
+  const ids = new Set(collections.map((c) => c.id));
+  for (const g of groups) {
+    if (ids.has(g.id)) {
+      throw new Error(`分组 id "${g.id}" 与收藏库 id 撞名（query 的 collection 参数无法区分），请改其一`);
+    }
+    const missing = g.collections.filter((cid) => !ids.has(cid));
+    if (missing.length > 0) {
+      throw new Error(`分组 "${g.name}"(${g.id}) 引用了不存在的收藏库: ${missing.join(', ')}`);
+    }
+  }
 }
 
 function readVersion(): string {

@@ -9,7 +9,7 @@ import type { CollectionDef } from '../shared/types';
 import { tinyWebp } from './helpers/fixture';
 
 const COLLECTIONS: CollectionDef[] = [
-  { id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' },
+  { id: 'rednote', name: '小红书', root: 'RedNote/Bookmarks', type: 'rednote' },
   {
     id: 'treasures',
     name: '我的宝贝',
@@ -24,6 +24,7 @@ const COLLECTIONS: CollectionDef[] = [
     type: 'diary',
     exclude: ['^闪念笔记概览\\.md$', '^flomo-首页\\.md$', '^flomo-.+-首页\\.md$'],
   },
+  { id: 'web', name: '网页', root: 'Clippings', type: 'web' },
 ];
 
 /** 构造迷你 vault：三个 collection 的真实布局（含图片与附件） */
@@ -92,6 +93,24 @@ function makeVault() {
   // flomo 导出工具生成的首页/导航页：应被 exclude 排除（v0.5.3）
   fs.writeFileSync(path.join(root, 'flomo', 'flomo-首页.md'), '# flomo-首页\n', 'utf8');
   fs.writeFileSync(path.join(root, 'flomo', 'flomo-书法-首页.md'), '# flomo-书法-首页\n', 'utf8');
+  // web：Obsidian Web Clipper 剪藏（frontmatter 模板 + wiki 作者 + 样板标签）
+  fs.mkdirSync(path.join(root, 'Clippings'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'Clippings', '陈天奇播客.md'),
+    '---\ntitle: "陈天奇：机器学习系统｜WhynotTV Podcast #3"\nsource: "https://www.bilibili.com/video/BV1xx"\nauthor:\n  - "[[WhynotTV]]"\npublished: 2025-09-12\ncreated: 2026-05-02\ndescription: "对谈陈天奇：长期主义与机器学习系统。"\ntags:\n  - "clippings"\n---\n\n## 简介\n\n正文里还有独有词"量子纠缠的茶壶"。字幕很长……\n',
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(root, 'Clippings', '公众号文章.md'),
+    '---\ntitle: "一篇公众号文章"\nsource: "https://mp.weixin.qq.com/s/abc"\nauthor:\n  - "[[某公众号]]"\npublished:\ncreated: 2026-05-10\ndescription: ""\ntags:\n  - "clippings"\n---\n\n公众号正文\n',
+    'utf8'
+  );
+  // web：无 frontmatter 的手写笔记（用户确认也要收进来）
+  fs.writeFileSync(
+    path.join(root, 'Clippings', '宿命论部分总结.md'),
+    '手写总结正文，含独有词"西西弗斯"。没有 frontmatter。\n',
+    'utf8'
+  );
   return root;
 }
 
@@ -108,7 +127,7 @@ function parseAt(vaultRoot: string, col: CollectionDef, relInCollection: string)
   });
 }
 
-const [RN, TR, DIA] = COLLECTIONS;
+const [RN, TR, DIA, WEB] = COLLECTIONS;
 
 describe('多源解析', () => {
   it('treasures：派生分类、表格字段、封面与本地/远程图片', () => {
@@ -215,6 +234,7 @@ describe('多库集成（LibraryService）', () => {
       app: 'test',
       vaultRoot: root.replace(/\\/g, '/'),
       collections: COLLECTIONS,
+      groups: [{ id: 'clippings', name: '剪藏', collections: ['rednote', 'web'] }],
       host: '127.0.0.1',
       port: 0,
       timezone: 'Asia/Shanghai',
@@ -235,14 +255,15 @@ describe('多库集成（LibraryService）', () => {
 
   const base = { q: '', timeField: 'published', range: 'all', order: 'desc', offset: 0, limit: 100 };
 
-  it('三库分别入库；exclude 规则排除索引/MOC/概览', async () => {
+  it('四库分别入库；exclude 规则排除索引/MOC/概览', async () => {
     const svc = await boot();
     const info = svc.libraryInfo();
     const byId = Object.fromEntries(info.collections.map((c) => [c.id, c]));
     expect(byId['rednote'].total).toBe(1);
     expect(byId['treasures'].total).toBe(3); // 茶器1 + 书法2（无辨色/豪翰斋MOC）；索引页与空笔记被跳过
     expect(byId['diary'].total).toBe(1); // 概览被排除
-    expect(info.total).toBe(5);
+    expect(byId['web'].total).toBe(3); // 两篇剪藏 + 一篇无 frontmatter 的手写（用户要求也收）
+    expect(info.total).toBe(8);
   });
 
   it('按库查询：分类过滤用派生值；treasures 表格字段有计数', async () => {
@@ -279,5 +300,86 @@ describe('多库集成（LibraryService）', () => {
     const svc = await boot();
     const tr = svc.query({ ...base, collection: 'treasures' } as never);
     await expect(svc.setCategory(tr.items[0]!.id, '茶器', 0)).rejects.toBeInstanceOf(ValidationError);
+  });
+describe('剪藏分组（CollectionGroup）', () => {
+  it('组查询 = 成员合集：小红书 + 网页一起返回，单库查询不受影响', async () => {
+    const svc = await boot();
+    const group = svc.query({ ...base, collection: 'clippings' } as never);
+    expect(group.total).toBe(4); // rednote 1 + web 3
+    expect(new Set(group.items.map((i) => i.collection))).toEqual(new Set(['rednote', 'web']));
+    expect(svc.query({ ...base, collection: 'rednote' } as never).total).toBe(1);
+    expect(svc.query({ ...base, collection: 'web' } as never).total).toBe(3);
+  });
+
+  it('libraryInfo.groups 聚合成员计数；组内标星跨成员', async () => {
+    const svc = await boot();
+    const g = svc.libraryInfo().groups.find((x) => x.id === 'clippings')!;
+    expect(g.name).toBe('剪藏');
+    expect(g.collectionIds).toEqual(['rednote', 'web']);
+    expect(g.total).toBe(4);
+    expect(g.active).toBe(4);
+
+    // 各标一篇（web + rednote）→ 组内标星 = 2；组内标星查询也跨成员
+    const webItems = svc.query({ ...base, collection: 'web' } as never);
+    const first = await svc.setAnnotation(webItems.items[0]!.id, { star: true }, 0);
+    const rn = svc.query({ ...base, collection: 'rednote' } as never);
+    await svc.setAnnotation(rn.items[0]!.id, { star: true }, first.revision);
+    const starred = svc.query({ ...base, collection: 'clippings', starred: true } as never);
+    expect(starred.total).toBe(2);
+    expect(svc.libraryInfo().groups[0]!.starred).toBe(2);
+  });
+
+  it('组标签目录跨成员聚合；单库口径不变', async () => {
+    const svc = await boot();
+    // web 的样板标签已滤掉 → 组标签 = rednote 的'测试'
+    expect(svc.tagCounts('clippings').map((t) => t.tag)).toContain('测试');
+    expect(svc.tagCounts('web')).toEqual([]);
+    expect(svc.tagCounts('rednote').map((t) => t.tag)).toContain('测试');
+  });
+
+  it('setCategory 仍只允许 rednote（组不改变这条纪律）', async () => {
+    const svc = await boot();
+    const group = svc.query({ ...base, collection: 'clippings' } as never);
+    const webNote = group.items.find((i) => i.collection === 'web')!;
+    await expect(svc.setCategory(webNote.id, '随便', 0)).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+});
+
+describe('web：网页剪藏解析', () => {
+  it('Web Clipper 模板：frontmatter 映射、作者剥 [[]]、样板标签滤掉、来源派生分类', () => {
+    const root = makeVault();
+    const out = parseAt(root, WEB, '陈天奇播客.md');
+    expect(out.error).toBeNull();
+    const r = out.record!;
+    expect(r.collection).toBe('web');
+    expect(r.title).toBe('陈天奇：机器学习系统｜WhynotTV Podcast #3'); // title 以 frontmatter 为准（含 # 与全角）
+    expect(r.author).toBe('WhynotTV'); // [[wiki-link]] 剥壳
+    expect(r.originalUrl).toBe('https://www.bilibili.com/video/BV1xx');
+    expect(r.publishedAt).toContain('2025-09-12'); // 来源发布时间
+    expect(r.syncedAt).toContain('2026-05-02'); // 剪藏时间
+    expect(r.tags).toEqual([]); // 每篇都有的样板标签 clippings 被滤掉
+    expect(r.derivedCategory).toBe('哔哩哔哩'); // source 域名派生
+    expect(r.excerpt).toContain('长期主义'); // 摘要优先 description（正文一半是字幕）
+    // description 与正文都进搜索文本；作者频道名也要能搜到
+    expect(r.searchText).toContain('量子纠缠的茶壶');
+    expect(r.searchText).toContain('whynottv');
+  });
+
+  it('来源域名→分类：微信公众号 / 手写笔记（无 frontmatter）也收且归未分类', () => {
+    const root = makeVault();
+    const wx = parseAt(root, WEB, '公众号文章.md');
+    expect(wx.record!.derivedCategory).toBe('微信公众号');
+    expect(wx.record!.publishedAt).toBeNull(); // published 可为空
+    expect(wx.record!.author).toBe('某公众号');
+
+    const hand = parseAt(root, WEB, '宿命论部分总结.md');
+    expect(hand.error).toBeNull();
+    const r = hand.record!;
+    expect(r.title).toBe('宿命论部分总结'); // 无 frontmatter：标题用文件名
+    expect(r.author).toBe('我'); // 手写 = 用户自己的
+    expect(r.originalUrl).toBe('');
+    expect(r.derivedCategory).toBeNull(); // 无来源 → 未分类
+    expect(r.searchText).toContain('西西弗斯');
   });
 });

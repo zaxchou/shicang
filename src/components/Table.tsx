@@ -5,8 +5,12 @@ import { IconArchive, IconChevronDown, IconStar } from './Icons';
 
 interface Props {
   notes: NoteSummary[];
-  /** 当前收藏库信息（含表格字段 extraFields） */
+  /** 当前收藏库信息（含表格字段 extraFields）；组视图传聚合体 */
   info: CollectionInfo;
+  /** 组视图：多一条"收藏库"列、没有分类列 */
+  isGroupScope?: boolean;
+  /** 组视图下列"收藏库"的名字映射 */
+  collectionName?(id: string | null): string | null;
   /** 当前筛选条件下的总条数：大于 notes.length 时说明只加载了前一段（要提示，否则像丢数据） */
   resultTotal?: number | null;
   categoryName(id: string | null): string | null;
@@ -21,7 +25,7 @@ interface Props {
   registerEl(id: string, el: HTMLElement | null): void;
 }
 
-type ColKind = 'title' | 'author' | 'category' | 'date' | 'tags' | 'extra' | 'remark';
+type ColKind = 'title' | 'author' | 'category' | 'collection' | 'date' | 'tags' | 'extra' | 'remark';
 
 interface Col {
   key: string;
@@ -37,7 +41,18 @@ const EXTRA_ORDER = [
   '书风', '画风', '撰写', '装裱', '尺寸', '工艺', '泥料', '艺术家', '价格区间',
 ];
 
-function buildColumns(info: CollectionInfo): Col[] {
+function buildColumns(info: CollectionInfo, opts: { group: boolean }): Col[] {
+  // 组视图（如剪藏）：混着多个子库的笔记，列是各库的公约数 + "收藏库"列标明归属
+  if (opts.group) {
+    return [
+      { key: 'title', label: '标题', kind: 'title', minW: 320 },
+      { key: 'author', label: '作者', kind: 'author', minW: 130 },
+      { key: 'collection', label: '收藏库', kind: 'collection', minW: 90 },
+      { key: 'publishedAt', label: '发布时间', kind: 'date', minW: 110 },
+      { key: 'tags', label: '标签', kind: 'tags', minW: 200 },
+      { key: 'remark', label: '备注', kind: 'remark', minW: 200 },
+    ];
+  }
   if (info.id === 'rednote') {
     return [
       { key: 'title', label: '标题', kind: 'title', minW: 300 },
@@ -46,6 +61,18 @@ function buildColumns(info: CollectionInfo): Col[] {
       { key: 'publishedAt', label: '发布时间', kind: 'date', minW: 110 },
       { key: 'syncedAt', label: '同步时间', kind: 'date', minW: 110 },
       { key: 'tags', label: '标签', kind: 'tags', minW: 220 },
+      { key: 'remark', label: '备注', kind: 'remark', minW: 200 },
+    ];
+  }
+  if (info.id === 'web') {
+    // 网页剪藏：来源分类 + 原文发布时间 + 剪藏时间
+    return [
+      { key: 'title', label: '标题', kind: 'title', minW: 320 },
+      { key: 'author', label: '作者', kind: 'author', minW: 130 },
+      { key: 'category', label: '来源', kind: 'category', minW: 100 },
+      { key: 'publishedAt', label: '发布时间', kind: 'date', minW: 110 },
+      { key: 'syncedAt', label: '剪藏时间', kind: 'date', minW: 110 },
+      { key: 'tags', label: '标签', kind: 'tags', minW: 180 },
       { key: 'remark', label: '备注', kind: 'remark', minW: 200 },
     ];
   }
@@ -84,6 +111,8 @@ function cellValue(note: NoteSummary, col: Col): string | number | null {
       return note.author;
     case 'category':
       return note.categoryId ? (note.categoryId as string) : '未分类';
+    case 'collection':
+      return note.collection;
     case 'date': {
       const iso = col.key === 'publishedAt' ? note.publishedAt : note.syncedAt;
       return iso ? (shanghaiDate(iso) ?? '') : null;
@@ -104,6 +133,8 @@ function cellValue(note: NoteSummary, col: Col): string | number | null {
 export function DataTable({
   notes,
   info,
+  isGroupScope = false,
+  collectionName,
   resultTotal = null,
   categoryName,
   onOpen,
@@ -114,7 +145,7 @@ export function DataTable({
   onToggleSelectAll,
   registerEl,
 }: Props) {
-  const cols = useMemo(() => buildColumns(info), [info]);
+  const cols = useMemo(() => buildColumns(info, { group: isGroupScope }), [info, isGroupScope]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
 
   // 全选框的"部分选中"：受控 checkbox 只有 checked，不设 indeterminate 的话
@@ -174,6 +205,10 @@ export function DataTable({
     if (col.kind === 'category') {
       const name = note.categoryId ? (categoryName(note.categoryId) ?? note.categoryId) : null;
       return name ? <span className="cell-cat">{name}</span> : <span className="cell-null">未分类</span>;
+    }
+    if (col.kind === 'collection') {
+      const name = collectionName?.(note.collection) ?? note.collection;
+      return <span className="cell-cat">{name}</span>;
     }
     if (col.kind === 'remark') {
       return (

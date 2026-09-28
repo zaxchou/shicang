@@ -202,6 +202,51 @@ img {
   color: var(--text-secondary);
 }
 
+/* ---- 分组（剪藏等大类）：行 = 主按钮 + 展开箭头；子库缩进一层（层级靠缩进与字号，不加线） ---- */
+.nav-group-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.nav-group-row .nav-group-main {
+  flex: 1;
+  min-width: 0;
+}
+/* 箭头是独立的小按钮（button 里不能再套 button），只负责展开/收起 */
+.nav-caret {
+  flex: none;
+  width: 26px;
+  border-radius: 10px;
+  color: var(--text-weak);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+.nav-caret:hover {
+  background: var(--hover-soft);
+  color: var(--text-primary);
+}
+.nav-caret .caret {
+  transition: transform var(--transition);
+}
+.nav-caret .caret.open {
+  transform: rotate(180deg);
+}
+/* 子库：缩进 + 略小一号 */
+.nav-item.nav-sub {
+  height: 34px;
+  font-size: 13px;
+  padding-left: 30px;
+}
+/* 组容器隔断了 .nav-item + .nav-item 的相邻间距，这里补齐 */
+.nav-group + .nav-group,
+.nav-group + .nav-item,
+.nav-item + .nav-group,
+.nav-group-row + .nav-item {
+  margin-top: 2px;
+}
+
 /* 未分类固定排在分类末尾：与上面的类目用一条细线分开，并给一点额外间距 */
 .nav-item.nav-item-last {
   margin-top: 12px;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LibraryInfo, NoteStatus, NoteSummary, RefreshJobInfo, TagCount } from '../shared/types';
+import type { CollectionInfo, LibraryInfo, NoteStatus, NoteSummary, RefreshJobInfo, TagCount } from '../shared/types';
 import { api, ApiError, type QueryParams } from './api/client';
 import { Sidebar } from './components/Sidebar';
 import { Toolbar, type QueryState } from './components/Toolbar';
@@ -791,14 +791,28 @@ export default function App() {
     (id: string | null) => {
       if (!id) return null;
       const hit = curCategories.find((c) => c.id === id);
-      return hit ? hit.name : id; // 派生分类 id 即名称
+      if (hit) return hit.name;
+      // 组视图下卡片可能是别的子库的笔记：分类名要在**全部库**里找（派生分类 id 即名称，兜底直接显示 id）
+      for (const info of infos) {
+        const hit2 = info.categories.find((c) => c.id === id);
+        if (hit2) return hit2.name;
+      }
+      return id;
     },
-    [curCategories]
+    [curCategories, infos]
+  );
+
+  /** 组视图下表格"收藏库"列的名字映射 */
+  const collectionName = useCallback(
+    (id: string | null) => infos.find((c) => c.id === id)?.name ?? id,
+    [infos]
   );
 
   // ---- 标题与视图状态 ----
   const inTagResult = view === 'tags' && activeTag !== null;
   const inDirectory = view === 'tags' && activeTag === null;
+  const curGroup = library?.groups.find((g) => g.id === collection) ?? null;
+  // 组视图没有"当前库"的分类/字段概念，标题与计数全部走组聚合
   const headerTitle = inDirectory
     ? '标签'
     : inTagResult
@@ -807,27 +821,46 @@ export default function App() {
         ? '归档'
         : query.starred
           ? '标星'
-          : query.categoryId === 'uncategorized'
-            ? '未分类'
-            : query.categoryId
-              ? (categoryName(query.categoryId) ?? '收藏')
-              : (curInfo?.name ?? '收藏');
+          : curGroup
+            ? curGroup.name
+            : query.categoryId === 'uncategorized'
+              ? '未分类'
+              : query.categoryId
+                ? (categoryName(query.categoryId) ?? '收藏')
+                : (curInfo?.name ?? '收藏');
   const scopeCount = inDirectory
     ? (tags?.length ?? null)
     : inTagResult
       ? (tags?.find((t) => t.tag === activeTag)?.count ?? null)
-      : query.status !== 'active'
-        ? (curInfo?.archived ?? null)
-        : query.starred
-          ? (curInfo?.starred ?? null)
-          : query.categoryId === 'uncategorized'
-            ? (curInfo?.uncategorized ?? null)
-            : query.categoryId
-              ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
-              : (curInfo?.active ?? null);
+      : curGroup
+        ? (query.status !== 'active' ? curGroup.archived : curGroup.active)
+        : query.status !== 'active'
+          ? (curInfo?.archived ?? null)
+          : query.starred
+            ? (curInfo?.starred ?? null)
+            : query.categoryId === 'uncategorized'
+              ? (curInfo?.uncategorized ?? null)
+              : query.categoryId
+                ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
+                : (curInfo?.active ?? null);
 
   const bootLoading = !library && !libraryError;
-  const emptyLibrary = (curInfo?.total ?? 0) === 0 && view === 'library' && !libraryError && library !== null;
+  const emptyLibrary =
+    (curGroup ? curGroup.total : (curInfo?.total ?? 0)) === 0 && view === 'library' && !libraryError && library !== null;
+  /** 组视图的表格表头信息：Table 需要 CollectionInfo 形状（分组的聚合体——没有分类与动态列） */
+  const tableInfo: CollectionInfo | null = curGroup
+    ? {
+        id: curGroup.id,
+        name: curGroup.name,
+        total: curGroup.total,
+        active: curGroup.active,
+        archived: curGroup.archived,
+        uncategorized: curGroup.uncategorized,
+        starred: curGroup.starred,
+        categories: [],
+        extraFields: [],
+      }
+    : curInfo;
   const noResult = !listLoading && !listError && total === 0 && !inDirectory;
   /** 「只看标星」且一条都没有：这不是"筛没了"，而是还没标过任何一条，提示要不一样 */
   const emptyStarred =
@@ -1003,7 +1036,7 @@ export default function App() {
                 </div>
               )}
 
-              {showNotes && showTableView && curInfo && (
+              {showNotes && showTableView && tableInfo && (
                 <>
                   {selectedIds.size > 0 && (
                     <div className="bulk-bar" role="region" aria-label="批量操作">
@@ -1028,7 +1061,9 @@ export default function App() {
                   )}
                   <DataTable
                     notes={items}
-                    info={curInfo}
+                    info={tableInfo}
+                    isGroupScope={curGroup !== null}
+                    collectionName={collectionName}
                     resultTotal={total}
                     categoryName={categoryName}
                     onOpen={openDetail}

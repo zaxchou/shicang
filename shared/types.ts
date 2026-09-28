@@ -114,10 +114,12 @@ export interface LibraryInfo {
   diagnostics: string[];
   /** 各收藏库信息（切换库/表格动态列用） */
   collections: CollectionInfo[];
+  /** 收藏库分组（侧栏两级；query 的 collection 参数可传组 id） */
+  groups: CollectionGroupInfo[];
 }
 
 export interface NoteQuery {
-  /** 收藏库 id（rednote/treasures/diary）；缺省 rednote */
+  /** 收藏库 id 或分组 id（如 clippings=剪藏组：查询覆盖组内全部成员）；缺省 rednote */
   collection?: string;
   q?: string;
   categoryId?: string | null; // 'uncategorized' 表示未分类
@@ -149,9 +151,30 @@ export interface CollectionDef {
   id: string;
   name: string;
   root: string;
-  type: 'rednote' | 'treasures' | 'diary';
+  type: 'rednote' | 'treasures' | 'diary' | 'web';
   /** 扫描排除的文件名正则（相对 collection 根） */
   exclude?: string[];
+}
+
+/** 收藏库分组（侧栏两级；点组名看全部成员的笔记，搜索跨成员）。
+ * 纯视图层：不参与解析与索引指纹——改组名/换成员不会触发重建索引（新增"成员库"本身会） */
+export interface CollectionGroupDef {
+  id: string;
+  name: string;
+  /** 成员收藏库 id（按侧栏显示顺序） */
+  collections: string[];
+}
+
+/** 分组的聚合信息（成员各计数之和；categories 不聚合——分类是各子库自己的概念） */
+export interface CollectionGroupInfo {
+  id: string;
+  name: string;
+  collectionIds: string[];
+  total: number;
+  active: number;
+  archived: number;
+  starred: number;
+  uncategorized: number;
 }
 
 /** 附加结构化字段（表格用）：价格、购买时间、器型、朝代… */

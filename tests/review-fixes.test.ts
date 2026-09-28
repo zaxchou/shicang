@@ -29,7 +29,8 @@ function makeCfg(fx: Fixture, over: Partial<AppConfig> = {}): AppConfig {
   return {
     app: 'myinfobase-test',
     vaultRoot: fx.root.replace(/\\/g, '/'),
-    collections: [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' }],
+collections: [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' }],
+    groups: [],
     host: '127.0.0.1',
     port: 0,
     timezone: 'Asia/Shanghai',

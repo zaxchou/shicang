@@ -1,7 +1,7 @@
 // 配置加载守卫：生产环境必须显式给 SOURCE_ROOT / DATA_DIR，Origin 白名单的构造规则。
 // 这两块此前零覆盖——写错就是"生产跑在开发数据目录上"或"变更请求被自己的白名单挡掉"。
 import { describe, expect, it } from 'vitest';
-import { allowedOrigins, loadConfig, DEFAULT_COLLECTIONS } from '../server/config';
+import { allowedOrigins, loadConfig, validateGroups, DEFAULT_COLLECTIONS, DEFAULT_GROUPS } from '../server/config';
 
 describe('loadConfig', () => {
   it('生产环境缺少 DATA_DIR 时启动即报错，不回退开发数据目录', () => {
@@ -68,6 +68,30 @@ describe('loadConfig', () => {
     expect(diary?.exclude?.some((re) => new RegExp(re).test('闪念笔记概览.md'))).toBe(true);
     expect(diary?.exclude?.some((re) => new RegExp(re).test('flomo-xxx-首页.md'))).toBe(true);
     expect(byId.get('treasures')?.exclude?.some((re) => new RegExp(re).test('MOC.md'))).toBe(true);
+    // 网页剪藏库（v0.12.0）：Clippings 目录，type web
+    expect(byId.get('web')).toMatchObject({ root: 'Clippings', type: 'web', name: '网页' });
+  });
+
+  it('内置默认分组：剪藏 = 小红书 + 网页，且通过校验', () => {
+    expect(DEFAULT_GROUPS).toEqual([{ id: 'clippings', name: '剪藏', collections: ['rednote', 'web'] }]);
+    expect(() => validateGroups(DEFAULT_COLLECTIONS, DEFAULT_GROUPS)).not.toThrow();
+    const cfg = loadConfig({} as NodeJS.ProcessEnv);
+    expect(cfg.groups).toEqual(DEFAULT_GROUPS); // 真实 config/app.json 的分组与默认一致
+  });
+
+  it('分组配置校验：组 id 撞库 id、成员不存在都在启动时报错', () => {
+    // 撞名：query 的 collection 参数无法区分组与库
+    expect(() =>
+      validateGroups(DEFAULT_COLLECTIONS, [{ id: 'web', name: '撞名组', collections: ['rednote'] }])
+    ).toThrow(/撞名/);
+    // 成员写错（比如公众号目录还没建就把 id 写进组）
+    expect(() =>
+      validateGroups(DEFAULT_COLLECTIONS, [{ id: 'clippings', name: '剪藏', collections: ['rednote', 'wechat'] }])
+    ).toThrow(/wechat/);
+    // 正常配置不拦
+    expect(() =>
+      validateGroups(DEFAULT_COLLECTIONS, [{ id: 'clippings', name: '剪藏', collections: ['rednote', 'web'] }])
+    ).not.toThrow();
   });
 
   it('PUBLIC_ORIGIN 去尾斜杠，EXTRA_ALLOWED_ORIGINS 按逗号切分并丢弃空项', () => {

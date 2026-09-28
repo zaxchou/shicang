@@ -4,7 +4,7 @@
   "collections": [
     {
       "id": "rednote",
-      "name": "小红书收藏",
+      "name": "小红书",
       "root": "RedNote/Bookmarks",
       "type": "rednote"
     },
@@ -29,6 +29,19 @@
         "^flomo-首页\\.md$",
         "^flomo-.+-首页\\.md$"
       ]
+    },
+    {
+      "id": "web",
+      "name": "网页",
+      "root": "Clippings",
+      "type": "web"
+    }
+  ],
+  "groups": [
+    {
+      "id": "clippings",
+      "name": "剪藏",
+      "collections": ["rednote", "web"]
     }
   ],
   "host": "127.0.0.1",

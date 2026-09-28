@@ -1,4 +1,4 @@
-# 打包版本化发布：releases/<版本>/（含 manifest 校验信息）
+﻿# 打包版本化发布：releases/<版本>/（含 manifest 校验信息）
 # 用法：powershell -ExecutionPolicy Bypass -File scripts\release.ps1 [-Version 0.1.1] [-SkipChecks]
 param(
   [string]$Version = "",

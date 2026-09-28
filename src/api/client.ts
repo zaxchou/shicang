@@ -6,6 +6,8 @@ import type {
   NoteDetail,
   NoteListResult,
   NoteStatus,
+  OcrRunResult,
+  RecognizedText,
   RefreshJobInfo,
   TagCount,
 } from '../../shared/types';
@@ -132,4 +134,22 @@ export const api = {
   /** 立刻重导语料；内容没变时 written=false（服务端跳过写入） */
   exportCorpus: () =>
     request<{ manifest: CorpusManifest; written: boolean; dir: string }>('/api/export/corpus', { method: 'POST' }),
+  /** 某笔记已有的识别文本（OCR/转录） */
+  noteMediaText: (id: string) =>
+    request<{ items: RecognizedText[] }>(`/api/notes/${encodeURIComponent(id)}/media-text`),
+  /**
+   * 按需识别图片文字。**只发 id**——图片由服务端自己读盘，浏览器不上传文件。
+   * 不带 mediaId = 识别这篇里还没识别过的图（服务端有单次上限）。
+   */
+  ocrNote: (id: string, mediaId?: string) =>
+    request<OcrRunResult>(`/api/notes/${encodeURIComponent(id)}/ocr`, {
+      method: 'POST',
+      body: JSON.stringify(mediaId ? { mediaId } : {}),
+    }),
+  /** 删掉一条识别结果（识别错了想重来） */
+  clearMediaText: (id: string, mediaId: string) =>
+    request<{ removed: boolean }>(
+      `/api/notes/${encodeURIComponent(id)}/media-text/${encodeURIComponent(mediaId)}`,
+      { method: 'DELETE' }
+    ),
 };

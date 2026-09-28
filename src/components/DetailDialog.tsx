@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MAX_REMARK, type NoteDetail, type NoteStatus, type NoteSummary } from '../../shared/types';
+import {
+  MAX_REMARK,
+  type NoteDetail,
+  type NoteStatus,
+  type NoteSummary,
+  type RecognizedText,
+} from '../../shared/types';
 
 interface CategoryOption {
   id: string;
@@ -7,7 +13,47 @@ interface CategoryOption {
 }
 import { formatShanghai } from '../../shared/time';
 import { api, ApiError } from '../api/client';
-import { IconArchive, IconChevronDown, IconCheck, IconClose, IconExternal, IconPen, IconStar } from './Icons';
+import {
+  IconArchive,
+  IconChevronDown,
+  IconCheck,
+  IconClose,
+  IconExternal,
+  IconPen,
+  IconScanText,
+  IconStar,
+} from './Icons';
+
+/**
+ * 复制到剪贴板。
+ * 局域网 http 访问时 `navigator.clipboard` 不存在（非安全上下文），所以必须留 execCommand 一路，
+ * 两路都不行时返回 false，由界面提示"手动选中复制"——不能假装复制成功了。
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* 落到下面的兜底 */
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 /** 详情中附加字段展示顺序（与表格一致） */
 const EXTRA_DISPLAY_ORDER = [
@@ -59,6 +105,11 @@ export function DetailDialog({
   const [remarkSaving, setRemarkSaving] = useState(false);
   /** 备注面板默认收起：常驻一个输入框太占地方（用户反馈「有点显眼」） */
   const [remarkOpen, setRemarkOpen] = useState(false);
+  /** 识别文本（OCR）：进详情就拉一次已有的，不必再点 */
+  const [mediaText, setMediaText] = useState<RecognizedText[]>([]);
+  const [expandedOcr, setExpandedOcr] = useState<Set<string>>(new Set());
+  const [ocrRunning, setOcrRunning] = useState(false);
+  const [ocrMsg, setOcrMsg] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -91,6 +142,74 @@ export function DetailDialog({
       alive = false;
     };
   }, [summary.id]);
+
+  // 已有的识别文本（OCR）：进详情就拉一次——用户要"能看见"，不该还要再点一次才看得到
+  useEffect(() => {
+    let alive = true;
+    setMediaText([]);
+    setOcrMsg(null);
+    api
+      .noteMediaText(summary.id)
+      .then((r) => {
+        if (alive) setMediaText(r.items);
+      })
+      .catch(() => {
+        /* 识别文本拉不到不影响阅读正文，静默即可 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [summary.id]);
+
+  /** 这篇能识别的本地图片（按笔记内顺序）；没有图就不显示按钮 */
+  const ocrTargets = (detail?.media ?? []).filter(
+    (m) => m.kind === 'image' && m.localRelativePath && m.available !== false
+  );
+
+  const runOcr = useCallback(async () => {
+    if (ocrRunning) return;
+    setOcrRunning(true);
+    setOcrMsg(null);
+    try {
+      const out = await api.ocrNote(summary.id);
+      setMediaText(out.recognized);
+      const failed = out.results.filter((r) => !r.ok);
+      const okCount = out.results.filter((r) => r.ok).length;
+      const cached = out.results.filter((r) => r.cached).length;
+      if (out.results.length === 0) {
+        setOcrMsg('这篇的图片都已经识别过了');
+      } else if (failed.length > 0 && okCount === 0) {
+        setOcrMsg(failed[0]?.reason ?? '识别失败');
+      } else {
+        const parts = [`识别 ${okCount} 张`];
+        if (cached) parts.push(`其中 ${cached} 张用了已有结果`);
+        if (failed.length) parts.push(`${failed.length} 张失败：${failed[0]?.reason ?? ''}`);
+        if (out.remaining > 0) parts.push(`还有 ${out.remaining} 张没识别，再点一次继续`);
+        setOcrMsg(parts.join(' · '));
+      }
+    } catch (e) {
+      setOcrMsg(e instanceof ApiError ? e.message : '识别失败');
+    } finally {
+      setOcrRunning(false);
+    }
+  }, [ocrRunning, summary.id]);
+
+  const dropMediaText = useCallback(
+    async (mediaId: string) => {
+      try {
+        await api.clearMediaText(summary.id, mediaId);
+        setMediaText((prev) => prev.filter((t) => t.mediaId !== mediaId));
+      } catch (e) {
+        setOcrMsg(e instanceof ApiError ? e.message : '删除识别结果失败');
+      }
+    },
+    [summary.id]
+  );
+
+  const copyMediaText = useCallback(async (text: string) => {
+    const ok = await copyToClipboard(text);
+    setOcrMsg(ok ? '已复制到剪贴板' : '复制失败（这个地址下浏览器不允许），请手动选中文字复制');
+  }, []);
 
   // 打开时聚焦关闭按钮；Esc 关闭
   useEffect(() => {
@@ -266,6 +385,25 @@ export function DetailDialog({
             >
               <IconArchive size={15} />
             </button>
+            {/* 识别图片文字：只在有本地图片时出现；结果按媒体内容 hash 缓存，不会重复烧额度 */}
+            {ocrTargets.length > 0 && (
+              <button
+                type="button"
+                className={`btn-icon btn-ocr${ocrRunning ? ' running' : ''}${mediaText.length ? ' has-text' : ''}`}
+                disabled={ocrRunning}
+                aria-label="识别图片文字"
+                title={
+                  ocrRunning
+                    ? '识别中…（大图可能要十几秒）'
+                    : mediaText.length
+                      ? `识别图片文字（已有 ${mediaText.length} 张的结果，重复的图不会重复识别）`
+                      : `识别这篇 ${ocrTargets.length} 张图里的文字，识别后可以被搜索到`
+                }
+                onClick={() => void runOcr()}
+              >
+                <IconScanText size={15} />
+              </button>
+            )}
             {detail?.originalUrl && (
               <a className="btn-link" href={detail.originalUrl} target="_blank" rel="noopener noreferrer">
                 <IconExternal size={13} />
@@ -277,6 +415,73 @@ export function DetailDialog({
             </button>
           </div>
         </div>
+
+        {/* 识别文本（图片里的字）：有了就显示——用户要的是"能看见、能搜到、能复制走" */}
+        {(ocrMsg || mediaText.length > 0) && (
+          <div className="detail-ocr-panel">
+            <div className="ocr-head">
+              <span className="ocr-title">图片文字</span>
+              {mediaText.length > 0 && <span className="ocr-count">{mediaText.length} 张</span>}
+              {ocrTargets.length > 0 && mediaText.length < ocrTargets.length && (
+                <button type="button" className="link-clear" onClick={() => void runOcr()} disabled={ocrRunning}>
+                  {ocrRunning ? '识别中…' : `识别其余 ${ocrTargets.length - mediaText.length} 张`}
+                </button>
+              )}
+            </div>
+            {ocrMsg && <div className="ocr-msg">{ocrMsg}</div>}
+            {mediaText.map((t) => {
+              const idx = ocrTargets.findIndex((m) => m.id === t.mediaId);
+              const noText = /^无文字[。.]?$/.test(t.text.trim());
+              // 超过约 12 行就限高（否则一张课程表就能把正文顶到屏幕外），
+              // 但要给「展开全部」——硬裁切会把最后一行从中间切断，看着像渲染坏了
+              const collapsible = !noText && t.text.split('\n').length > 12;
+              const expanded = expandedOcr.has(t.mediaId);
+              return (
+                <div key={t.mediaId} className="ocr-item">
+                  <div className="ocr-item-head">
+                    <span className="ocr-item-label">{idx >= 0 ? `图 ${idx + 1}` : t.mediaId}</span>
+                    <span className="ocr-item-actions">
+                      <button
+                        type="button"
+                        className="link-clear"
+                        onClick={() => void copyMediaText(t.text)}
+                        disabled={noText}
+                      >
+                        复制
+                      </button>
+                      <button type="button" className="link-clear" onClick={() => void dropMediaText(t.mediaId)}>
+                        重来
+                      </button>
+                    </span>
+                  </div>
+                  <p className={`ocr-text${noText ? ' empty' : ''}${expanded ? ' expanded' : ''}`}>{t.text}</p>
+                  {collapsible && (
+                    <button
+                      type="button"
+                      className="link-clear ocr-toggle"
+                      aria-expanded={expanded}
+                      onClick={() =>
+                        setExpandedOcr((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(t.mediaId)) next.delete(t.mediaId);
+                          else next.add(t.mediaId);
+                          return next;
+                        })
+                      }
+                    >
+                      {expanded ? '收起' : `展开全部（${t.text.split('\n').length} 行）`}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {mediaText.length > 0 && (
+              <div className="ann-hint">
+                只存在拾藏里，不写回 Obsidian；已经参与搜索，重新导出语料后会进入语料库
+              </div>
+            )}
+          </div>
+        )}
 
         {remarkOpen && (
           <div className="detail-remark-panel">

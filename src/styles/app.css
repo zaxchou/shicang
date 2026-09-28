@@ -1480,6 +1480,105 @@ img {
   box-shadow: var(--trough);
   animation: remarkIn 160ms var(--ease-out);
 }
+/* 识别文本（图片文字）：与备注面板同一处（头部正下方、凹陷表面），但它不需要"保存/收起"——
+   它是读出来的结果，有了就一直显示，能复制走、能被搜索命中 */
+.btn-ocr {
+  position: relative;
+}
+.btn-ocr.has-text::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.btn-ocr.running svg {
+  animation: export-pulse 1.1s ease-in-out infinite;
+}
+.detail-ocr-panel {
+  flex: none;
+  padding: 14px 28px 16px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  box-shadow: var(--trough);
+  animation: remarkIn 160ms var(--ease-out);
+}
+.ocr-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+.ocr-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ocr-count {
+  font-size: 12px;
+  /* 亮色下 --text-weak 在这个浅底徽章上只有 4.19:1（实测），12px 正文要 4.5 —— 用次级色 */
+  color: var(--text-secondary);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-sunken-2, var(--surface));
+}
+.ocr-msg {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.ocr-item + .ocr-item {
+  margin-top: 12px;
+}
+.ocr-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.ocr-item-label {
+  font-size: 12px;
+  color: var(--text-weak);
+}
+.ocr-item-actions {
+  display: flex;
+  gap: 12px;
+}
+.ocr-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.72;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* 长表格类识别结果可能很长，限高滚动，别把正文挤到看不见 */
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--elev-1, none);
+  user-select: text;
+}
+.ocr-text.empty {
+  color: var(--text-weak);
+  font-style: italic;
+}
+/* 展开后不再限高：让正文自己滚，比把最后一行切一半强 */
+.ocr-text.expanded {
+  max-height: none;
+}
+.ocr-toggle {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
 @keyframes remarkIn {
   from {
     opacity: 0;

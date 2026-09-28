@@ -108,6 +108,8 @@ export interface LibraryInfo {
   categoryRevision: number;
   /** 人工标注 revision，PATCH 状态/备注时作为 expectedRevision */
   annotationRevision: number;
+  /** 识别文本（OCR/转录）revision：识别出新文字后变化，前端据此重新拉取 */
+  mediaTextRevision: number;
   indexStatus: 'ready' | 'empty' | 'scanning';
   diagnostics: string[];
   /** 各收藏库信息（切换库/表格动态列用） */
@@ -209,17 +211,36 @@ export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown };
 }
 
+/** 一次「识别图片文字」的结果 */
+export interface OcrRunResult {
+  noteId: string;
+  /** 逐张的结果：`cached` = 命中内容 hash 缓存（没再调模型） */
+  results: Array<{ mediaId: string; ok: boolean; cached: boolean; text?: string; reason?: string }>;
+  /** 识别后这篇笔记的全部识别文本（按媒体顺序，界面直接渲染） */
+  recognized: RecognizedText[];
+  /** 这次没轮到、还没识别的图片数（受 maxPerNote 限制） */
+  remaining: number;
+  /** 实际使用的视觉模型；未配置凭据时为 null */
+  model: string | null;
+}
+
 /** 语料导出格式版本：corpus.jsonl 每条与前后的 manifest 都带它，外部管道据此判断兼容性 */
 export const CORPUS_SCHEMA_VERSION = 1;
 
+/** 识别文本的两类：ocr = 图片文字识别；asr = 语音/视频转录（转录尚未实现） */
+export type RecognizedKind = 'ocr' | 'asr';
+
 /**
- * OCR / 转录的产物。**本版恒为空数组**——识别能力（plan §18.2）还没接，
- * 但语料 schema 先把位置留好，外部管道可以照着最终形态写死，不必等我们改版。
+ * OCR / 转录的产物。
+ * 存 `runtime/data/media-text.json`，键是 `mediaHash`（媒体内容的 SHA-256）——同一份文件
+ * 无论被几篇笔记引用、索引重建多少次，都只算一次。
  */
 export interface RecognizedText {
-  kind: 'ocr' | 'asr';
-  /** 对应媒体 id（图片 image-1.webp / 语音文件名） */
+  kind: RecognizedKind;
+  /** 对应媒体 id（图片 image-1.webp / 语音文件名），**相对于当前这篇笔记** */
   mediaId: string;
+  /** 媒体内容 hash：识别结果的缓存键，也是"这条文本属于哪份文件"的稳定标识 */
+  mediaHash: string;
   text: string;
   model: string;
   at: string;

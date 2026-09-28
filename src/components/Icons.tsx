@@ -236,6 +236,14 @@ export const IconExport = ({ size, className }: IconProps) => (
   </svg>
 );
 
+/** 识别图片文字（OCR）：取景框里的文字行 */
+export const IconScanText = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M4 8.4V6.4A2.4 2.4 0 0 1 6.4 4h2M15.6 4h2A2.4 2.4 0 0 1 20 6.4v2M20 15.6v2a2.4 2.4 0 0 1-2.4 2.4h-2M8.4 20h-2A2.4 2.4 0 0 1 4 17.6v-2" />
+    <path d="M8.2 9.4h7.6M8.2 12h7.6M8.2 14.6h4.4" />
+  </svg>
+);
+
 export const CATEGORY_ICONS: Record<string, (p: IconProps) => ReactElement> = {
   shuhua: IconBrush,
   'ai-programming': IconCpu,

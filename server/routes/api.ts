@@ -87,6 +87,11 @@ const patchAnnotationSchema = z.object({
   expectedRevision: z.number().int().nonnegative().optional(),
 });
 
+/** 按需识别图片文字：不带 mediaId = 识别这篇里还没识别过的图（服务端有单次上限） */
+const ocrSchema = z.object({
+  mediaId: z.string().min(1).max(300).optional(),
+});
+
 /** 变更类请求的 Origin 校验；同源浏览器地址栏访问无 Origin，直接放行 */
 function originGuard(req: express.Request, deps: ApiDeps): void {
   if (req.method === 'GET' || req.method === 'HEAD') return;
@@ -272,6 +277,46 @@ export function apiRouter(deps: ApiDeps): express.Router {
         }
         throw e;
       }
+    })
+  );
+
+  // 识别图片文字（OCR，plan §18.2）：按需触发，结果按媒体内容 hash 缓存。
+  // 前端只发 noteId/mediaId——图片由服务端自己从磁盘读、自己 base64，浏览器不传文件
+  // （API 请求体上限 64 KB，一张封面 base64 后约 700 KB，直接传会 413）。
+  router.get(
+    '/notes/:id/media-text',
+    wrap((req, res) => {
+      const id = requireParam(req, 'id');
+      if (!deps.library().hasNote(id)) throw new HttpError(404, 'NOTE_NOT_FOUND', `未找到笔记 ${id}`);
+      res.json({ items: deps.library().mediaTextFor(id) });
+    })
+  );
+
+  router.post(
+    '/notes/:id/ocr',
+    wrap(async (req, res) => {
+      const id = requireParam(req, 'id');
+      const body = ocrSchema.safeParse(req.body ?? {});
+      if (!body.success) {
+        throw new HttpError(400, 'INVALID_BODY', '请求体无效', body.error.flatten());
+      }
+      try {
+        res.json(await deps.library().ocrNote(id, { mediaId: body.data.mediaId }));
+      } catch (e) {
+        if (e instanceof NotFoundError) throw new HttpError(404, 'NOTE_NOT_FOUND', e.message);
+        if (e instanceof ValidationError) throw new HttpError(400, 'INVALID_OCR_TARGET', e.message);
+        throw e;
+      }
+    })
+  );
+
+  router.delete(
+    '/notes/:id/media-text/:mediaId',
+    wrap(async (req, res) => {
+      const removed = await deps
+        .library()
+        .clearMediaText(requireParam(req, 'id'), requireParam(req, 'mediaId'));
+      res.json({ removed });
     })
   );
 

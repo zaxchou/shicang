@@ -881,3 +881,95 @@ manifest 增加 `digest`（整条记录的摘要）作为"要不要重写"的判
 
 **数据未被改动**：`annotationRevision` 全程保持 45（用户自己标星/归档的两条没动过）。
 **只读边界**：`source-hash.mjs --check` → 4222 个文件 `added 0 / removed 0 / changed 0`。
+
+## 图片 OCR（2026-09-28，v0.9.0）
+
+用户对 OCR 的用法要求是四项里的三项：**在拾藏里能看见且能搜到 / 能导出成文档 / 交给 AI 再加工**
+（没选"只当检索索引用不看原文"）。所以识别文本不是纯缓存，而要能展示、能搜索、能进语料。
+方案见 `plan.md` §18.2。
+
+### 实现
+
+- `server/services/ai-vision.ts`（新）：`aiVisionConfigFromEnv` / `ocrImage` / `normalizeOcrText` / `OCR_IMAGE_MIMES`。
+  调用形态照抄 `scripts/probe-ai.mjs` 里**已验证过**的那条（`/chat/completions` + `image_url` data URI +
+  `thinking:{type:'disabled'}`），没有新依赖、镜像不变重。
+- `server/services/media-text.ts`（新）：识别文本存储，**键是媒体内容 SHA-256**（不是 noteId），
+  一条 entry 带 `refs[]` 记录"哪些笔记的哪些媒体指向它"；`put` 命中已有 hash 时**只补 ref、不覆盖文本**。
+- `LibraryService`：`ocrNote`（不传 mediaId = 识别这篇里还没识别的图）、`mediaTextFor`、`clearMediaText`、
+  `ocrTargets`；搜索把识别文本并成第三个来源；`corpusRecords` 的 `recognizedOf` 把它送进语料。
+- 路由：`POST /api/notes/:id/ocr`、`GET /api/notes/:id/media-text`、`DELETE .../media-text/:mediaId`。
+- 前端：详情头部「识别图片文字」按钮（仅在**有本地图片**时出现、有结果时带小点）；
+  头部正下方的「图片文字」面板（图 N + 复制 + 重来；超过 12 行折叠，带「展开全部（N 行）」）。
+- 配置：`AI_VISION_MODEL`、`AI_OCR_TIMEOUT_MS`（120s）、`AI_OCR_MAX_PER_NOTE`（8）。
+
+### 真实链路实测（**一次真实调用，会上传一张图给供应商**）
+
+选的是库里最典型的那一类：`666c40a2000000000e030cf0`「2024书法江湖暑期特训营课程安排」——
+**正文长度为 0**，只有一张 1080×1487 / 133 KB 的 webp，全部信息都在图里。
+
+| 项 | 结果 |
+| --- | --- |
+| 耗时 | **8 秒**（1080×1487 截图，超时给 120s 很宽裕） |
+| 产出 | 640 字，**Markdown 表格**结构正确：老师姓名、课程名（《没骨花鸟》《草法》《二王尺牍》…）、日期段、地点一应俱全 |
+| 用量 | prompt 1661 / image_tokens 1564 / completion 541（**按 token 计费，可审计**） |
+| 落盘 | `runtime/data/media-text.json`（本地 `.local/data/`）：1 条 entry、`mediaHash 9e67069ffd87…`、refs 指向该笔记的 `image-1.webp` |
+| 搜索 | 「江南专修学院」「施立刚」这类**只出现在图里**的词 → 命中 1 篇；乱码词 → 0 篇 |
+| 语料 | 重新导出后该篇 `recognized` 有 1 条（640 字）；`contentDigest` 从 `ac2c68965379…` 变为 `b7e1d867bd32…`（外部管道会正确重算） |
+| 幂等 | 再点一次 → 「这篇的图片都已经识别过了」，**没有第二次模型调用**（日志里 `OCR 完成` 只有对应行） |
+
+### 截图暴露的两个问题（都已修）
+
+1. **模型把换行输出成 `<br>`**：第一版面板上直接显示成 `黄芳<br>《没骨花鸟》<br>7.15-7.29上午`——
+   因为提示词只说了"表格用 Markdown"，单元格内的换行它选了 HTML 标签。后果不只是难看：
+   字面量 `<br>` 会进搜索结果和语料。
+   → 两手都做：提示词明确**禁止输出 HTML 标签**，并加 `normalizeOcrText()` 在入口处
+   `<br>`→真换行、剥掉标签、还原实体。**并在界面上用「重来」删掉旧结果重新识别验证了一遍**
+   （这也是"重来"按钮的实测）：新结果 640 字、零标签。
+2. **限高把最后一行从中间切断**，看着像渲染坏了 → 超过 12 行时给「展开全部（N 行）」，
+   展开后 `max-height: none`（实测 320px → 1111px，`clientHeight === scrollHeight`，不再裁切）。
+
+### 测试：174 → 198（新增 24 条）
+
+`tests/ocr.test.ts`：`mediaHashOf` 只跟字节走；`normalizeEntry` 读时净化（无正文/无 refs/未知 kind 全丢）；
+`put` 幂等不抬 revision；**同一份文件被第二篇引用只补 ref 且不覆盖已有文本**；`removeRef` 摘最后一条 ref
+时整条消失；重启后仍在（落盘 + 回读）；损坏且无备份时给诊断不抛错；视觉请求形态（data URI 的 mime、
+`thinking` 关闭、Bearer）；失败翻译（401/429/413/非 JSON/空回复/超时）；`normalizeOcrText` 各种写法与
+**`a < b` 不被当标签**；只接受能吃进去的图片类型（HEIC/AVIF/SVG 排除）；配置默认与非法值回落；
+`ocrNote` 的缓存命中（**第二次不再调模型**）、跨笔记复用、单次上限与 `remaining`、
+**路径越界拒绝读盘**、未配凭据明说、模型报错不写存储、删除后可重来；HTTP 三个路由 + 404/400。
+
+**全程 mock 掉 fetch**（`vi.stubGlobal`）：OCR 会真的上传用户图片、真的花钱，自动化测试一个字节都不发出去。
+mock 有两个坑：① 刷新后的自动分类也走 `/chat/completions`（但没有 `image_url`），不能算进 OCR 次数；
+② 全局 stub 会把测试客户端自己请求本地服务的 fetch 也吃掉——所以假网关只截获**带 image_url** 的调用，其余分派回去。
+
+### 反例验证（把实现故意改坏，确认测试真的会红）
+
+一次改坏 7 处 → **7 条失败**：`put` 不再只补 ref（幂等 + 不覆盖两条红）、去掉 `thinking: disabled`、
+搜索不并入识别文本（`expected +0 to be 1`）、`recognizedOf` 返回空数组、关掉越界防护
+（报"媒体文件读不到"而不是"越界"）、单次上限失效（3 次调用）、OCR 缓存分支变死代码。
+其中**语料那条断言在批量改坏时被前面的搜索失败掩盖**，于是单独再改坏一次验证：
+`expected [] to have a length of 2` —— 确认它真的在测。
+
+### 浏览器实测（1440×900，明暗两主题）
+
+- 按钮出现在详情头部（备注 / 标星 / 归档 / **识别文字** / 查看原文 / 关闭），title 说明会"识别这篇 N 张图"。
+- 真实点击 → 8 秒出结果；面板显示「图片文字 1 张」「图 1」「复制 / 重来」+ 提示语
+  「只存在拾藏里，不写回 Obsidian；已经参与搜索，重新导出语料后会进入语料库」。
+- `__uiLayout()`：`overflowing: []`、`cardOverlaps: []`；`__uiAudit()` 两主题零失败。
+- **对比度必须手工量**（审计工具不认识新元素，且**半透明表面必须先合成再算**，
+  否则会得出 `.ocr-text` 只有 1.11 这种假数字）。合成分层后实测：
+  正文 13.5px **14.48（暗）/ 13.35（亮）**；标题 8.62 / 6.77；提示与「图 N」5.65 / 4.54；
+  按钮 4.9 / 8.29。**其中「N 张」徽章亮色下只有 4.19**（12px 正文要 4.5），改成次级色后 6.24。
+- 截图：`docs/screenshots/ocr-light.png`、`ocr-dark.png`。
+
+### 踩到的坑（本地实例）
+
+给本地预览实例注入 AI 凭据时，我把**整个 `deploy/production/.env` 都注进去了**——里面带
+`SOURCE_ROOT`（容器内的 `/source`），于是开发实例的内容源被指错：媒体全部读不到
+（点 OCR 报"媒体文件读不到"，`/api/media/...` 也 404），"我的宝贝"计数一度从 331 变成 336。
+→ 只注入 `AI_*`/`MIMO_*`，并显式剔除 `SOURCE_ROOT`；重启后计数回到 606/331/268、媒体 200。
+**教训：生产 env 文件不能整份注入开发实例**（生产与开发的路径语义不同）。
+
+**数据未被改动**：`annotationRevision` 全程 45（用户自己标星/归档的两条没动过）；
+`mediaTextRevision` 3（识别 → 重来删除 → 再识别，与操作次数一致）。
+**只读边界**：`source-hash.mjs --check` → 4222 个文件 `added 0 / removed 0 / changed 0`。

@@ -738,9 +738,32 @@ start.cmd / start.ps1 只负责开发环境：从脚本目录定位项目，支�
 
 ### 18.2 AI 识别能力：OCR / 转录 / 总结
 
+> **实施状态（2026-09-28，v0.9.0）**：**图片 OCR 已完成并验收**——`server/services/ai-vision.ts`（视觉调用）、
+> `server/services/media-text.ts`（识别文本存储）、`LibraryService.ocrNote/mediaTextFor/clearMediaText`、
+> `POST /api/notes/:id/ocr` / `GET /api/notes/:id/media-text` / `DELETE /api/notes/:id/media-text/:mediaId`、
+> 详情头部「识别图片文字」按钮 + 头部正下方的识别文本面板（可复制、可重来、长文可展开）。
+> **真实链路实测**：一篇正文为空、文字全在图里的课程表笔记，8 秒识出 640 字 Markdown 表格
+> （`usage`：prompt 1661 / image 1564 / completion 541 token），随后"江南专修学院""施立刚"这类
+> **只出现在图里的词**都能搜到它。验收记录见 `docs/verification.md`。
+> **转录（asr）仍未做**——`RecognizedKind` 与存储结构已经为它留好位置，缺的是 ffmpeg 转码那一步。
+
 需求：AI 不只做分类和总结，还要**对需要的视频做文稿转录、对需要的图片做 OCR**，最好
 "一键把这些笔记转成文档"。**按需触发，不要求全量**（用户明确：真正需要转录的并不多，
 要的是"有这个能力"，需要的时候能用）。
+
+**OCR 落地时定的几条（写在这里，免得后人推翻）**：
+- **按需 + 单次上限**：`AI_OCR_MAX_PER_NOTE`（默认 8）——一篇笔记可能真有 13 张图，
+  没有上限时一次点击会连打十几次接口。剩下的张数会在界面上明说"还有 N 张没识别"。
+- **结果按媒体内容 hash 存**（`media-text.json`，不是按 noteId）：同一张图被两篇笔记引用时
+  第二篇直接复用，**不再烧一次额度**；删结果时最后一条 ref 消失才删整条。
+- **浏览器不上传图片**：前端只发 `noteId`/`mediaId`，服务端自己读盘、自己 base64。
+- **越界防护与媒体路由同源**：登记的相对路径解析后必须落在 vault 内，否则拒绝读盘。
+- **归一化模型输出**：实测模型会用 `<br>` 表示换行（提示词里禁了也不保证），
+  而我们是按纯文本展示/搜索/导出的，所以入口处 `normalizeOcrText()` 把 `<br>` 变真换行、
+  剥掉标签、还原实体——否则字面量 `<br>` 会混进搜索结果与语料。
+- **识别文本参与三处**：详情面板展示、全文搜索（与备注并列的第三个来源）、`corpus.jsonl` 的
+  `recognized`。它进 `contentHash`，所以识别出新文字后外部 embedding 会正确地知道"这篇变了"。
+- **失败要说清原因**（配额/超时/格式不支持/未配 key），因为这是用户点的操作，不是后台兜底。
 
 #### 已实测的能力边界（2026-09-28 探测；用现有 key，探测素材是自造的合成音与测试图，未上传任何用户素材）
 
@@ -815,6 +838,11 @@ start.cmd / start.ps1 只负责开发环境：从脚本目录定位项目，支�
 - **配置照现有形态扩展**：`AI_CLASSIFY_*` 已经是 baseUrl + key + model 三元组，
   加 `AI_VISION_MODEL` / `AI_ASR_MODEL` 即可从同一家取（base URL 与 key 都不用变），
   key 依旧只写在 gitignored 的 `deploy/production/.env`。
+  **v0.9.0 实际加的**：`AI_VISION_MODEL`（默认回落到 `AI_CLASSIFY_MODEL`）、
+  `AI_OCR_TIMEOUT_MS`（默认 120s）、`AI_OCR_MAX_PER_NOTE`（默认 8，下限 1）。
+  **本地开发实例要能点 OCR，必须把 AI 键注入进程**（生产由 compose 传，开发默认没有）——
+  注意**只注入 `AI_*`/`MIMO_*`**：整个 `.env` 注进去会带 `SOURCE_ROOT`（容器路径），
+  把开发实例的内容源指错、媒体全部读不到（本轮踩过，见 `docs/verification.md`）。
 - **非目标：不把标注或识别结果写回 frontmatter**（源笔记只读）。相关事实：vault 里
   `RedNote/📕 小红书.base` 的公式引用了 `category` 属性（`if(category, category, "（未分类）")`），
   但 606 篇收藏的 frontmatter 里**一篇都没有 category**（只有 resourceId / type / author / url /
@@ -872,7 +900,7 @@ start.cmd / start.ps1 只负责开发环境：从脚本目录定位项目，支�
 ### 18.4 实施顺序
 
 1. 人工层三件套（18.1）——共用一套存储与详情面板，先把"人工数据"的读写与冲突处理跑通。**已完成**。
-2. OCR 按需单条（18.2）——现成能力 + 本地文件，**无新依赖、无新 key、镜像不变重**，最小闭环。
+2. OCR 按需单条（18.2）——现成能力 + 本地文件，**无新依赖、无新 key、镜像不变重**，最小闭环。**已完成（v0.9.0）**。
    （2026-09-28 把 ASR 的格式问题测掉之后，OCR 排在前面的理由更硬了：转录那条路要引进 ffmpeg。）
 3. 本地 m4a 转录按需单条（18.2）——第一步是**把 ffmpeg 装进镜像**并做"m4a → mp3 64 kbps"的
    按内容 hash 转码缓存；格式问题已经测掉了（见上），不用再猜。

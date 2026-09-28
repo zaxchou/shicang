@@ -9,11 +9,14 @@ import type {
   CorpusRecord,
   ExtraFieldInfo,
   LibraryInfo,
+  MediaItem,
   NoteDetail,
   NoteListResult,
   NoteQuery,
   NoteStatus,
   NoteSummary,
+  OcrRunResult,
+  RecognizedText,
   RefreshJobInfo,
   TagCount,
 } from '../../shared/types.js';
@@ -21,9 +24,16 @@ import { lastNDaysRangeMs, customRangeMs } from '../../shared/time.js';
 import { projectRoot, type AppConfig } from '../config.js';
 import { log } from '../log.js';
 import { scanVault } from '../reader/scan.js';
+import { sniffImageMime } from '../reader/image-size.js';
 import { PARSE_VERSION, type NoteRecord } from '../reader/parse.js';
 import { classifyRednote } from './classify.js';
 import { aiClassifyConfigFromEnv, classifyByAi } from './ai-classify.js';
+import {
+  MediaTextService,
+  mediaHashOf,
+  readMediaBytes,
+} from './media-text.js';
+import { aiVisionConfigFromEnv, ocrImage, OCR_IMAGE_MIMES } from './ai-vision.js';
 import { JsonStore } from '../storage/json-store.js';
 import {
   buildCorpusRecords,
@@ -100,6 +110,7 @@ export class LibraryService {
   readonly cfg: AppConfig;
   private categories: CategoriesService;
   private annotations: AnnotationsService;
+  private mediaText: MediaTextService;
   private indexStore: JsonStore<IndexDoc>;
   private doc: IndexDoc;
   private byId = new Map<string, NoteRecord>();
@@ -116,6 +127,7 @@ export class LibraryService {
     for (const c of cfg.collections) this.colMap.set(c.id, c);
     this.categories = new CategoriesService(cfg.dataDir, cfg.backupDir);
     this.annotations = new AnnotationsService(cfg.dataDir, cfg.backupDir);
+    this.mediaText = new MediaTextService(cfg.dataDir, cfg.backupDir);
     this.indexStore = new JsonStore<IndexDoc>(
       path.join(cfg.dataDir, 'library-index.json'),
       cfg.backupDir,
@@ -161,6 +173,7 @@ export class LibraryService {
     const seedPath = path.join(projectRoot(), 'data-seed', 'categories-seed.json');
     diagnostics.push(...(await this.categories.init(seedPath)));
     diagnostics.push(...(await this.annotations.init()));
+    diagnostics.push(...(await this.mediaText.init()));
 
     const loaded = this.indexStore.load();
     const sig = this.indexSig();
@@ -216,11 +229,20 @@ export class LibraryService {
     const q = (params.q ?? '').trim().toLowerCase();
     if (q) {
       const terms = q.split(/\s+/).filter(Boolean);
-      // 备注是人工字段，不在索引里预处理的 searchText 内——必须显式并进搜索，
-      // 否则"搜自己写的备注"会搜不到（用户记东西时最先用的就是这个）
+      // 三个来源逐词 OR：正文（索引里预处理的 searchText）、备注、识别文本。
+      // 备注与识别文本都是"我们这边的加工产物"，不在 searchText 里，必须显式并进来——
+      // 否则"搜自己写的备注""搜图里的字"都会搜不到，而那正是这两个功能存在的意义。
+      // 注意是**每个词**各自三选一命中即可（不是"所有词命中同一个字段"）：多词 AND 的语义别改，
+      // 否则"笔记一 装修"这种"一个词在正文、一个词在备注"的查询会突然失效。
       items = items.filter((r) => {
         const remark = this.annotations.remarkOf(r.id).toLowerCase();
-        return terms.every((t) => r.searchText.includes(t) || (remark !== '' && remark.includes(t)));
+        const recognized = this.mediaText.textFor(r.id).toLowerCase();
+        return terms.every(
+          (t) =>
+            r.searchText.includes(t) ||
+            (remark !== '' && remark.includes(t)) ||
+            (recognized !== '' && recognized.includes(t))
+        );
       });
     }
 
@@ -454,6 +476,8 @@ export class LibraryService {
       collections: this.corpusCollections(),
       categoryIdOf: (r) => this.corpusCategoryOf(r),
       annotationOf: (id) => this.annotations.effective(id),
+      // 识别文本（OCR/转录）在这里进入语料——这也是"识别能力接进来就是往里填"的那一步
+      recognizedOf: (id) => this.mediaText.recognizedOf(id),
     });
   }
 
@@ -492,6 +516,127 @@ export class LibraryService {
     return this.cfg.exportDir;
   }
 
+  // ---------- 识别文本（OCR / 转录，plan §18.2）----------
+
+  /** 某笔记已有的识别文本（供详情面板展示） */
+  mediaTextFor(noteId: string): RecognizedText[] {
+    return this.mediaText.recognizedOf(noteId);
+  }
+
+  /** 该笔记里"可以识别的本地图片"（按笔记内出现顺序）；界面上按钮的可用性看它 */
+  ocrTargets(noteId: string): MediaItem[] {
+    const r = this.byId.get(noteId);
+    if (!r) return [];
+    return r.media.filter((m) => m.kind === 'image' && m.localRelativePath && m.available !== false);
+  }
+
+  /**
+   * 把媒体解析成绝对路径，并做越界防护（与媒体路由同一条判据）。
+   * 越界/缺失返回 null——OCR 要读磁盘，绝不能让登记的相对路径指到 vault 外面去。
+   */
+  private resolveMediaAbs(rel: string): string | null {
+    const root = path.resolve(this.cfg.vaultRoot);
+    const abs = path.resolve(root, rel);
+    if (abs !== root && !abs.startsWith(root + path.sep)) return null;
+    return abs;
+  }
+
+  /**
+   * 按需识别一篇笔记的图片文字。
+   * - 不传 mediaId = 识别这篇里还没有结果的图片（受 maxPerNote 限制）；
+   * - 传了就只识别那一张；
+   * - **命中内容 hash 缓存的不再调用模型**，只补一条 ref（同一张图被两篇引用时走这里）。
+   */
+  async ocrNote(noteId: string, opts: { mediaId?: string } = {}): Promise<OcrRunResult> {
+    const r = this.byId.get(noteId);
+    if (!r) throw new NotFoundError(`未找到笔记 ${noteId}`);
+
+    const cfg = aiVisionConfigFromEnv();
+    const targets = opts.mediaId
+      ? this.ocrTargets(noteId).filter((m) => m.id === opts.mediaId)
+      : this.ocrTargets(noteId);
+    if (opts.mediaId && targets.length === 0) {
+      throw new ValidationError(`这篇笔记里没有可识别的本地图片：${opts.mediaId}`);
+    }
+
+    const results: OcrRunResult['results'] = [];
+    // 已经有结果的跳过（不重复烧额度）；但缓存命中要补 ref，所以下面按 hash 再判一次
+    const pending = targets.filter((m) => !this.mediaText.hasFor(noteId, m.id));
+    const limited = cfg ? pending.slice(0, cfg.maxPerNote) : [];
+    const remaining = cfg ? Math.max(0, pending.length - limited.length) : pending.length;
+
+    if (!cfg) {
+      for (const m of limited.length ? limited : pending.slice(0, 1)) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '未配置 AI 凭据（AI_CLASSIFY_API_KEY）' });
+      }
+      return { noteId, results, recognized: this.mediaTextFor(noteId), remaining, model: null };
+    }
+
+    for (const m of limited) {
+      const abs = this.resolveMediaAbs(m.localRelativePath!);
+      if (!abs) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体路径越界，已拒绝读取' });
+        continue;
+      }
+      const bytes = readMediaBytes(abs);
+      if (!bytes) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体文件读不到' });
+        continue;
+      }
+      const mime = sniffImageMime(abs);
+      if (!mime || !OCR_IMAGE_MIMES.has(mime)) {
+        results.push({
+          mediaId: m.id,
+          ok: false,
+          cached: false,
+          reason: mime ? `暂不支持识别 ${mime}（支持 webp / png / jpg / gif / bmp）` : '不是可识别的图片',
+        });
+        continue;
+      }
+
+      const hash = mediaHashOf(bytes);
+      const cached = this.mediaText.get(hash);
+      if (cached) {
+        // 同一份文件以前算过：只补 ref，不再调模型
+        await this.mediaText.put({ ...cached, refs: [{ noteId, mediaId: m.id }] });
+        results.push({ mediaId: m.id, ok: true, cached: true, text: cached.text });
+        continue;
+      }
+
+      const out = await ocrImage(cfg, { bytes, mime });
+      if (!out.ok) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: out.reason });
+        continue;
+      }
+      await this.mediaText.put({
+        mediaHash: hash,
+        kind: 'ocr',
+        text: out.text,
+        model: out.model,
+        at: new Date().toISOString(),
+        refs: [{ noteId, mediaId: m.id }],
+        usage: out.usage,
+      });
+      results.push({ mediaId: m.id, ok: true, cached: false, text: out.text });
+    }
+
+    const okCount = results.filter((x) => x.ok).length;
+    if (okCount) {
+      log.info(`OCR 完成: ${noteId} 识别 ${okCount} 张（缓存 ${results.filter((x) => x.cached).length} 张）`);
+    }
+    return { noteId, results, recognized: this.mediaTextFor(noteId), remaining, model: cfg.model };
+  }
+
+  /** 删掉某笔记某张图的识别结果（识别错了想重来）；返回是否删掉了 */
+  async clearMediaText(noteId: string, mediaId: string): Promise<boolean> {
+    return this.mediaText.removeRef(noteId, mediaId);
+  }
+
+  /** 识别文本条数（页面诊断/信息展示用） */
+  get mediaTextEntryCount(): number {
+    return this.mediaText.entryCount;
+  }
+
   libraryInfo(): LibraryInfo {
     // 顶层字段保持 rednote 口径（兼容）；前端以 collections 为准
     const rnIds = this.doc.notes.filter((n) => n.collection === 'rednote').map((n) => n.id);
@@ -511,6 +656,7 @@ export class LibraryService {
       indexRevision: this.doc.revision,
       categoryRevision: this.categories.revision,
       annotationRevision: this.annotations.revision,
+      mediaTextRevision: this.mediaText.revision,
       indexStatus: this.job?.state === 'running' ? 'scanning' : this.doc.notes.length > 0 ? 'ready' : 'empty',
       diagnostics: [...this.bootDiagnostics, ...this.doc.diagnostics].slice(0, 50),
     };

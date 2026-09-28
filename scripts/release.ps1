@@ -1,4 +1,4 @@
-﻿# 打包版本化发布：releases/<版本>/（含 manifest 校验信息）
+# 打包版本化发布：releases/<版本>/（含 manifest 校验信息）
 # 用法：powershell -ExecutionPolicy Bypass -File scripts\release.ps1 [-Version 0.1.1] [-SkipChecks]
 param(
   [string]$Version = "",
@@ -78,7 +78,10 @@ Get-ChildItem $staging -Recurse -File | ForEach-Object {
   $sha = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
   $manifest.files += @{ path = $rel; sha256 = $sha; size = $_.Length }
 }
-$manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $staging 'manifest.json') -Encoding UTF8
+# 不用 Set-Content -Encoding UTF8：PowerShell 5.1 会写入 BOM，manifest.json 就不是严格 JSON，
+# 任何 JSON.parse 读它都会失败（v0.6.1 打包时发现）
+$manifestJson = $manifest | ConvertTo-Json -Depth 4
+[System.IO.File]::WriteAllText((Join-Path $staging 'manifest.json'), $manifestJson, (New-Object System.Text.UTF8Encoding($false)))
 
 if (Test-Path $relDir) { Remove-Item $relDir -Recurse -Force }
 Move-Item $staging $relDir

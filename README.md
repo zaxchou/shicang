@@ -103,6 +103,7 @@ server/            Node.js + Express 服务端（reader 解析 / services 索引
 src/               React + Vite 前端（双面板、瀑布流、详情弹层）
 shared/            前后端共享类型与时间工具
 config/app.json    内容源、端口、时区（环境变量优先级更高）
+public/            应用图标（favicon / apple-touch-icon / 侧栏品牌位，由 scripts/build-icons.mjs 生成）
 data-seed/         首批分类 seed（仅在未初始化的库导入）
 docs/              分类体系说明、验收记录、截图、设计参考
 deploy/            Dockerfile、compose 模板、NAS 更新/回滚脚本

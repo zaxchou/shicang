@@ -10,3 +10,6 @@ deploy/production/
 *.log
 .DS_Store
 Thumbs.db
+
+# 临时脚本/一次性分析（避免误提交）
+.tmp-*

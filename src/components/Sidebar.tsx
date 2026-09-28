@@ -35,7 +35,7 @@ export function Sidebar({
   return (
     <aside className="sidebar glass-surface">
       <div className="sidebar-brand">
-        <img src="/icon.svg" alt="" className="brand-icon" aria-hidden />
+        <img src="/icon-96.png" alt="" className="brand-icon" aria-hidden />
         <span>拾藏</span>
       </div>
       <nav className="sidebar-nav" aria-label="收藏库与分类">

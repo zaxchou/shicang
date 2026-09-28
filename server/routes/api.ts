@@ -77,15 +77,21 @@ const patchCategorySchema = z.object({
   expectedRevision: z.number().int().nonnegative(),
 });
 
-/** 人工标注补丁：至少要带一个待改字段；expectedRevision 可选（星标是单字段幂等动作） */
-const patchAnnotationSchema = z.object({
-  star: z.boolean().optional(),
-  /** null = 取回（回到在用） */
-  status: z.literal('archived').nullable().optional(),
-  /** 备注（纯文本）；null 或空串 = 清空。上限与存储侧同一个常量 */
-  remark: z.string().max(MAX_REMARK, `备注最多 ${MAX_REMARK} 字`).nullable().optional(),
-  expectedRevision: z.number().int().nonnegative().optional(),
-});
+/** 人工标注补丁：至少要带一个待改字段；expectedRevision 仅星标可省（单字段幂等动作） */
+const patchAnnotationSchema = z
+  .object({
+    star: z.boolean().optional(),
+    /** null = 取回（回到在用） */
+    status: z.literal('archived').nullable().optional(),
+    /** 备注（纯文本）；null 或空串 = 清空。上限与存储侧同一个常量 */
+    remark: z.string().max(MAX_REMARK, `备注最多 ${MAX_REMARK} 字`).nullable().optional(),
+    expectedRevision: z.number().int().nonnegative().optional(),
+  })
+  // 状态/备注必须带 expectedRevision：schema 注释与存储层都这么约定，API 层此前却放行，
+  // 裸调用方能绕过冲突检测（深审发现）。星标不强制（单字段幂等，见注释）。
+  .refine((v) => v.status === undefined && v.remark === undefined ? true : v.expectedRevision !== undefined, {
+    message: '改状态或备注必须带 expectedRevision',
+  });
 
 /** 按需识别图片文字：不带 mediaId = 识别这篇里还没识别过的图（服务端有单次上限） */
 const ocrSchema = z.object({
@@ -130,6 +136,17 @@ export function apiRouter(deps: ApiDeps): express.Router {
     }
   });
 
+  // 初始化完成前拒绝**变更类**请求：启动窗口里 seed 导入正在 await 磁盘，
+  // 此刻到达的写请求会与 init 的 load 交叉——内存/磁盘分叉，甚至旧数据被覆盖（深审发现）。
+  // GET 不拦：前端要靠它渲染"正在初始化"的状态。
+  router.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' || deps.isReady()) {
+      next();
+      return;
+    }
+    res.status(503).json({ error: { code: 'NOT_READY', message: '服务正在初始化，请稍后再试' } });
+  });
+
   router.get(
     '/health',
     wrap((req, res) => {
@@ -164,7 +181,12 @@ export function apiRouter(deps: ApiDeps): express.Router {
   router.get(
     '/tags',
     wrap((req, res) => {
-      const cid = typeof req.query.collection === 'string' ? req.query.collection : undefined;
+      const raw = req.query.collection;
+      // 与其它查询同一校验纪律：长度上限 + 只认字符串（此前只做 typeof 判断，裸字符串随便进）
+      if (raw !== undefined && (typeof raw !== 'string' || raw.length > 32)) {
+        throw new HttpError(400, 'INVALID_QUERY', 'collection 参数无效');
+      }
+      const cid = typeof raw === 'string' ? raw : undefined;
       res.json({ tags: deps.library().tagCounts(cid) });
     })
   );
@@ -301,7 +323,17 @@ export function apiRouter(deps: ApiDeps): express.Router {
         throw new HttpError(400, 'INVALID_BODY', '请求体无效', body.error.flatten());
       }
       try {
-        res.json(await deps.library().ocrNote(id, { mediaId: body.data.mediaId }));
+        // 客户端中途断开（关窗/刷新页面）后就别再往下发新调用了——钱和时间都不该继续花
+        let gone = false;
+        res.on('close', () => {
+          if (!res.writableEnded) gone = true;
+        });
+        res.json(
+          await deps.library().ocrNote(id, {
+            mediaId: body.data.mediaId,
+            shouldStop: () => gone,
+          })
+        );
       } catch (e) {
         if (e instanceof NotFoundError) throw new HttpError(404, 'NOTE_NOT_FOUND', e.message);
         if (e instanceof ValidationError) throw new HttpError(400, 'INVALID_OCR_TARGET', e.message);

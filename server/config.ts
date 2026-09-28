@@ -40,8 +40,9 @@ export function projectRoot(): string {
   throw new Error('cannot locate project root (package.json not found)');
 }
 
-/** 内置默认值：与 config/app.json 保持一致，避免配置文件缺失时行为悄悄变差 */
-const DEFAULT_COLLECTIONS: CollectionDef[] = [
+/** 内置默认值：与 config/app.json 保持一致，避免配置文件缺失时行为悄悄变差。
+ * 导出给测试直接断言——走 loadConfig 会读到真实的 config/app.json，这个默认值分支根本执行不到（深审发现的假绿）。 */
+export const DEFAULT_COLLECTIONS: CollectionDef[] = [
   { id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' },
   {
     id: 'treasures',
@@ -73,6 +74,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const file = readConfigFile();
   const isProduction = env.NODE_ENV === 'production';
 
+  // 生产必须**显式**给 SOURCE_ROOT：镜像里带着开发机的 config/app.json，
+  // 若允许回退到文件里的 vaultRoot，容器会抱着一个 Windows 路径跑起来（下面那句报错永远不触发）。
+  if (isProduction && !(env.SOURCE_ROOT ?? '').trim()) {
+    throw new Error('生产环境必须设置 SOURCE_ROOT（Obsidian vault 根目录）');
+  }
+
   const vaultRoot = normalizeDir(env.SOURCE_ROOT ?? (file['vaultRoot'] as string | undefined) ?? '');
   const dataDirEnv = env.DATA_DIR ? normalizeDir(env.DATA_DIR) : null;
   const dataDir =
@@ -85,12 +92,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ? (file['collections'] as CollectionDef[])
     : DEFAULT_COLLECTIONS;
 
+  // 端口必须是合法的 1..65535 整数：PORT=abc → NaN 会让 listen 抛看不懂的错，
+  // PORT=（空串）→ 0 变成随机端口而 Origin 白名单还按 0 校验，全部回退默认值。
+  const portRaw = Number(env.PORT ?? (file['port'] as number | undefined) ?? 4317);
+  const port = Number.isInteger(portRaw) && portRaw >= 1 && portRaw <= 65535 ? portRaw : 4317;
+
   const cfg: AppConfig = {
     app: (file['app'] as string) ?? 'myinfobase',
     vaultRoot,
     collections,
     host: env.HOST ?? (file['host'] as string | undefined) ?? '127.0.0.1',
-    port: Number(env.PORT ?? (file['port'] as number | undefined) ?? 4317),
+    port,
     timezone: env.TZ ?? (file['timezone'] as string | undefined) ?? 'Asia/Shanghai',
     publicOrigin: (env.PUBLIC_ORIGIN ?? (file['publicOrigin'] as string | undefined) ?? '').replace(/\/$/, ''),
     extraAllowedOrigins: (env.EXTRA_ALLOWED_ORIGINS ?? '')
@@ -101,7 +113,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     backupDir: path.resolve(backupDir),
     // 默认与数据目录同级：开发 .local/export，生产 runtime/export（runtime/ 不进 git、不进发布包）
     exportDir: env.EXPORT_DIR ? normalizeDir(env.EXPORT_DIR) : path.join(dataDir, '..', 'export'),
-    exportAfterRefresh: (env.EXPORT_AFTER_REFRESH ?? 'true').trim().toLowerCase() !== 'false',
+    // 关闭开关认 false/0/no/off（只认字面 false 的话，填 0/no 会"配了却不生效"）
+    exportAfterRefresh: !['false', '0', 'no', 'off'].includes((env.EXPORT_AFTER_REFRESH ?? 'true').trim().toLowerCase()),
     logDir: env.LOG_DIR ? normalizeDir(env.LOG_DIR) : path.join(projectRoot(), 'logs'),
     isProduction,
     version: readVersion(),

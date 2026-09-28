@@ -1,15 +1,38 @@
 // 配置加载守卫：生产环境必须显式给 SOURCE_ROOT / DATA_DIR，Origin 白名单的构造规则。
 // 这两块此前零覆盖——写错就是"生产跑在开发数据目录上"或"变更请求被自己的白名单挡掉"。
 import { describe, expect, it } from 'vitest';
-import { allowedOrigins, loadConfig } from '../server/config';
+import { allowedOrigins, loadConfig, DEFAULT_COLLECTIONS } from '../server/config';
 
 describe('loadConfig', () => {
   it('生产环境缺少 DATA_DIR 时启动即报错，不回退开发数据目录', () => {
-    // SOURCE_ROOT 的守卫只在"配置文件和环境变量都没给 vault 根"时才会触发
-    // （config/app.json 里带 vaultRoot，所以本机跑不出那条分支），这里验可复现的那条
     expect(() =>
       loadConfig({ NODE_ENV: 'production', SOURCE_ROOT: 'Z:/vault' } as NodeJS.ProcessEnv)
     ).toThrow(/DATA_DIR/);
+  });
+
+  it('生产环境不给 SOURCE_ROOT 即报错——镜像里的 config/app.json 不算数', () => {
+    // 旧守卫是 `!cfg.vaultRoot`，而 vaultRoot 会回退到文件里的开发路径，
+    // 报错承诺永远不触发（深审发现）；现在生产必须显式给环境变量
+    expect(() =>
+      loadConfig({ NODE_ENV: 'production', DATA_DIR: '/app/data' } as NodeJS.ProcessEnv)
+    ).toThrow(/SOURCE_ROOT/);
+  });
+
+  it('PORT 非法（NaN / 空串 / 0 / 越界）回退 4317，合法值原样生效', () => {
+    // 旧代码直接 Number() 进 listen：PORT=abc 崩得看不懂，PORT= 变随机端口而白名单还按 0 校验
+    expect(loadConfig({ PORT: 'abc' } as NodeJS.ProcessEnv).port).toBe(4317);
+    expect(loadConfig({ PORT: '' } as NodeJS.ProcessEnv).port).toBe(4317);
+    expect(loadConfig({ PORT: '0' } as NodeJS.ProcessEnv).port).toBe(4317);
+    expect(loadConfig({ PORT: '70000' } as NodeJS.ProcessEnv).port).toBe(4317);
+    expect(loadConfig({ PORT: '5100' } as NodeJS.ProcessEnv).port).toBe(5100);
+  });
+
+  it('EXPORT_AFTER_REFRESH 认 false/0/no/off，其余都算开', () => {
+    for (const v of ['false', '0', 'no', 'OFF', ' off ']) {
+      expect(loadConfig({ EXPORT_AFTER_REFRESH: v } as NodeJS.ProcessEnv).exportAfterRefresh).toBe(false);
+    }
+    expect(loadConfig({ EXPORT_AFTER_REFRESH: 'true' } as NodeJS.ProcessEnv).exportAfterRefresh).toBe(true);
+    expect(loadConfig({} as NodeJS.ProcessEnv).exportAfterRefresh).toBe(true);
   });
 
   it('生产环境两个变量都给全时正常加载', () => {
@@ -35,14 +58,16 @@ describe('loadConfig', () => {
     expect(cfg.backupDir.replace(/\\/g, '/')).toMatch(/\/data\/backups$/);
   });
 
-  it('三个收藏库的排除项与 config/app.json 一致（配置缺失时行为不变差）', () => {
-    const cfg = loadConfig({} as NodeJS.ProcessEnv);
-    const byId = new Map(cfg.collections.map((c) => [c.id, c]));
+  it('内置默认收藏库自带排除项（config/app.json 缺失时行为不变差）', () => {
+    // 此前这个断言走 loadConfig——它会读到真实的 config/app.json，默认值分支一次都没
+    // 执行过，等于假绿（深审发现）。现在直接对 DEFAULT_COLLECTIONS 断言。
+    const byId = new Map(DEFAULT_COLLECTIONS.map((c) => [c.id, c]));
     expect(byId.get('rednote')?.root).toBe('RedNote/Bookmarks');
     const diary = byId.get('diary');
-    // flomo 的首页/导航页不是日记条目：默认值里也必须排除，否则 config/app.json 读不到时会混进来
     expect(diary?.exclude?.some((re) => new RegExp(re).test('flomo-首页.md'))).toBe(true);
     expect(diary?.exclude?.some((re) => new RegExp(re).test('闪念笔记概览.md'))).toBe(true);
+    expect(diary?.exclude?.some((re) => new RegExp(re).test('flomo-xxx-首页.md'))).toBe(true);
+    expect(byId.get('treasures')?.exclude?.some((re) => new RegExp(re).test('MOC.md'))).toBe(true);
   });
 
   it('PUBLIC_ORIGIN 去尾斜杠，EXTRA_ALLOWED_ORIGINS 按逗号切分并丢弃空项', () => {
@@ -56,12 +81,13 @@ describe('loadConfig', () => {
 });
 
 describe('allowedOrigins', () => {
-  const base = { port: 4317, publicOrigin: '', extraAllowedOrigins: [], vaultRoot: '', isProduction: false };
+  // 用真实默认配置当底座（旧写法是 `as never`：参数形状完全不被类型检查）
+  const base = loadConfig({} as NodeJS.ProcessEnv);
 
   it('开发环境包含 vite 开发端口，生产环境不包含', () => {
-    const dev = allowedOrigins({ ...base, vaultRoot: 'Z:/vault', isProduction: false } as never);
+    const dev = allowedOrigins({ ...base, vaultRoot: 'Z:/vault', isProduction: false });
     expect(dev).toContain('http://localhost:5173');
-    const prod = allowedOrigins({ ...base, vaultRoot: '/source', isProduction: true } as never);
+    const prod = allowedOrigins({ ...base, vaultRoot: '/source', isProduction: true });
     expect(prod).not.toContain('http://localhost:5173');
     expect(prod).toContain('http://localhost:4317');
     expect(prod).toContain('http://127.0.0.1:4317');
@@ -73,7 +99,7 @@ describe('allowedOrigins', () => {
       publicOrigin: 'http://192.168.31.246:4317',
       extraAllowedOrigins: ['http://nas.local:4317'],
       isProduction: true,
-    } as never);
+    });
     expect(list).toContain('http://192.168.31.246:4317');
     expect(list).toContain('http://nas.local:4317');
   });

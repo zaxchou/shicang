@@ -30,10 +30,17 @@ import { classifyRednote } from './classify.js';
 import { aiClassifyConfigFromEnv, classifyByAi } from './ai-classify.js';
 import {
   MediaTextService,
+  mediaFileSize,
   mediaHashOf,
   readMediaBytes,
 } from './media-text.js';
-import { aiVisionConfigFromEnv, ocrImage, OCR_IMAGE_MIMES } from './ai-vision.js';
+import {
+  aiVisionConfigFromEnv,
+  ocrImage,
+  OCR_IMAGE_MIMES,
+  MAX_OCR_IMAGE_BYTES,
+  type OcrUsage,
+} from './ai-vision.js';
 import { JsonStore } from '../storage/json-store.js';
 import {
   buildCorpusRecords,
@@ -52,6 +59,11 @@ import {
   AnnotationConflictError,
   AnnotationValidationError,
 } from './annotations.js';
+
+/** 单次 OCR 调用的产物（单飞表里在途共享的就是它） */
+type OcrFlightOutcome =
+  | { ok: true; text: string; model: string; usage: OcrUsage }
+  | { ok: false; reason: string };
 
 interface IndexDoc {
   schemaVersion: number;
@@ -579,9 +591,13 @@ export class LibraryService {
    * 按需识别一篇笔记的图片文字。
    * - 不传 mediaId = 识别这篇里还没有结果的图片（受 maxPerNote 限制）；
    * - 传了就只识别那一张；
-   * - **命中内容 hash 缓存的不再调用模型**，只补一条 ref（同一张图被两篇引用时走这里）。
+   * - **命中内容 hash 缓存的不再调用模型**，只补一条 ref（同一张图被两篇引用时走这里）；
+   * - shouldStop = 客户端断开/主动取消的信号：不再开新的调用，在途的自然收尾。
    */
-  async ocrNote(noteId: string, opts: { mediaId?: string } = {}): Promise<OcrRunResult> {
+  async ocrNote(
+    noteId: string,
+    opts: { mediaId?: string; shouldStop?: () => boolean } = {}
+  ): Promise<OcrRunResult> {
     const r = this.byId.get(noteId);
     if (!r) throw new NotFoundError(`未找到笔记 ${noteId}`);
 
@@ -610,15 +626,34 @@ export class LibraryService {
     }
 
     for (const m of targets) {
+      // 客户端断开/主动取消：不再开新的模型调用（在途的那次会自然结束并落缓存）
+      if (opts.shouldStop?.()) break;
       if (modelBudget <= 0) break;
       const abs = this.resolveMediaAbs(m.localRelativePath!);
       if (!abs) {
         results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体路径越界，已拒绝读取' });
         continue;
       }
-      const bytes = readMediaBytes(abs);
-      if (!bytes) {
+      // 媒体可能在读盘/调用期间随刷新被移出这篇笔记；落盘前都要复核，否则写出孤儿 ref（深审发现）
+      const stillThere = (): boolean => !!this.byId.get(noteId)?.media.some((x) => x.id === m.id);
+      // 先 stat + 文件头嗅探，白名单过了再整读：旧顺序是"无上限同步整读、读完才判类型"，
+      // 一个被登记成图片的大文件（zip、截断文件）会先把内存吃满（深审发现）
+      const size = mediaFileSize(abs);
+      if (size === null) {
         results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体文件读不到' });
+        continue;
+      }
+      if (size === 0) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体文件是空的' });
+        continue;
+      }
+      if (size > MAX_OCR_IMAGE_BYTES) {
+        results.push({
+          mediaId: m.id,
+          ok: false,
+          cached: false,
+          reason: `图片过大（${(size / 1048576).toFixed(1)} MB，上限 10 MB），跳过识别`,
+        });
         continue;
       }
       const mime = sniffImageMime(abs);
@@ -631,39 +666,94 @@ export class LibraryService {
         });
         continue;
       }
+      const bytes = await readMediaBytes(abs, MAX_OCR_IMAGE_BYTES);
+      if (!bytes) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体文件读不到' });
+        continue;
+      }
 
       const hash = mediaHashOf(bytes);
       const cached = this.mediaText.get(hash);
       if (cached) {
-        // 同一份文件以前算过（无论哪篇笔记算的）：只补 ref，不再调模型
-        await this.mediaText.put({ ...cached, refs: [{ noteId, mediaId: m.id }] });
-        results.push({ mediaId: m.id, ok: true, cached: true, text: cached.text });
+        // 同一份文件以前算过（无论哪篇笔记算的）：只补 ref，不再调模型。
+        // putIfPresent 而不是 put：判断与落盘之间用户可能已点删除，别把删掉的复活（深审发现）
+        if (stillThere()) {
+          await this.mediaText.putIfPresent({ ...cached, refs: [{ noteId, mediaId: m.id }] });
+          results.push({ mediaId: m.id, ok: true, cached: true, text: cached.text });
+        } else {
+          results.push({ mediaId: m.id, ok: false, cached: false, reason: '媒体已随刷新移出这篇笔记' });
+        }
         continue;
       }
 
-      const out = await ocrImage(cfg, { bytes, mime });
-      modelBudget--; // 只有真正调用模型才占名额（命中缓存的不花额度）
-      if (!out.ok) {
-        results.push({ mediaId: m.id, ok: false, cached: false, reason: out.reason });
+      // 单飞：同一张图的并发识别共享一次模型调用——第二个请求不再各花一次钱（深审发现双倍花费）
+      const flight = this.ocrFlights.get(hash);
+      if (flight) {
+        const joined = await flight.then(
+          (x) => x,
+          () => ({ ok: false as const, reason: '并发识别中断，请重试' })
+        );
+        if (joined.ok && stillThere()) {
+          const now = this.mediaText.get(hash);
+          if (now) {
+            await this.mediaText.putIfPresent({ ...now, refs: [{ noteId, mediaId: m.id }] });
+            results.push({ mediaId: m.id, ok: true, cached: true, text: now.text });
+            continue;
+          }
+        }
+        results.push({
+          mediaId: m.id,
+          ok: false,
+          cached: true,
+          reason: joined.ok ? '识别结果刚被删除，请重试' : joined.reason,
+        });
         continue;
       }
-      // 同一张图被换过内容时，先把指向这个 mediaId 的**旧结果**摘掉，
-      // 否则新旧两条都挂在同一个 mediaId 上：界面会出现两条"图 N"，数字也对不上。
-      const stale = this.mediaText
-        .forNote(noteId)
-        .some((e) => e.mediaHash !== hash && e.refs.some((r) => r.noteId === noteId && r.mediaId === m.id));
-      if (stale) await this.mediaText.removeRef(noteId, m.id);
 
-      await this.mediaText.put({
-        mediaHash: hash,
-        kind: 'ocr',
-        text: out.text,
-        model: out.model,
-        at: new Date().toISOString(),
-        refs: [{ noteId, mediaId: m.id }],
-        usage: out.usage,
+      modelBudget--; // 只有真正发起调用才占名额（命中缓存/共享在途调用的不花额度）
+      // 单飞的门要等**落盘完成**才开：只等模型的话，"模型已回、缓存还没提交"的窗口里，
+      // 第二个请求缓存未命中、单飞表也已摘除，照样再打一次模型——实测就是这么双倍花费的。
+      let release!: (v: OcrFlightOutcome) => void;
+      const gate = new Promise<OcrFlightOutcome>((r) => {
+        release = r;
       });
-      results.push({ mediaId: m.id, ok: true, cached: false, text: out.text });
+      this.ocrFlights.set(hash, gate);
+      let settled: OcrFlightOutcome = { ok: false, reason: '识别中断，请重试' };
+      try {
+        const out = await ocrImage(cfg, { bytes, mime });
+        settled = out.ok ? { ok: true, text: out.text, model: out.model, usage: out.usage } : { ok: false, reason: out.reason };
+        if (settled.ok) {
+          if (!stillThere()) {
+            settled = { ok: false, reason: '媒体已随刷新移出这篇笔记' };
+          } else {
+            // 同一张图被换过内容时，先把指向这个 mediaId 的**旧结果**摘掉，
+            // 否则新旧两条都挂在同一个 mediaId 上：界面会出现两条"图 N"，数字也对不上。
+            const stale = this.mediaText
+              .forNote(noteId)
+              .some((e) => e.mediaHash !== hash && e.refs.some((r) => r.noteId === noteId && r.mediaId === m.id));
+            if (stale) await this.mediaText.removeRef(noteId, m.id);
+            await this.mediaText.put({
+              mediaHash: hash,
+              kind: 'ocr',
+              text: settled.text,
+              model: settled.model,
+              at: new Date().toISOString(),
+              refs: [{ noteId, mediaId: m.id }],
+              usage: settled.usage,
+            });
+          }
+        }
+      } finally {
+        // 先摘表（新来者会走缓存命中，因为 put 已提交）、再放行等待者；任何一步抛错都要放行
+        this.ocrFlights.delete(hash);
+        release(settled);
+      }
+
+      if (!settled.ok) {
+        results.push({ mediaId: m.id, ok: false, cached: false, reason: settled.reason });
+        continue;
+      }
+      results.push({ mediaId: m.id, ok: true, cached: false, text: settled.text });
     }
 
     const okCount = results.filter((x) => x.ok).length;
@@ -680,6 +770,9 @@ export class LibraryService {
   async clearMediaText(noteId: string, mediaId: string): Promise<boolean> {
     return this.mediaText.removeRef(noteId, mediaId);
   }
+
+  /** 单飞表：同内容 hash 的并发 OCR 共享一次模型调用（键为内容 hash，完成后即摘） */
+  private ocrFlights = new Map<string, Promise<OcrFlightOutcome>>();
 
   /** 识别文本条数（页面诊断/信息展示用） */
   get mediaTextEntryCount(): number {
@@ -708,7 +801,12 @@ export class LibraryService {
       categoryRevision: this.categories.revision,
       annotationRevision: this.annotations.revision,
       mediaTextRevision: this.mediaText.revision,
-      indexStatus: this.job?.state === 'running' ? 'scanning' : this.doc.notes.length > 0 ? 'ready' : 'empty',
+      indexStatus:
+        this.scansPending > 0 || this.job?.state === 'running'
+          ? 'scanning'
+          : this.doc.notes.length > 0
+            ? 'ready'
+            : 'empty',
       diagnostics: [...this.bootDiagnostics, ...this.doc.diagnostics].slice(0, 50),
     };
   }
@@ -868,10 +966,19 @@ export class LibraryService {
   }
 
   /** 扫描并在成功持久化后切换内存索引。initial 模式用于首次启动。所有扫描经 scanChain 串行。 */
+  /** 排队中 + 运行中的扫描数。启动扫描不建 job，此前 indexStatus 全程 'empty'，前端据此判定"不用轮询"，
+   * 扫完也没有任何东西会重拉列表——开机全量重建后界面停在空库（深审发现）。 */
+  private scansPending = 0;
+
   private async runScan(mode: 'initial' | 'refresh', job?: InternalRefreshJob): Promise<void> {
-    const p = this.scanChain.then(() => this.doScan(mode, job));
-    this.scanChain = p.catch(() => undefined);
-    return p;
+    this.scansPending++; // 入链之前就计数：排队中的扫描也算"在忙"，间隙里状态不许闪回 ready
+    try {
+      const p = this.scanChain.then(() => this.doScan(mode, job));
+      this.scanChain = p.catch(() => undefined);
+      return await p;
+    } finally {
+      this.scansPending--;
+    }
   }
 
   /**
@@ -967,6 +1074,9 @@ export class LibraryService {
         job.diagnostics.push(msg);
       }
       log.error(msg);
+      // 首扫/自愈扫失败必须让 init 失败：吞掉的话服务"就绪"而索引是空的，
+      // 用户只看到空库且 diagnostics 里一个字都没有（深审发现）。刷新模式已有 job.diagnostics 兜底。
+      if (!job) throw new Error(msg);
       return;
     }
 

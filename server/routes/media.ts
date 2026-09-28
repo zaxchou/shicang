@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import { sniffImageMime } from '../reader/image-size.js';
+import { log } from '../log.js';
 import type { LibraryService } from '../services/library.js';
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -84,13 +85,25 @@ export function mediaRouter(getLibrary: () => LibraryService): express.Router {
     res.setHeader('Content-Type', contentType);
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('ETag', etag);
-    res.setHeader('Cache-Control', 'public, max-age=86400');
+    // no-cache 而不是 max-age=86400：URL 就是文件名，不含内容 hash——同名文件被换掉后，
+    // 长缓存会让浏览器 24 小时内连条件请求都不发，ETag 形同虚设（改图/换图后一直看旧的）。
+    // no-cache 允许存储但每次回源问一句，命中 304，开销可忽略。
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     // SVG 以文档形式直接打开时可执行脚本；虽然媒体只来自索引登记过的库内文件，仍禁掉脚本
     if (contentType === 'image/svg+xml') {
       res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
     }
     if (req.headers['if-none-match'] === etag) {
       res.status(304).end();
+      return;
+    }
+
+    // 0 字节文件：createReadStream({start:0, end:-1}) 会同步抛 ERR_OUT_OF_RANGE，
+    // 落到最后变成带堆栈的 HTML 500（索引里登记的是 existsSync，空文件照样登记）。如实下发空 body。
+    if (stat.size === 0) {
+      res.setHeader('Content-Length', '0');
+      res.end();
       return;
     }
 
@@ -142,5 +155,16 @@ export function mediaRouter(getLibrary: () => LibraryService): express.Router {
 
   router.get('/:noteId/:mediaId', handler);
   router.head('/:noteId/:mediaId', handler);
+
+  // 兜底：媒体路由的任何错误也必须回 JSON。没有这层时同步抛错会穿过 /api 的错误处理器，
+  // 被 finalhandler 渲染成 HTML 500 并**带完整堆栈**（深审复现过）。
+  router.use(((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    log.warn(`媒体路由错误: ${(err as Error).message}`);
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
+    res.status(500).json({ error: { code: 'MEDIA_READ_FAILED', message: '媒体读取失败' } });
+  }) as express.ErrorRequestHandler);
   return router;
 }

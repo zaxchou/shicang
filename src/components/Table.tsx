@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CollectionInfo, NoteSummary } from '../../shared/types';
 import { shanghaiDate } from '../../shared/time';
 import { IconArchive, IconChevronDown, IconStar } from './Icons';
@@ -117,6 +117,16 @@ export function DataTable({
   const cols = useMemo(() => buildColumns(info), [info]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
 
+  // 全选框的"部分选中"：受控 checkbox 只有 checked，不设 indeterminate 的话
+  // 部分选中显示为未勾选，视觉语义是错的（深审发现）。indeterminate 只能 imperative 设置。
+  const allChecked = notes.length > 0 && notes.every((n) => selected.has(n.id));
+  const someChecked = notes.some((n) => selected.has(n.id));
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (el) el.indeterminate = someChecked && !allChecked;
+  }, [someChecked, allChecked]);
+
   const rows = useMemo(() => {
     if (!sort) return notes;
     const col = cols.find((c) => c.key === sort.key);
@@ -185,9 +195,10 @@ export function DataTable({
           <tr>
             <th className="th-sel">
               <input
+                ref={selectAllRef}
                 type="checkbox"
                 aria-label="全选当前加载的行"
-                checked={notes.length > 0 && notes.every((n) => selected.has(n.id))}
+                checked={allChecked}
                 onChange={(e) => onToggleSelectAll(e.target.checked)}
               />
             </th>

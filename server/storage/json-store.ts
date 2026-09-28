@@ -85,12 +85,14 @@ export class JsonStore<T> {
     try {
       await fsp.rename(tmp, this.filePath);
     } catch (e) {
-      // 某些文件系统 rename 覆盖失败时退化为 copy+replace
+      // 某些文件系统 rename 覆盖失败时退化为 copy+replace。
+      // 无论 copy 成败都要清 tmp：双失败时它会随失败次数累积在数据目录里（深审发现）。
       try {
         await fsp.copyFile(tmp, this.filePath);
-        await fsp.rm(tmp, { force: true }).catch(() => undefined);
       } catch {
         throw new Error(`提交失败: ${(e as Error).message}`);
+      } finally {
+        await fsp.rm(tmp, { force: true }).catch(() => undefined);
       }
     }
   }

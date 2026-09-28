@@ -104,10 +104,14 @@ async function copyToClipboard(text: string): Promise<boolean> {
     ta.style.top = '-1000px';
     ta.style.opacity = '0';
     document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(ta);
-    return ok;
+    try {
+      ta.select();
+      return document.execCommand('copy');
+    } finally {
+      // 中途抛错（超长文本的 select 在个别浏览器会抛）也必须把临时节点摘掉，
+      // 否则几 KB~几十 KB 的识别文本节点永久留在 document.body 上（深审发现）
+      document.body.removeChild(ta);
+    }
   } catch {
     return false;
   }
@@ -182,13 +186,24 @@ export function DetailDialog({
   const closingRef = useRef(false);
 
   /** 先播退出动画，动画结束再真正卸载 */
+  const closeFallbackRef = useRef<number | null>(null);
   const beginClose = useCallback(() => {
     if (closingRef.current) return;
     closingRef.current = true;
     // 立即暂停所有媒体，避免退出动画期间仍有声音
     bodyRef.current?.querySelectorAll('video').forEach((v) => v.pause());
     setClosing(true);
-  }, []);
+    // 关闭完全押注 animationend 不可靠（样式被改、动画被取消、后台标签冻结渲染时它永远不来）：
+    // 那样遮罩、body 锁滚动、keydown 监听会全部永久留在页面上。400ms 兜底强制卸载（深审发现）。
+    closeFallbackRef.current = window.setTimeout(() => onClose(), 400);
+  }, [onClose]);
+
+  useEffect(
+    () => () => {
+      if (closeFallbackRef.current) window.clearTimeout(closeFallbackRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     let alive = true;
@@ -284,7 +299,9 @@ export function DetailDialog({
 
     setOcrProgress(null);
     setOcrRunning(false);
-    const left = pending.length - batch.length;
+    // 还剩多少 = 这批里**没成功**的（失败的 + break 后没跑的）。
+    // 旧算法 pending - batch 在"全部失败"时会算出 0，嘴上说"识别完成"实际一张没成（深审发现）
+    const left = pending.length - okCount;
     const parts = [`识别完成：${okCount} 张`];
     if (cachedCount) parts.push(`${cachedCount} 张用了已有结果`);
     if (failures.length) parts.push(`${failures.length} 张失败（${failures[0]}）`);
@@ -311,11 +328,21 @@ export function DetailDialog({
     setOcrMsg(ok ? '已复制到剪贴板' : '复制失败（这个地址下浏览器不允许），请手动选中文字复制');
   }, []);
 
-  // 打开时聚焦关闭按钮；Esc 关闭
+  // 打开时聚焦关闭按钮（只跑一次：下面的 Esc 监听依赖 menuOpen，别让它顺带抢焦点）
   useEffect(() => {
     closeBtnRef.current?.focus();
+  }, []);
+
+  // Esc 关闭；分类菜单开着时先关菜单——菜单和整个详情一起消失不是常规预期（深审发现）
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') beginClose();
+      if (e.key !== 'Escape') return;
+      if (menuOpen) {
+        e.stopPropagation();
+        setMenuOpen(false);
+        return;
+      }
+      beginClose();
     };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
@@ -323,7 +350,7 @@ export function DetailDialog({
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };
-  }, [beginClose]);
+  }, [beginClose, menuOpen]);
 
   // 远程视频播放失败时给出可理解的反馈（含监听前已失败的情况）
   useEffect(() => {
@@ -331,9 +358,12 @@ export function DetailDialog({
     const root = bodyRef.current;
     if (!root) return;
     const videos = Array.from(root.querySelectorAll('video'));
+    const videoCleanups: Array<() => void> = [];
     for (const v of videos) {
-      v.addEventListener('error', () => setVideoFailed(true));
+      const onVideoErr = () => setVideoFailed(true);
+      v.addEventListener('error', onVideoErr);
       if (v.error) setVideoFailed(true); // error 事件只触发一次，补查已发生的失败
+      videoCleanups.push(() => v.removeEventListener('error', onVideoErr));
     }
     // 正文图片加载失败 → 替换为占位提示
     const imgs = Array.from(root.querySelectorAll<HTMLImageElement>('.detail-article img'));
@@ -352,7 +382,10 @@ export function DetailDialog({
       if (img.complete && img.naturalWidth === 0) onError(); // 已失败的缓存图片不再触发 error
       cleanups.push(() => img.removeEventListener('error', onError));
     }
-    return () => cleanups.forEach((fn) => fn());
+    return () => {
+      cleanups.forEach((fn) => fn());
+      videoCleanups.forEach((fn) => fn());
+    };
   }, [detail]);
 
   // 点击菜单外部关闭
@@ -437,7 +470,10 @@ export function DetailDialog({
         aria-modal="true"
         aria-label={summary.title}
         onAnimationEnd={(e) => {
-          if (closing && e.target === e.currentTarget && e.animationName === 'detailOut') onClose();
+          if (closing && e.target === e.currentTarget && e.animationName === 'detailOut') {
+            if (closeFallbackRef.current) window.clearTimeout(closeFallbackRef.current);
+            onClose();
+          }
         }}
       >
         <div className="detail-header">
@@ -725,6 +761,8 @@ export function DetailDialog({
                                     type="button"
                                     className="link-clear"
                                     onClick={() => void dropMediaText(t.mediaId)}
+                                    disabled={ocrRunning}
+                                    title={ocrRunning ? '识别进行中，结束后才能重来' : '删掉这条识别结果，重新识别'}
                                   >
                                     重来
                                   </button>

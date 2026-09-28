@@ -17,6 +17,12 @@ if (-not $Version) {
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
   Write-Error "版本号必须是 x.y.z 形式（收到：$Version）"
 }
+# -Version 必须与 package.json 一致：nas-update.sh 的健康检查要求 health.version == 目录版本，
+# 不一致要等容器**已经重建完**才报错——线上镜像 tag 与程序自报版本分裂，卡在"脚本失败、容器已换"的中间态
+$pkgVersion = (Get-Content "$projectRoot\package.json" -Raw | ConvertFrom-Json).version
+if ($Version -ne $pkgVersion) {
+  Write-Error "-Version $Version 与 package.json（$pkgVersion）不一致，已中止；先改 package.json，或去掉 -Version 用默认值"
+}
 $relDir = Join-Path $projectRoot "releases\$Version"
 if (Test-Path $relDir) {
   Write-Error "releases\$Version 已存在，先删除或换版本号"
@@ -42,8 +48,11 @@ if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging | Out-Null
 
 Get-ChildItem $projectRoot | Where-Object {
-  ($_.PsIsContainer -and $excludeDirs -notcontains $_.Name) -or
-  (-not $_.PsIsContainer -and $excludeFiles -notcontains $_.Name)
+  # 根目录任何 .env* 都不进发布包（.gitignore 允许"任何位置的 .env"，这里防的是将来有人放根目录）
+  ($_.Name -notlike '.env*') -and (
+    ($_.PsIsContainer -and $excludeDirs -notcontains $_.Name) -or
+    (-not $_.PsIsContainer -and $excludeFiles -notcontains $_.Name)
+  )
 } | ForEach-Object {
   Copy-Item $_.FullName -Destination (Join-Path $staging $_.Name) -Recurse
 }
@@ -54,13 +63,11 @@ if (Test-Path "$staging\deploy\production") { Remove-Item "$staging\deploy\produ
 # Dockerfile 复制到发布包根（compose/docker build 的上下文 = 发布包根目录）
 Copy-Item "$projectRoot\deploy\Dockerfile" "$staging\Dockerfile"
 
-# 构建上下文瘦身：docs（含截图）与 tests 都不被 Dockerfile 引用，但会被整包传给 docker daemon
-@'
-docs
-tests
-plan.md
-manifest.json
-'@ | Set-Content (Join-Path $staging '.dockerignore') -Encoding UTF8
+# 构建上下文瘦身：docs（含截图）与 tests 都不被 Dockerfile 引用，但会被整包传给 docker daemon。
+# 不能用 Set-Content -Encoding UTF8：PS 5.1 写 BOM + CRLF，首行模式被 \ufeff 污染后匹配不上 docs，
+# 18MB 截图照进构建上下文（与 manifest.json 是同一个 BOM 坑，见下方注释）
+$dockerIgnore = "docs`ntests`nplan.md`nmanifest.json`n.env*`n"
+[System.IO.File]::WriteAllText((Join-Path $staging '.dockerignore'), $dockerIgnore, (New-Object System.Text.UTF8Encoding($false)))
 
 # 顺带放入部署脚本的可执行位说明文件（NAS 侧按 README 操作）
 $manifest = [ordered]@{

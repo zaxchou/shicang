@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { classifyRednote, REDNOTE_CATEGORIES } from '../server/services/classify.js';
-import { parseAiCategory } from '../server/services/ai-classify.js';
+import { classifyByAi, parseAiCategory, type AiClassifyConfig } from '../server/services/ai-classify.js';
 import { CategoriesService } from '../server/services/categories.js';
 
 const VALID = new Set(REDNOTE_CATEGORIES.map((c) => c.id));
@@ -123,5 +123,52 @@ describe('刷新时的批量补分类（ensureClassified）', () => {
     const reloaded = new CategoriesService(dir, path.join(dir, 'bak'));
     await reloaded.init(null);
     expect(reloaded.effective('n-1').categoryId).toBe('maker-digital');
+  });
+});
+
+// ---------- classifyByAi 的请求形态与失败路径 ----------
+// 此前 classifyByAi 零直接测试：mock 只数调用次数，把 thinking:{type:'disabled'} 删掉
+// 测试照样全绿，而生产上 AI 兜底会静默退化成"永远返回 null"（深审发现）。
+describe('classifyByAi：请求形态与失败翻译', () => {
+  const cfg: AiClassifyConfig = {
+    apiKey: 'k',
+    baseUrl: 'https://classify.example/v1',
+    model: 'm',
+    timeoutMs: 5000,
+    maxPerRefresh: 40,
+  };
+  const input = { title: '深夜喝茶', tags: ['茶生活'], excerpt: '摘要' };
+
+  it('打 /chat/completions、带 Bearer、关思考、限制输出长度', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const stub = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"categoryId":"life","reason":"茶"}' } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    const hit = await classifyByAi(cfg, input, new Set(['life']), stub);
+    expect(hit?.categoryId).toBe('life');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe('https://classify.example/v1/chat/completions');
+    const body = JSON.parse(String(calls[0]!.init.body)) as Record<string, unknown>;
+    expect(body.model).toBe('m');
+    // 不关思考的话 max_tokens 会被推理过程吃光（ai-classify.ts 注释里记着的实测教训）
+    expect(body.thinking).toEqual({ type: 'disabled' });
+    expect(body.max_tokens).toBe(300);
+    expect(new Headers(calls[0]!.init.headers).get('Authorization')).toBe('Bearer k');
+  });
+
+  it('HTTP 401 / 网络抛错 / 响应非 JSON 都返回 null（刷新不被 AI 卡死）', async () => {
+    const bad401 = (async () => new Response('denied', { status: 401 })) as typeof fetch;
+    expect(await classifyByAi(cfg, input, new Set(), bad401)).toBeNull();
+    const netErr = (async () => {
+      throw new TypeError('fetch failed');
+    }) as typeof fetch;
+    expect(await classifyByAi(cfg, input, new Set(), netErr)).toBeNull();
+    const notJson = (async () => new Response('oops', { status: 200 })) as typeof fetch;
+    expect(await classifyByAi(cfg, input, new Set(), notJson)).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import path from 'node:path';
 import express from 'express';
 import http from 'node:http';
 import { apiRouter } from '../server/routes/api';
+import { mediaRouter } from '../server/routes/media';
 import type { AppConfig } from '../server/config';
 import { AnnotationsService } from '../server/services/annotations';
 import { CategoriesService } from '../server/services/categories';
@@ -435,17 +436,20 @@ describe('vault 边界守卫（含 realpath）', () => {
     expect(() => assertOutsideVault(path.join(vault, '..', 'outside'), vault)).not.toThrow();
   });
 
-  it('软链接指向 vault 内部时也要拦住（纯词法比较拦不住）', () => {
+  it('软链接指向 vault 内部时也要拦住（纯词法比较拦不住）', ({ skip }) => {
     const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-real-'));
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'));
     const link = path.join(outside, 'link-into-vault');
+    // 词法判定无论如何都成立，不依赖建链——先把这条钉死
+    expect(isInsideDir(link, vault)).toBe(false);
     try {
       fs.symlinkSync(vault, link, 'junction'); // Windows 上 junction 不需要管理员权限
     } catch {
-      return; // 环境不支持建链接（例如无权限）：跳过这条，不假装通过
+      // 环境不支持建链接：**可见的跳过**，而不是 return 假装通过（深审发现的假绿）
+      skip('环境不支持创建链接，realpath 分支本次未验证');
+      return;
     }
     // 词法上看 link 在 vault 外面，但 realpath 后落在 vault 里
-    expect(isInsideDir(link, vault)).toBe(false);
     expect(() => assertOutsideVault(link, vault)).toThrow(/落在内容源里/);
   });
 });
@@ -466,6 +470,7 @@ describe('HTTP：识别文本路由的边界', () => {
     await waitForJob(svc, svc.startRefresh().jobId);
     const app = express();
     app.use(express.json({ limit: '64kb' }));
+    app.use('/api/media', mediaRouter(() => svc)); // 与 index.ts 同序：媒体路由在 api 之前
     app.use('/api', apiRouter({ library: () => svc, allowedOrigins: () => [], isReady: () => true }));
     server = http.createServer(app);
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -500,5 +505,87 @@ describe('HTTP：识别文本路由的边界', () => {
     } finally {
       await new Promise<void>((r) => s2.close(() => r()));
     }
+  });
+
+  it('0 字节媒体：如实下发空 body，而不是 createReadStream 同步抛错变成带堆栈的 HTML 500', async () => {
+    fs.writeFileSync(path.join(fx.sourceRoot, 'Media', 'id-0001', 'image-1.webp'), '');
+    const res = await fetch(`${base}/api/media/id-0001/image-1.webp`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/webp');
+    expect((await res.arrayBuffer()).byteLength).toBe(0);
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+
+  it('初始化完成前：变更类请求 503 NOT_READY，GET 照常放行（防与 init 交叉写）', async () => {
+    const app2 = express();
+    app2.use(express.json({ limit: '64kb' }));
+    app2.use('/api', apiRouter({ library: () => svc, allowedOrigins: () => [], isReady: () => false }));
+    const s2 = http.createServer(app2);
+    await new Promise<void>((r) => s2.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${(s2.address() as { port: number }).port}`;
+    try {
+      const get = await fetch(`${url}/api/notes?limit=1`);
+      expect(get.status).toBe(200);
+      const patch = await fetch(`${url}/api/notes/id-0001/annotation`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ star: true }),
+      });
+      expect(patch.status).toBe(503);
+      expect(((await patch.json()) as any).error.code).toBe('NOT_READY');
+    } finally {
+      await new Promise<void>((r) => s2.close(() => r()));
+    }
+  });
+
+  it('改状态/备注不带 expectedRevision → 400（API 层强制乐观并发）；星标仍可省', async () => {
+    const noRev = await fetch(`${base}/api/notes/id-0001/annotation`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'archived' }),
+    });
+    expect(noRev.status).toBe(400);
+    const star = await fetch(`${base}/api/notes/id-0001/annotation`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ star: true }),
+    });
+    expect(star.status).toBe(200);
+  });
+});
+
+describe('media-text：putIfPresent 不复活已删除的条目', () => {
+  it('删掉之后补 ref 返回 changed:false，条目保持删除态', async () => {
+    const { dataDir, backupDir } = tmpBase('pp-');
+    const svc = new MediaTextService(dataDir, backupDir);
+    await svc.init();
+    const hash = 'h'.repeat(64);
+    await svc.put({ mediaHash: hash, kind: 'ocr', text: '字', model: 'm', at: 't', refs: [{ noteId: 'n1', mediaId: 'i1' }] });
+    expect(await svc.removeRef('n1', 'i1')).toBe(true);
+    const res = await svc.putIfPresent({ mediaHash: hash, kind: 'ocr', text: '字', model: 'm', at: 't', refs: [{ noteId: 'n2', mediaId: 'i2' }] });
+    expect(res.changed).toBe(false);
+    expect(svc.get(hash)).toBeNull();
+  });
+});
+
+describe('标注：__proto__ 这种键必须落成自己的属性', () => {
+  it('patch 特殊 id 后能写进 JSON，重载后再改别的也不会把它挤掉', async () => {
+    const { dataDir, backupDir } = tmpBase('proto-');
+    const ann = new AnnotationsService(dataDir, backupDir);
+    await ann.init();
+    await ann.patch('__proto__', { star: true });
+    const raw1 = JSON.parse(fs.readFileSync(path.join(dataDir, 'annotations.json'), 'utf8')) as {
+      entries: Record<string, unknown>;
+    };
+    expect(Object.hasOwn(raw1.entries, '__proto__')).toBe(true);
+
+    const again = new AnnotationsService(dataDir, backupDir);
+    await again.init();
+    await again.patch('other-note', { star: true });
+    const raw2 = JSON.parse(fs.readFileSync(path.join(dataDir, 'annotations.json'), 'utf8')) as {
+      entries: Record<string, unknown>;
+    };
+    expect(Object.hasOwn(raw2.entries, '__proto__')).toBe(true);
+    expect(Object.hasOwn(raw2.entries, 'other-note')).toBe(true);
   });
 });

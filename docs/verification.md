@@ -862,8 +862,8 @@ manifest 增加 `digest`（整条记录的摘要）作为"要不要重写"的判
 一次改坏 5 处 → **11 条失败**，每条都能对上：过滤掉归档/missing（`['a']` vs `['a','b','c']`、行数 4→2）、
 关掉 vault 断言（两处「落在内容源里」不再抛错）、`contentDigest` 掺进时间戳（跳过写入失效 ×2）、
 把实体解码挪到剥标签之前（`&` 丢失、`&lt;p&gt;` 字面量被吃掉）、把标注来源换成常量
-（语料里的标星/归档/备注全空、目录里的 ★ 消失）。恢复后 172 条全绿，
-且**真实数据的 `contentDigest` 与改坏前完全一致**（`ac2c68965379…`）——实现是逐字节回到原样的。
+（语料里的标星/归档/备注全空、目录里的 ★ 消失）。恢复后全部用例回到全绿（该轮结束时共 174 条，
+证伪当时先落在此前的 172 条上），且**真实数据的 `contentDigest` 与改坏前完全一致**（`ac2c68965379…`）——实现是逐字节回到原样的。
 
 ### 浏览器实测（1440×900，明暗两主题）
 
@@ -1229,3 +1229,106 @@ mock 有两个坑：① 刷新后的自动分类也走 `/chat/completions`（但
 - **只读边界**：`source-hash.mjs --check` → 4222 个文件 `added 0 / removed 0 / changed 0`；
   `annotationRevision` 全程 **45**（用户自己标星/归档的两条没被碰过）。
 - 语料导出仍正常（1205 篇 / 182ms）；`contentDigest` 因新增识别文本而变化——这正是设计要的增量信号。
+
+## 第四轮深度审查（2026-09-28 深夜 → 09-29 凌晨，v0.10.0 之后）
+
+用户指令「再 review 一遍然后做语音转录」。仍是五路并行只读审查（服务端并发与状态 / OCR 管线与
+HTTP 安全 / 前端状态与交互 / 测试套件质量 / 配置构建部署文档），报告收齐后逐条复核再修。
+这一轮的特点是**审查员互相补位**：并发审查员盯住了"读-判-写"的残余窗口，管线审查员实测复现了
+0 字节媒体的 HTML 500 堆栈，测试审查员抓出了三处假绿，部署审查员发现了**生产容器里语料导出必然失败**。
+
+### 修掉的（按域）
+
+**服务端**
+- **生产语料导出必然 EACCES**：`exportDir` 默认 `dataDir/../export` = 容器内 `/app/export`（/app 归 root，
+  非 root 用户建不了），而 compose 的 `environment` 是**白名单**——`.env` 里写了 `EXPORT_DIR` 也进不了容器。
+  两份 compose 固定 `EXPORT_DIR: /app/data/export`（在挂载卷内、vault 外），并补上
+  `EXPORT_AFTER_REFRESH` 与 `AI_VISION_MODEL / AI_OCR_* / AI_ASR_*` 的透传；`.env.example` 同步列出。
+- **0 字节媒体把整个响应变成带堆栈的 HTML 500**（实测复现）：`createReadStream({start:0,end:-1})`
+  同步抛 `ERR_OUT_OF_RANGE`，mediaRouter 没有错误处理器，穿到 finalhandler。改为如实下发
+  `Content-Length: 0`，并给 mediaRouter 加 JSON 错误兜底 + `nosniff`；`Cache-Control` 从 `max-age=86400`
+  改 `no-cache`（URL 不含内容 hash，长缓存让 ETag 形同虚设，改图 24 小时看不到）。
+- **OCR 读盘顺序与体量**：旧顺序「无上限同步整读 → 读完才嗅探」——登记成图片的 zip/大文件先吃满内存。
+  改为 stat → 空/超 10MB 给理由跳过 → 文件头嗅探过白名单 → 异步整读（`readMediaBytes` 改 async + maxBytes）。
+- **OCR 并发双倍花钱**：同图并发两个请求都 miss 各调一次模型。加**单飞表**；并且单飞的门要等
+  **落盘完成**才开——第一版只等模型，实测在"模型已回、缓存未提交"的窗口里照样双倍（新测试抓到后改的）。
+  同时「命中缓存补 ref」换成 `putIfPresent`（用户刚点删除不被在途请求复活），落盘前复核媒体仍在
+  （刷新可能把 mediaId 摘走，避免写孤儿 ref）。
+- **OCR 可取消**：`res.on('close')` → `shouldStop`，关窗/断开后不再开新调用（在途的自然收尾落缓存）。
+- **启动窗口写入**：`listen()` 先于 `init()`，seed 导入的 await 间隙到达的写请求会与 init 的 load 交叉
+  （内存/磁盘分叉甚至覆盖旧数据）。API 现在对**变更类请求**在 `ready` 前回 503 `NOT_READY`（GET 放行）。
+- **启动扫描全程不可见**：`runScan('initial')` 不建 job → `indexStatus` 恒为 `empty`，前端判定"不用轮询"，
+  开机全量重建后界面停在空库。加 `scansPending` 计数 → 扫描期间状态为 `scanning`；首扫持久化失败改为
+  **让 init 失败**（旧代码吞掉，服务"就绪"而索引是空的且无诊断）。
+- **`__proto__` 键的标注写不进 JSON**：`entries[noteId] = …` 走原型 setter。三处写点改 null 原型副本 /
+  计算属性；新测试证明 patch `__proto__` 后 JSON 里是自有属性且重载再写不丢。
+- **`patchAnnotationSchema` 强制乐观并发**：改状态/备注不带 `expectedRevision` 现在 400（旧代码放行，
+  裸调用方可绕过冲突检测；星标保持幂等可省）。`GET /tags` 补上参数校验。
+- `normalizeOcrText`：`\r` 归一、剥 C0/C1 控制字符（终端转义注入）、50k 长度上限（网关异常时无界）。
+- 配置纪律：`PORT` 非法回退 4317（NaN/空串/0/越界不再把 listen 弄崩或变随机端口）；
+  生产**必须显式**给 `SOURCE_ROOT`（旧守卫会被镜像里的 config/app.json 顶掉）；
+  `EXPORT_AFTER_REFRESH` 认 `false/0/no/off`；`AI_*` 空串视为未配（`||` 而非 `??`）；
+  `positiveInt` 上钳 2^31-1（setTimeout 溢出会 1ms 秒超时）；分类默认模型统一 `mimo-v2.6-flash`。
+- 原子写回退路径（json-store 与 corpus 同型）：rename 失败退 copyFile 时**双失败也清 tmp**（旧代码会累积）。
+
+**前端**
+- 切作用域只清列表、**不作废在途请求**：旧响应回灌把旧卡片灌进新标题下 → `beginScopeChange` 里 `seqRef++`。
+- **详情归档双写**：详情自己写完盘，App 侧又发一次 PATCH（幂等空转，但网络一抖报假错误、夹缝里撞 409）。
+  `onStatusChanged` 改为纯本地同步 + 撤销 toast，浏览器实测一次归档**只发 1 个 PATCH**。
+- **启动扫描完成后没人重拉列表**：轮询只在 `scanning` 时进行，而启动扫描压根不报 `scanning`（服务端已修）；
+  前端配套——`empty/scanning/出错`都轮询（150 次上限防真空库永远 2s 一次），**非 ready → ready 的
+  转换触发 `reload() + loadTags()`**。
+- **选择集漏 `activeTag` + 无交集兜底**：标签间切换/行内归档后批量条显示"已选 N 条"却打在看不见的行上
+  → 清空 effect 补依赖，另加"按当前列表求交集"的兜底（实测行内归档后 2 → 1）。
+- `loadLibrary` 加请求序号（轮询与写后刷新并发时旧快照会把 revision 顶回去 → 下一次写莫名 409）。
+- 刷新状态轮询单次失败不再放弃（连挂 3 次才停，中途恢复继续——旧代码一次失败就没人重拉列表）。
+- 小修集：标签目录里 `loadAll` 短路（不再白拉 1000 条）；复制失败路径用 try/finally 摘掉临时 textarea；
+  详情关闭加 400ms 兜底卸载（animationend 不来时遮罩/滚动锁/监听全留页面）；分类菜单开着 Esc 先关菜单
+  （不再连详情一起关）；识别「重来」运行中禁用；识别完成文案的"还剩 N 张"按**没成功**的算（旧算法全失败
+  时报 0）；video error 监听进 cleanups；表格全选框补 `indeterminate`（部分选中显示为未勾选是错的）。
+
+**测试（219 → 234）**
+- 三处假绿修掉：默认集合断言改直读 `DEFAULT_COLLECTIONS`（旧测试读真实 config/app.json，默认值分支
+  从未执行）；symlink 用例改 `ctx.skip()`（旧代码 `catch{return}` 是**静默绿**）；`classifyByAi` 补请求形态
+  断言（`thinking:{type:'disabled'}` 被删也测不出来的裸 mock）。
+- `vitest.config`：`testTimeout/hookTimeout 30s`（旧 5s 会先杀掉 5–10s 的 waitForJob，报错误导排障）+
+  `unstubGlobals/unstubEnvs`（漏写 afterEach 不再静默泄漏）；time.test 钉死时钟（上海午夜跨天必红）；
+  corpus.test 的 `require` 改 import；`as never` 改真实配置底座。
+- 新增回归 15 条：0 字节媒体 / 503 门 / 400 refine / putIfPresent 不复活 / `__proto__` 落盘 /
+  OCR 单飞（1 次调用）/ shouldStop / 超大图与空文件 / 5xx 与网络错误翻译 / classify 失败三态 /
+  corpus 原子写中断（目录占位）/ PORT·SOURCE_ROOT·EXPORT_AFTER_REFRESH 配置 / 内置默认排除项。
+- 配置、单飞、shouldStop 这些都有"先红后绿"的过程：并发双倍花费与体积防护的首版测试都真的红过。
+
+**文档与部署链**
+- plan.md 头部状态块整块重写（旧的还停在"§18.2/§18.3 未实现"）；§18.3 的 manifest 描述纠正为
+  三个 revision + 三个 digest；verification 里 v0.8.0 节 174/172 的自相矛盾补了说明。
+- README：导出 CLI 的 NAS 说法纠正（容器内 `tsx` 不存在，应为 `node dist/scripts/export-corpus.js`）；
+  删掉无效的"时区"配置说法；部署节标注**线上仍 v0.6.2、v0.7+ 未部署**。
+- `release.ps1`：`.dockerignore` 不再走 `Set-Content -Encoding UTF8`（PS5.1 的 BOM 让首行 `docs` 失效，
+  18MB 截图进构建上下文）；`-Version` 与 package.json 不一致**打包即失败**（旧代码要等容器重建完
+  才在健康检查上报错）；根目录 `.env*` 永不进发布包。
+- `package-lock.json` 版本字段 0.5.0 → 0.10.0（依赖本身一直同步，只是版本字段没人刷）。
+
+### 已记录但本轮不改（与前两轮同一份名单，新增几条）
+
+- 局域网无鉴权（等用户拍板最小方案）；搜索 `terms` 不截断 + remark/OCR 小写缓存（性能，量级不到）；
+- media-text 每写一次整份序列化+回读（NAS 上有感但改 debounce 需重排队列语义）；
+- copyFile 回退仍非原子（失败可能留半截文件，靠备份轮换恢复）；启动 init 与首请求的微秒级窗口、
+  `scan.ts` 的用户正则不容错、OCR 的 `resolveMediaAbs` 仍是词法检查（media 路由 realpath 决策的第二处
+  调用点，要改两处一起改）、`ensureClassified` 隐式单写方、队列无超时、备份仅 5 代；
+- 前端：标星乐观值与在途 reload 的窄竞态（需脏字段合并，暂缓）、`cardElsRef` 死状态、
+  NoteCard `role=button` 嵌套按钮与 Toolbar tabs 的 ARIA 降级（改组件结构，另开）。
+
+### 验收
+
+- `npm run typecheck` 三套 tsconfig **0 错**；`npx vitest run` **234/234 全绿**（15 文件，~50s）；
+  `npm run build` 通过；两份 compose 仅注释一行之差（diff 核对）。
+- 浏览器（重建 dist + 重启 4399 预览）七项：详情归档只发 **1 个 PATCH**；撤销 toast 出现且生效；
+  关闭后 `body.overflow` 复原；表格 1/2 勾选时全选框 `indeterminate=true`；行内归档后批量条 2→1 且行
+  605→604；分类菜单 Esc 只关菜单、再按才关详情；切分类立即 0 卡 + 骨架 → 1.3s 后 120 卡。
+- 会话内用真实数据做的归档操作已全部**还原**（`6ab49468` 取回，归档视图回到原有 1 条）。
+- **只读边界**：`source-hash.mjs --check` 这次不是 0——`4224 / added 3 / removed 1 / changed 4`，
+  全部指向**用户正在用 Obsidian**：新增的 flomo 日记 `mtime = 09-29 00:28`（正是本轮跑测试的时间）、
+  一条新语音附件、一条新宝贝笔记、四个收藏品索引被 Obsidian 重算。拾藏侧没有任何 vault 写路径
+  （索引/标注/语料/识别文本分别落在 `.local/data`、`.local/export`），逐项核对无应用侧写入。
+

@@ -218,6 +218,26 @@ export class MediaTextService {
     });
   }
 
+  /**
+   * 同 put，但**条目已经不在了就不复活**。
+   * 用在"命中缓存补 ref"的路径：get() 判缓存之后有 await，用户可能正好点了「删除识别结果」——
+   * 直接 put 会把刚删掉的条目原样写回来（深审发现的复活竞态）。
+   */
+  async putIfPresent(entry: MediaTextEntry): Promise<{ changed: boolean; revision: number }> {
+    return this.enqueue(async () => {
+      const prev = this.doc.entries[entry.mediaHash];
+      if (!prev) return { changed: false, revision: this.doc.revision };
+      const missing = entry.refs.filter(
+        (r) => !prev.refs.some((x) => x.noteId === r.noteId && x.mediaId === r.mediaId)
+      );
+      if (missing.length === 0) return { changed: false, revision: this.doc.revision };
+      const entries = { ...this.doc.entries };
+      entries[entry.mediaHash] = { ...prev, refs: [...prev.refs, ...missing] };
+      await this.commit(entries);
+      return { changed: true, revision: this.doc.revision };
+    });
+  }
+
   /** 删掉一条（识别错了想重来）；不存在则不动 */
   async remove(mediaHash: string): Promise<boolean> {
     return this.enqueue(async () => {
@@ -290,11 +310,26 @@ export function mediaTextFile(dataDir: string): string {
   return path.join(dataDir, 'media-text.json');
 }
 
-/** 同步读一份媒体的字节（供内容 hash 与 base64）；读不到返回 null */
-export function readMediaBytes(absPath: string): Buffer | null {
+/** 文件大小（供调用方**整读之前**先做体积判断）；不存在/非常规文件返回 null */
+export function mediaFileSize(absPath: string): number | null {
   try {
-    if (!fs.statSync(absPath).isFile()) return null;
-    return fs.readFileSync(absPath);
+    const st = fs.statSync(absPath);
+    return st.isFile() ? st.size : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 异步读一份媒体的字节（供内容 hash 与 base64）；读不到返回 null。
+ * 异步 + maxBytes：深审发现旧版是"无上限同步整读、读完才判类型"——一个大文件就能卡住事件循环。
+ */
+export async function readMediaBytes(absPath: string, maxBytes?: number): Promise<Buffer | null> {
+  try {
+    const st = await fs.promises.stat(absPath);
+    if (!st.isFile()) return null;
+    if (maxBytes !== undefined && st.size > maxBytes) return null;
+    return await fs.promises.readFile(absPath);
   } catch {
     return null;
   }

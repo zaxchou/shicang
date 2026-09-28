@@ -307,6 +307,20 @@ describe('ai-vision：调用形态与失败翻译', () => {
     if (!timedOut.ok) expect(timedOut.reason).toMatch(/超时/);
   });
 
+  it('HTTP 5xx 与网络抛错也说人话（这两条分支此前零覆盖）', async () => {
+    stubVision({ status: 500, raw: 'boom' });
+    const r1 = await ocrImage(cfg, { bytes: Buffer.from('x'), mime: 'image/webp' });
+    expect(r1.ok).toBe(false);
+    if (!r1.ok) expect(r1.reason).toMatch(/HTTP 500/);
+
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    }));
+    const r2 = await ocrImage(cfg, { bytes: Buffer.from('x'), mime: 'image/webp' });
+    expect(r2.ok).toBe(false);
+    if (!r2.ok) expect(r2.reason).toMatch(/请求失败/);
+  });
+
   it('归一化模型输出：<br> 变真换行、剥掉 HTML 标签、还原实体（实测模型就是这么吐的）', () => {
     // 真实输出长这样：表格单元格里用 <br> 表示换行，直接展示、搜索、导出都会带上字面量标签
     const raw = '| 黄芳<br>《没骨花鸟》<br>7.15-7.29上午 | 鲁大东<br>《草法》 |\n| --- | --- |';
@@ -326,6 +340,14 @@ describe('ai-vision：调用形态与失败翻译', () => {
     expect(normalizeOcrText('若 a < b 则成立')).toBe('若 a < b 则成立');
     // 多余空行压掉、首尾空白去掉
     expect(normalizeOcrText('\n\n甲乙\n\n\n\n丙\n')).toBe('甲乙\n\n丙');
+
+    // \r 归一（行尾残留 \r 会混进导出与搜索）、控制字符剥离（终端转义注入）、长度上限（第四轮深审）
+    expect(normalizeOcrText('甲\r\n乙\r丙')).toBe('甲\n乙\n丙');
+    const bell = String.fromCharCode(7); // BEL
+    const esc = String.fromCharCode(27); // ESC（ANSI 转义序列开头）
+    const nul = String.fromCharCode(0);
+    expect(normalizeOcrText(`含${bell}铃${esc}[31m红${nul}零`)).toBe('含铃[31m红零');
+    expect(normalizeOcrText('x'.repeat(60_000))).toHaveLength(50_000);
   });
 
   it('「无文字」是有效结论（库里有大量纯图），不是失败', () => {
@@ -621,5 +643,64 @@ describe('HTTP：识别文本路由', () => {
     });
     expect(bad.status).toBe(400);
     expect((await bad.json() as any).error.code).toBe('INVALID_OCR_TARGET');
+  });
+});
+
+// ---------- 第四轮深审：单飞 / 取消 / 体积防护 ----------
+
+describe('ocrNote：并发只调一次、取消不再发、体积先过闸', () => {
+  beforeEach(() => {
+    vi.stubEnv('AI_CLASSIFY_API_KEY', 'test-key');
+    vi.stubEnv('AI_VISION_MODEL', 'vision-test');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  async function boot(fx: Fixture, images: number): Promise<LibraryService> {
+    fx.writeNote({ id: 'id-0001', title: '笔记一', images });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await waitForJob(svc, svc.startRefresh().jobId);
+    return svc;
+  }
+
+  it('同一张图的并发识别只调一次模型（第二个请求共享在途调用，不各花一次钱）', async () => {
+    const fx = createFixture('ocr-flight-');
+    const svc = await boot(fx, 1);
+    const { calls } = stubVision({ text: '并发共享的字' });
+    const [a, b] = await Promise.all([svc.ocrNote('id-0001'), svc.ocrNote('id-0001')]);
+    expect(calls).toHaveLength(1);
+    expect(a.results.every((r) => r.ok)).toBe(true);
+    expect(b.results.every((r) => r.ok)).toBe(true);
+    expect(svc.mediaTextFor('id-0001')).toHaveLength(1);
+  });
+
+  it('shouldStop 为真后不再发下一次请求（关窗/断开后不再烧钱），remaining 是没跑的张数', async () => {
+    const fx = createFixture('ocr-stop-');
+    const svc = await boot(fx, 3);
+    const { calls } = stubVision({ text: '字' });
+    const out = await svc.ocrNote('id-0001', { shouldStop: () => calls.length >= 1 });
+    expect(calls).toHaveLength(1);
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0]).toMatchObject({ ok: true });
+    expect(out.remaining).toBe(2);
+  });
+
+  it('超大图与空文件给出理由且一次模型都不调（先 stat 后读盘，不再无上限整读）', async () => {
+    const fx = createFixture('ocr-size-');
+    // 先正常建库（写两份小图），再把文件换成坏的——ocrNote 读的是当前盘上的字节
+    const svc = await boot(fx, 2);
+    fs.writeFileSync(path.join(fx.sourceRoot, 'Media', 'id-0001', 'image-1.webp'), Buffer.alloc(10 * 1024 * 1024 + 1, 1));
+    fs.writeFileSync(path.join(fx.sourceRoot, 'Media', 'id-0001', 'image-2.webp'), '');
+    const { calls } = stubVision({ text: '不该被调用' });
+    const out = await svc.ocrNote('id-0001');
+    expect(calls).toHaveLength(0);
+    expect(out.results).toHaveLength(2);
+    const reasons = out.results.map((r) => r.reason ?? '');
+    expect(reasons.some((s) => s.includes('图片过大'))).toBe(true);
+    expect(reasons.some((s) => s.includes('空'))).toBe(true);
+    expect(out.remaining).toBe(2);
   });
 });

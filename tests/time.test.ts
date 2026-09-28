@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   customRangeMs,
   formatShanghai,
@@ -24,19 +24,33 @@ describe('上海时区边界', () => {
   });
 
   it('最近 7 天：起点是今天往前 6 天的 00:00，终点是明日 00:00（不只是跨度对）', () => {
-    const [s, e] = lastNDaysRangeMs(7);
-    expect(e - s).toBe(7 * 24 * 3600 * 1000);
-    // 整体偏移一天的实现也能满足"跨度 = 7 天"，所以必须锚定到今天
-    const todayStart = shanghaiDayStartMs(todayShanghai())!;
-    expect(e).toBe(todayStart + 24 * 3600 * 1000);
-    expect(s).toBe(todayStart - 6 * 24 * 3600 * 1000);
+    // 钉死时钟：断言锚定"今天"，两处各取一次 todayShanghai 会在上海午夜跨天时必红（深审发现）
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T08:00:00+08:00'));
+    try {
+      const [s, e] = lastNDaysRangeMs(7);
+      expect(e - s).toBe(7 * 24 * 3600 * 1000);
+      // 2026-06-04 00:00 +08 → 06-03T16:00Z；2026-06-11 00:00 +08 → 06-10T16:00Z
+      expect(s).toBe(Date.UTC(2026, 5, 3, 16));
+      expect(e).toBe(Date.UTC(2026, 5, 10, 16));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('往前推 N 天的上海日历日（前端预填自定义范围用）', () => {
-    const today = todayShanghai();
-    expect(shanghaiDateDaysAgo(0)).toBe(today);
-    const back = shanghaiDateDaysAgo(6);
-    expect(shanghaiDayStartMs(today)! - shanghaiDayStartMs(back)!).toBe(6 * 24 * 3600 * 1000);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-10T08:00:00+08:00'));
+    try {
+      expect(todayShanghai()).toBe('2026-06-10');
+      expect(shanghaiDateDaysAgo(0)).toBe('2026-06-10');
+      expect(shanghaiDateDaysAgo(6)).toBe('2026-06-04');
+      expect(
+        shanghaiDayStartMs('2026-06-10')! - shanghaiDayStartMs('2026-06-04')!
+      ).toBe(6 * 24 * 3600 * 1000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('自定义区间为 [起始00:00, 结束次日00:00)', () => {

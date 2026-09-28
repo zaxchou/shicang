@@ -27,9 +27,10 @@ export function aiVisionConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AiV
   if (!apiKey) return null;
   return {
     apiKey,
-    baseUrl: (env.AI_CLASSIFY_BASE_URL ?? env.MIMO_API_BASE ?? 'https://api.xiaomimimo.com/v1').replace(/\/+$/, ''),
+    // 用 || 而不是 ??：env 里设成空串应视为"没配"，?? 会让空串一路漏下去变成坏 URL/坏模型名
+    baseUrl: (env.AI_CLASSIFY_BASE_URL || env.MIMO_API_BASE || 'https://api.xiaomimimo.com/v1').replace(/\/+$/, ''),
     // 没有独立的视觉模型 id，通用 flash 模型实测就能读图（见 plan §18.2）
-    model: (env.AI_VISION_MODEL ?? env.AI_CLASSIFY_MODEL ?? 'mimo-v2.6-flash').trim(),
+    model: (env.AI_VISION_MODEL || env.AI_CLASSIFY_MODEL || 'mimo-v2.6-flash').trim(),
     timeoutMs: positiveInt(env.AI_OCR_TIMEOUT_MS, 120000, 1000),
     maxPerNote: positiveInt(env.AI_OCR_MAX_PER_NOTE, 8, 1),
   };
@@ -38,11 +39,15 @@ export function aiVisionConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AiV
 function positiveInt(raw: string | undefined, fallback: number, min: number): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < min) return fallback;
-  return Math.floor(n);
+  // 上限必须钳到 2^31-1：setTimeout 超过它会溢出成 1ms 立即触发，所有请求"秒超时"且日志无从看出是配置错了
+  return Math.min(Math.floor(n), 2_147_483_647);
 }
 
 /** 视觉模型能吃进去的图片类型（按文件头判定，不看扩展名）。HEIC/AVIF/SVG 先不接受 */
 export const OCR_IMAGE_MIMES = new Set(['image/webp', 'image/png', 'image/jpeg', 'image/gif', 'image/bmp']);
+
+/** 单张图的体积上限：读盘前先看 stat，超过就不读——无上限同步整读一个大文件能卡死事件循环（深审发现） */
+export const MAX_OCR_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const OCR_PROMPT = `把这张图片里的文字**原样**转录出来，不要翻译、不要总结、不要解释、不要加任何前言后语。
 要求：
@@ -58,8 +63,13 @@ const OCR_PROMPT = `把这张图片里的文字**原样**转录出来，不要�
  * 只处理"像标签"的结构（`<` 后面必须跟字母或 `/`，所以正文里的 `a < b` 不受影响），
  * 顺手把常见实体还原成字符。
  */
+/** 归一化结果的长度上限：max_tokens 只是网关的承诺，网关异常时任何长度都可能回来（深审发现无上限） */
+const MAX_OCR_TEXT = 50_000;
+
 export function normalizeOcrText(input: string): string {
-  return input
+  const text = input
+    // \r 必须先归一：后面的 [ \t]+\n 处理不到行尾的 \r，导出/搜索里会混进回车
+    .replace(/\r\n?/g, '\n')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|li|tr|h[1-6])\s*>/gi, '\n')
     .replace(/<\/?(li|td|th|tr)\b[^>]*>/gi, ' ')
@@ -71,8 +81,14 @@ export function normalizeOcrText(input: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/[ \t]+\n/g, '\n')
+    // 控制字符（NUL / ANSI 转义 / C1 / DEL，保留换行与制表符）：终端 cat 语料时的转义注入、展示层的双向混淆
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+  if (text.length <= MAX_OCR_TEXT) return text;
+  // 别让切口留半个代理对（JSON 存得住，但跨语言读出来是乱码）
+  const cut = text.slice(0, MAX_OCR_TEXT);
+  return cut.endsWith(String.fromCharCode(0xfffd)) ? cut.slice(0, -1) : cut;
 }
 
 export type OcrResult =

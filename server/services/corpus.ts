@@ -341,11 +341,13 @@ async function writeFileAtomic(file: string, content: string): Promise<void> {
   try {
     await fsp.rename(tmp, file);
   } catch (e) {
+    // copy 回退的成败都要清 tmp（与 json-store 同一条纪律，深审发现的累积泄漏）
     try {
       await fsp.copyFile(tmp, file);
-      await fsp.rm(tmp, { force: true }).catch(() => undefined);
     } catch {
       throw new Error(`提交失败: ${(e as Error).message}`);
+    } finally {
+      await fsp.rm(tmp, { force: true }).catch(() => undefined);
     }
   }
 }

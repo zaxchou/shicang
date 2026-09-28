@@ -18,22 +18,24 @@ export interface AiClassifyConfig {
 }
 
 export function aiClassifyConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AiClassifyConfig | null {
-  const apiKey = (env.AI_CLASSIFY_API_KEY ?? env.MIMO_API_KEY ?? '').trim();
+  // 用 || 而不是 ??：env 里设成空串应视为"没配"，否则空的 AI_CLASSIFY_API_KEY 会把 MIMO_API_KEY 别名挡死
+  const apiKey = (env.AI_CLASSIFY_API_KEY || env.MIMO_API_KEY || '').trim();
   if (!apiKey) return null;
   return {
     apiKey,
-    baseUrl: (env.AI_CLASSIFY_BASE_URL ?? env.MIMO_API_BASE ?? 'https://api.xiaomimimo.com/v1').replace(/\/+$/, ''),
-    model: (env.AI_CLASSIFY_MODEL ?? env.MIMO_MODEL ?? 'mimo-v2.5').trim(),
+    baseUrl: (env.AI_CLASSIFY_BASE_URL || env.MIMO_API_BASE || 'https://api.xiaomimimo.com/v1').replace(/\/+$/, ''),
+    // 默认与 compose / vision 侧一致（此前这里停在 mimo-v2.5，三处默认值互相打架）
+    model: (env.AI_CLASSIFY_MODEL || env.MIMO_MODEL || 'mimo-v2.6-flash').trim(),
     timeoutMs: positiveInt(env.AI_CLASSIFY_TIMEOUT_MS, 30000, 1000),
     maxPerRefresh: positiveInt(env.AI_CLASSIFY_MAX_PER_REFRESH, 40, 1),
   };
 }
 
-/** 环境变量里的正整数：缺失或写错（NaN）时用默认值，避免静默失效 */
+/** 环境变量里的正整数：缺失或写错（NaN）时用默认值，避免静默失效；上限钳到 2^31-1（setTimeout 会溢出） */
 function positiveInt(raw: string | undefined, fallback: number, min: number): number {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < min) return fallback;
-  return Math.floor(n);
+  return Math.min(Math.floor(n), 2_147_483_647);
 }
 
 /** 从模型回复里宽松地取出 JSON（有的模型会包 ```json 围栏或夹带说明文字） */

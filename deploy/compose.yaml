@@ -28,6 +28,17 @@ services:
       AI_CLASSIFY_MODEL: "${AI_CLASSIFY_MODEL:-mimo-v2.6-flash}"
       AI_CLASSIFY_MAX_PER_REFRESH: "${AI_CLASSIFY_MAX_PER_REFRESH:-40}"
       AI_CLASSIFY_TIMEOUT_MS: "${AI_CLASSIFY_TIMEOUT_MS:-30000}"
+      # 图片 OCR 与语音转录（ASR）：留空/不设走代码默认值；空串会被代码当"没配"回退
+      AI_VISION_MODEL: "${AI_VISION_MODEL:-}"
+      AI_OCR_TIMEOUT_MS: "${AI_OCR_TIMEOUT_MS:-120000}"
+      AI_OCR_MAX_PER_NOTE: "${AI_OCR_MAX_PER_NOTE:-8}"
+      AI_ASR_MODEL: "${AI_ASR_MODEL:-mimo-v2.5-asr}"
+      AI_ASR_TIMEOUT_MS: "${AI_ASR_TIMEOUT_MS:-300000}"
+      AI_ASR_MAX_PER_NOTE: "${AI_ASR_MAX_PER_NOTE:-4}"
+      # 语料导出：必须指到挂载卷内——/app 根归 root，非 root 用户建不了 /app/export（默认值在容器里必然 EACCES）。
+      # environment 是白名单：EXPORT_* 不列出来的话，.env 里写了也进不了容器（深审发现）。
+      EXPORT_DIR: /app/data/export
+      EXPORT_AFTER_REFRESH: "${EXPORT_AFTER_REFRESH:-true}"
     volumes:
       # Obsidian vault 根（含 RedNote / 我的收藏品 / flomo）：只读挂载（NAS 本机真实路径，写在 .env）
       - ${SOURCE_ROOT}:/source:ro

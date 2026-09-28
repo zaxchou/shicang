@@ -76,6 +76,7 @@ export default function App() {
   } | null>(null);
 
   const seqRef = useRef(0);
+  const librarySeqRef = useRef(0);
   const composingRef = useRef(false);
   const toastIdRef = useRef(0);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -113,11 +114,16 @@ export default function App() {
   );
 
   const loadLibrary = useCallback(async () => {
+    // 库信息也按序号防过期：轮询与"写后刷新"并发时，晚到的旧快照会把
+    // annotationRevision/categoryRevision 顶回旧值，下一次带 expectedRevision 的写就莫名 409（深审发现）
+    const seq = ++librarySeqRef.current;
     try {
       const lib = await api.library();
+      if (seq !== librarySeqRef.current) return;
       setLibrary(lib);
       setLibraryError(null);
     } catch (e) {
+      if (seq !== librarySeqRef.current) return;
       setLibraryError(e instanceof ApiError ? e.message : '加载收藏库信息失败');
     }
   }, []);
@@ -200,6 +206,11 @@ export default function App() {
 
   /** 表格模式：一次取全量（≤1000，列排序在前端做） */
   const loadAll = useCallback(async () => {
+    // 与 fetchPage 同款短路：标签目录里不拉列表（否则目录页白拉一次 1000 条）
+    if (viewRef.current === 'tags' && !activeTagRef.current) {
+      setListLoading(false);
+      return;
+    }
     const q = queryRef.current;
     const seq = ++seqRef.current;
     setListLoading(true);
@@ -258,10 +269,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, view, activeTag, collection, viewMode]);
 
-  // 勾选只在当前这一屏有意义：换了筛选/视图/库就清掉，避免"选了看不见的东西"再批量执行
+  // 勾选只在当前这一屏有意义：换了筛选/视图/库/标签就清掉，避免"选了看不见的东西"再批量执行
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [query, view, collection, viewMode]);
+  }, [query, view, activeTag, collection, viewMode]);
+
+  // 列表被替换后按当前列表求交集兜底：刷新重建、行内归档移出、跨标签切换等路径不会走上面的
+  // 清空 effect，勾选里会留着已不在列表上的 id——批量条显示"已选 N 条"却打在看不见的行上（深审发现）
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const live = new Set(items.map((n) => n.id));
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [items]);
 
   // 输入法组合期间不重查；若 compositionend 丢事件（切窗口等）状态会永久卡住，失焦兜底
   useEffect(() => {
@@ -297,12 +319,33 @@ export default function App() {
     collection,
   ]);
 
-  // 库就绪轮询（首次启动自动扫描可能延迟）
+  // 库就绪轮询：首扫/重建期间（indexStatus 为 scanning 或 empty）每 2s 拉一次；
+  // 真空库/持续失败也靠 150 次上限兜底，不会永远每 2s 一次。
+  const bootPollsRef = useRef(0);
+  const prevIndexStatusRef = useRef<string | null>(null);
   useEffect(() => {
-    if (library && library.indexStatus !== 'scanning' && libraryError === null) return;
-    const t = window.setInterval(() => void loadLibrary(), 2000);
+    if (library && library.indexStatus === 'ready' && libraryError === null) return;
+    if (bootPollsRef.current >= 150) return;
+    const t = window.setInterval(() => {
+      bootPollsRef.current += 1;
+      void loadLibrary();
+    }, 2000);
     return () => window.clearInterval(t);
   }, [library, libraryError, loadLibrary]);
+
+  // 扫描/首扫完成（非 ready → ready）：**必须重拉列表与标签**。
+  // 此前启动扫描全程不报 scanning、前端也不轮询，扫完没有任何东西会重取——
+  // 开机全量重建后界面停在"这个收藏库是空的"直到用户手动操作（深审发现）。
+  useEffect(() => {
+    const prev = prevIndexStatusRef.current;
+    const cur = library?.indexStatus ?? null;
+    if (cur !== prev) bootPollsRef.current = 0;
+    prevIndexStatusRef.current = cur;
+    if (prev !== null && prev !== 'ready' && cur === 'ready') {
+      void reload();
+      void loadTags();
+    }
+  }, [library, reload, loadTags]);
 
   /**
    * **切换作用域前先把列表清空并进入加载态**。
@@ -310,6 +353,9 @@ export default function App() {
    * 直到防抖请求回来——用户看到的就是"数字和列表互相矛盾"（深审发现）。
    */
   const beginScopeChange = useCallback(() => {
+    // 作废在途列表请求：切了作用域还让旧响应回灌，旧口径的卡片会挂在新标题下（深审发现）
+    seqRef.current++;
+    setLoadingMore(false);
     setItems([]);
     setTotal(null);
     setListLoading(true);
@@ -401,12 +447,13 @@ export default function App() {
     setQuery(next);
   }, [beginScopeChange]);
 
-  const selectTag = useCallback((tag: string) => {
-    setActiveTag(tag);
-    setItems([]);
-    setTotal(null);
-    setListLoading(true); // 否则首次加载期间是一片空白（既没有骨架也没有内容）
-  }, []);
+  const selectTag = useCallback(
+    (tag: string) => {
+      setActiveTag(tag);
+      beginScopeChange(); // 同样要作废在途请求：切标签前一页的响应晚到会把旧标签的结果灌进来
+    },
+    [beginScopeChange]
+  );
 
   const setViewMode = useCallback((v: ViewMode) => {
     setViewModeState(v);
@@ -443,6 +490,7 @@ export default function App() {
     setRefreshing(true);
     try {
       const { job } = await api.startRefresh();
+      let failStreak = 0;
       const poll = async (j: RefreshJobInfo) => {
         if (j.state !== 'running') {
           pollingRef.current = null;
@@ -458,11 +506,19 @@ export default function App() {
         pollingRef.current = window.setTimeout(async () => {
           try {
             const { job: cur } = await api.refreshJob(j.jobId);
+            failStreak = 0;
             await poll(cur);
           } catch {
-            pollingRef.current = null;
-            setRefreshing(false);
-            showToast('刷新状态查询失败', 'error');
+            // 单次查询失败不放弃：服务端 job 还在跑，放弃后跑完也没人重拉列表（深审发现）。
+            // 连续 3 次才停（大概率服务真挂了）；中途恢复就继续正常轮询。
+            failStreak += 1;
+            if (failStreak >= 3) {
+              pollingRef.current = null;
+              setRefreshing(false);
+              showToast('刷新状态查询失败', 'error');
+              return;
+            }
+            await poll(j);
           }
         }, 1500);
       };
@@ -591,35 +647,40 @@ export default function App() {
   >(null);
 
   /**
+   * 状态**已写入成功之后**的本地同步 + 撤销 toast。
+   * 详情面板自己发 PATCH，成功后只调这个——此前这里会再发一次（幂等空转），但网络一抖
+   * 就报"保存失败"假错误，两次写之间若插入别的标注写入还会撞 409（明明已成功却说冲突，深审发现）。
+   */
+  const onStatusChanged = useCallback(
+    (noteId: string, status: NoteStatus, revision: number, prev?: NoteStatus) => {
+      syncStatusLocally(noteId, status, revision);
+      if (prev !== undefined && prev !== status) {
+        showToast(statusLabel(status), 'info', {
+          label: '撤销',
+          run: () => void applyStatusRef.current?.(noteId, prev, revision),
+        });
+      }
+    },
+    [syncStatusLocally, showToast]
+  );
+
+  /**
    * 写入状态。带 expectedRevision（冲突说明别处动过这条标注），
-   * 变更后给一个带「撤销」的 toast——标错状态会把笔记移出列表，没有撤销就得去归档里翻。
+   * 成功后复用 onStatusChanged（本地同步 + 撤销 toast）。
    */
   const applyStatus = useCallback(
     async (noteId: string, status: NoteStatus, expectedRevision: number, prev?: NoteStatus) => {
       try {
         const out = await api.setStatus(noteId, status === 'active' ? null : status, expectedRevision);
-        syncStatusLocally(noteId, out.status, out.revision);
-        if (prev !== undefined && prev !== out.status) {
-          showToast(statusLabel(out.status), 'info', {
-            label: '撤销',
-            run: () => void applyStatusRef.current?.(noteId, prev, out.revision),
-          });
-        }
+        onStatusChanged(noteId, out.status, out.revision, prev);
       } catch (e) {
         showToast(e instanceof ApiError ? e.message : '状态保存失败', 'error');
         void loadLibrary();
       }
     },
-    [syncStatusLocally, showToast, loadLibrary]
+    [onStatusChanged, showToast, loadLibrary]
   );
   applyStatusRef.current = applyStatus;
-
-  const onStatusChanged = useCallback(
-    (noteId: string, status: NoteStatus, revision: number, prev: NoteStatus) => {
-      void applyStatus(noteId, status, revision, prev);
-    },
-    [applyStatus]
-  );
 
   /** 标注类操作（归档 / 备注）出错：统一提示 + 拉一次库信息，避免本地状态与服务端不一致 */
   const onAnnotationError = useCallback(

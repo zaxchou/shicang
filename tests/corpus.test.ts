@@ -384,8 +384,41 @@ describe('exportCorpus：落盘', () => {
     expect(rec.remark).toBe('新备注');
   });
 
+  it('提交阶段失败（目标被占成目录）：抛错、tmp 清干净、manifest 不被破坏', async () => {
+    // 原子写的回退分支此前零覆盖（json-store 同款手法有测试，corpus 这份独立实现没有）
+    const dir = tmpExportDir();
+    const ctx = mkCtx();
+    const first = await exportCorpus({
+      dir,
+      vaultRoot: '/vault',
+      records: buildCorpusRecords([mkRecord()], ctx),
+      collections: ctx.collections,
+      meta,
+    });
+    expect(first.written).toBe(true);
+    const oldManifest = fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8');
+
+    fs.rmSync(path.join(dir, CORPUS_FILE));
+    fs.mkdirSync(path.join(dir, CORPUS_FILE)); // rename / copyFile 都会失败
+    const changed = mkCtx({ annotationOf: () => ({ ...ANN, remark: '改过了' }) });
+    await expect(
+      exportCorpus({
+        dir,
+        vaultRoot: '/vault',
+        records: buildCorpusRecords([mkRecord()], changed),
+        collections: ctx.collections,
+        meta,
+      })
+    ).rejects.toThrow();
+
+    // 失败一次攒一个 .tmp 的泄漏必须没有；manifest（最后写的）还是旧的，下次导出能自愈
+    expect(fs.readdirSync(dir).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+    expect(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8')).toBe(oldManifest);
+    fs.rmdirSync(path.join(dir, CORPUS_FILE));
+  });
+
   it('导出目录落在内容源里 → 抛错拒绝写入（不能靠"配置应该是对的"来保护 vault）', async () => {
-    const vault = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'myinfobase-vault-'));
+    const vault = fs.mkdtempSync(path.join(os.tmpdir(), 'myinfobase-vault-'));
     expect(() => assertOutsideVault(path.join(vault, 'export'), vault)).toThrow(/落在内容源里/);
     expect(() => assertOutsideVault(vault, vault)).toThrow(/落在内容源里/);
     expect(() => assertOutsideVault(path.join(vault, '..', 'export'), vault)).not.toThrow();

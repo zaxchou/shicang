@@ -28,7 +28,7 @@
 - **详情阅读**：居中弹层展示完整图文与视频；远程视频不可用时给出提示与原文入口；可在详情中修改主类（即时落盘，刷新不丢失）。
 - **亮色 / 深色 / 跟随系统**：侧栏底部三档切换，跟随系统时实时响应系统外观变化，选择持久保存。
 - **动效**：弹层开合、卡片入场、悬停缩放、图片淡入等克制过渡；尊重系统「减弱动态效果」设置。
-- **语料导出（可索引的库）**：工具栏「导出语料」把全部笔记导成 `corpus.jsonl`（每行一篇：标题/作者/标签/分类/星标/状态/备注/时间/原文链接/源文件路径/**正文纯文本**/内容 hash）、`catalog.md`（按分类与标签的人读目录）与 `manifest.json`（内容源、三个 revision、篇数与构成）。**排除在"工作集"之外的记录也在里面**（已归档、源文件已移除）——要不要用交给消费方按 `status` / `sourceStatus` 判断。`contentHash` 只覆盖文本内容，归档一篇不会让外部 embedding 重算；内容没变时一个字节都不写。落在 `runtime/export/`（开发 `.local/export/`）：**不进 git、不进发布包、绝不写进 vault**（配错目录会拒绝写入）。刷新收藏库后自动更新，也可以 `npm run export:corpus` 在 NAS 上直接跑。
+- **语料导出（可索引的库）**：工具栏「导出语料」把全部笔记导成 `corpus.jsonl`（每行一篇：标题/作者/标签/分类/星标/状态/备注/时间/原文链接/源文件路径/**正文纯文本**/内容 hash）、`catalog.md`（按分类与标签的人读目录）与 `manifest.json`（内容源、三个 revision、篇数与构成）。**排除在"工作集"之外的记录也在里面**（已归档、源文件已移除）——要不要用交给消费方按 `status` / `sourceStatus` 判断。`contentHash` 只覆盖文本内容，归档一篇不会让外部 embedding 重算；内容没变时一个字节都不写。落在 `runtime/export/`（开发 `.local/export/`）：**不进 git、不进发布包、绝不写进 vault**（配错目录会拒绝写入）。刷新收藏库后自动更新；不经浏览器也可跑 CLI：开发机 `npm run export:corpus`，NAS **容器内**用 `node dist/scripts/export-corpus.js`（`tsx` 不在生产依赖里，`npm run export:corpus` 在容器内跑不了；宿主机直接跑则要先设 `NODE_ENV=production` + `DATA_DIR` + `SOURCE_ROOT`，否则会落回开发默认目录）。
 - **识别图片文字（OCR，按需）**：详情头部一个「识别图片文字」按钮，把这一篇里的图片文字读成可检索的文本（原样转录，表格转 Markdown 表格）。**按需触发、不自动跑，且过程可见**：一篇最多一次识别 8 张（`AI_OCR_MAX_PER_NOTE`），**逐张请求**——面板显示「识别中 2/8…」与进度条、每张完成立即出现结果（一次点击最长可能 40-60 秒，没有进度就等于点了没反应），剩下的会明说"还有 N 张"；**结果按图片内容 hash 缓存**——同一张图在别的笔记里被引用时直接复用，识别错了可以「重来」。识别出来的文字放在详情正文里的一个**默认折叠**板块（每条带**缩略图**，一眼能看出对的是哪张图；折叠时渐隐 + 「展开全部（N 行）」，不用内滚动条），**能被搜索命中（与备注并列）、进 `corpus.jsonl` 的 `recognized`**，也能一键复制走。库里 53 篇正文为空、其中 49 篇文字全在图里——它们此前在搜索里等于不存在，这是这个功能的直接价值。图片由服务端自己从磁盘读并 base64，浏览器不上传文件。
 - **手动刷新 + 自动分类**：点击「刷新收藏库」增量读取 Obsidian 中新增/变更的笔记（只解析新文件，秒级完成），并按沉淀的三层分类规则自动归类；规则未命中时可选调用 AI（MiMo/DeepSeek 等 OpenAI 兼容接口）兜底，单次刷新有调用上限（`AI_CLASSIFY_MAX_PER_REFRESH`，默认 40），人工在网页里改过的分类永远优先。不写入源目录。
 - **标星与归档（人工标注层）**：卡片左上角（没有封面的卡片在作者行右端）和详情弹层里都能一键标星；详情里一个「归档」按钮把不再需要的收起来，侧栏「归档」里能找到并随时「取回」。**归档只有一个含义——现在对我来说没用了**，它只作用于拾藏：不删源文件、不动 Obsidian，也不用去小红书再点一次。归档视图会带上源文件已被移除的记录——标注是你自己的记录，不该因为文件被删就跟着消失。默认视图与侧栏计数都只算「在用」（含标星），数字与列表条数始终一致。标注存在 `runtime/data/annotations.json`，和分类覆盖一样属于「用户数据」——不进索引、不写回 Obsidian（连点不会冲突，单字段幂等写入；归档带 revision，冲突会提示）。
@@ -59,6 +59,8 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
 ## 生产部署（群晖 Container Manager / Docker，已于 2026-09-27 实际部署验证）
 
 目标形态：NAS（192.168.31.246）上以 Docker 常驻单实例，全家用浏览器访问 `http://192.168.31.246:4317`，电脑与 Obsidian 关闭不影响服务。**已部署并验证**：容器重启后分类与索引保留；NAS 路径与端口已核实（见 `deploy/.env.example` 注释）。
+
+> **线上版本**：NAS 当前跑 v0.6.2；v0.7.0 起的标注层、语料导出、OCR 与四轮深审**已合入 main 但尚未部署**——按下方「日常更新」流程等明确命令再上线。
 
 ### 已核实的 NAS 环境参数
 
@@ -120,7 +122,7 @@ sudo sh deploy/nas-rollback.sh <旧版本号>   # 镜像仍在本地，秒级切
 server/            Node.js + Express 服务端（reader 解析 / services 索引与分类 / routes API 与媒体）
 src/               React + Vite 前端（双面板、瀑布流、详情弹层）
 shared/            前后端共享类型与时间工具
-config/app.json    内容源、端口、时区（环境变量优先级更高）
+config/app.json    内容源、端口等（环境变量优先级更高；日期计算固定 Asia/Shanghai，timezone 字段暂不生效）
 public/            应用图标（favicon / apple-touch-icon / 侧栏品牌位，由 scripts/build-icons.mjs 生成）
 data-seed/         首批分类 seed（仅在未初始化的库导入）
 docs/              分类体系说明、验收记录、截图、设计参考
@@ -194,7 +196,7 @@ npm test            # vitest：解析/媒体路由/扫描完整性/分类优先�
 npm run build       # 构建服务端 + 前端到 dist/
 npm run dev:server  # 服务端热重载（开发）
 npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）
-npm run export:corpus  # 语料导出 CLI（不经浏览器；NAS 上跑计划任务用这个）
+npm run export:corpus  # 语料导出 CLI（不经浏览器；NAS 容器内请改用 node dist/scripts/export-corpus.js）
 ```
 
 约定：源库（`Z:\...\mynote\mynote`）只读；所有写入收口在项目 `storage` 模块；分类、索引等数据通过 `DATA_DIR` 定位。分类体系与边界见 `docs/category-taxonomy.md`，设计语言见 `docs/design-language.md`，验收记录见 `docs/verification.md`。

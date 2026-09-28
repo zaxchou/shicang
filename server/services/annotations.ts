@@ -105,7 +105,8 @@ function validateAnnotationDoc(data: unknown): AnnotationDoc | null {
   if (!isRecord(data)) return null;
   const d = data as unknown as AnnotationDoc;
   if (d.schemaVersion !== 1 || typeof d.revision !== 'number' || !isRecord(d.entries)) return null;
-  const entries: Record<string, AnnotationEntry> = {};
+  // null 原型：noteId 若是 "__proto__"，往普通对象赋值会走原型 setter——那条标注写不进 JSON（深审发现）
+  const entries: Record<string, AnnotationEntry> = Object.create(null);
   for (const [id, raw] of Object.entries(d.entries)) {
     const entry = normalizeEntry(raw);
     if (entry) entries[id] = entry;
@@ -254,7 +255,9 @@ export class AnnotationsService {
       // 无变化：applyAnnotationPatch 会把 prev 原样退回，据此避免写盘与 revision 虚增
       if ((prev ?? null) === nextEntry) return this.doc.revision;
 
-      const entries = { ...this.doc.entries };
+      // 副本用 null 原型：noteId 为 "__proto__" 时 `entries[noteId] = …` 走的是原型 setter，
+      // 该条写不进 JSON 还污染原型（深审发现）
+      const entries: Record<string, AnnotationEntry> = Object.assign(Object.create(null), this.doc.entries);
       if (nextEntry) entries[noteId] = nextEntry;
       else delete entries[noteId];
 
@@ -276,7 +279,8 @@ export class AnnotationsService {
         throw new AnnotationValidationError(`未知的状态: ${String(patch.status)}`);
       }
       const now = new Date().toISOString();
-      const entries = { ...this.doc.entries };
+      // 同 patch：null 原型副本，防 "__proto__" 键走原型 setter（深审发现）
+      const entries: Record<string, AnnotationEntry> = Object.assign(Object.create(null), this.doc.entries);
       let updated = 0;
       for (const id of ids) {
         const prev = entries[id];

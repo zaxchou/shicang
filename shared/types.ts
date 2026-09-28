@@ -107,6 +107,8 @@ export interface LibraryInfo {
   indexRevision: number;
   /** 人工覆盖 revision，PATCH 分类时作为 expectedRevision（仅 rednote） */
   categoryRevision: number;
+  /** 人工标注 revision，PATCH 状态/备注时作为 expectedRevision */
+  annotationRevision: number;
   indexStatus: 'ready' | 'empty' | 'scanning';
   diagnostics: string[];
   /** 各收藏库信息（切换库/表格动态列用） */
@@ -122,6 +124,13 @@ export interface NoteQuery {
   tag?: string | null;
   /** 只看已标星（与其它条件叠加） */
   starred?: boolean;
+  /**
+   * 状态视图。默认 'active'（只用在工作集里）；
+   * 'archived' = 已过期与已取消收藏的合集，'expired'/'uncollected' 是它下面的细分。
+   */
+  status?: 'active' | 'archived' | 'expired' | 'uncollected';
+  /** 归档视图要带上源文件已消失的记录，否则"取消收藏已完成"这条链路看不见 */
+  includeMissing?: boolean;
   timeField: 'published' | 'synced';
   range: 'all' | '7d' | '30d' | 'custom';
   from?: string; // YYYY-MM-DD，custom 时有效
@@ -167,9 +176,14 @@ export interface ExtraFieldInfo {
 export interface CollectionInfo {
   id: string;
   name: string;
+  /** 源文件可用的全部篇数（含归档） */
   total: number;
+  /** 工作集：源文件可用且状态为"在用"——侧栏计数与默认列表都用这个口径 */
+  active: number;
+  /** 归档篇数：状态为已过期或已取消收藏（含源文件已消失的） */
+  archived: number;
   uncategorized: number;
-  /** 已标星篇数（侧栏入口计数用） */
+  /** 已标星篇数（同样只算工作集） */
   starred: number;
   categories: CategoryCount[];
   /** 仅 treasures：可作为表格列的附加字段（按出现次数降序） */

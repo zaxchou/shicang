@@ -47,6 +47,9 @@ const noteQuerySchema = z.object({
   tag: z.string().trim().min(1).max(40).optional(),
   // 用字面量而不是 z.coerce.boolean()：后者把字符串 "false" 也当 true（非空即真）
   starred: z.enum(['true', 'false']).optional(),
+  // 默认只用工作集（在用）；归档视图才去看已过期/已取消收藏
+  status: z.enum(['active', 'archived', 'expired', 'uncollected']).default('active'),
+  includeMissing: z.enum(['true', 'false']).optional(),
   timeField: z.enum(['published', 'synced']).default('published'),
   range: z.enum(['all', '7d', '30d', 'custom']).default('all'),
   from: z
@@ -70,6 +73,7 @@ const patchCategorySchema = z.object({
 /** 人工标注补丁：至少要带一个待改字段；expectedRevision 可选（星标是单字段幂等动作） */
 const patchAnnotationSchema = z.object({
   star: z.boolean().optional(),
+  status: z.enum(['expired', 'uncollected']).nullable().optional(),
   expectedRevision: z.number().int().nonnegative().optional(),
 });
 
@@ -164,6 +168,8 @@ export function apiRouter(deps: ApiDeps): express.Router {
         categoryId: p.category ?? null,
         tag: p.tag ?? null,
         starred: p.starred === 'true',
+        status: p.status,
+        includeMissing: p.includeMissing === 'true',
         timeField: p.timeField,
         range: p.range,
         from: p.from,
@@ -213,13 +219,15 @@ export function apiRouter(deps: ApiDeps): express.Router {
       if (!body.success) {
         throw new HttpError(400, 'INVALID_BODY', '请求体无效', body.error.flatten());
       }
-      if (body.data.star === undefined) {
+      if (body.data.star === undefined && body.data.status === undefined) {
         throw new HttpError(400, 'EMPTY_PATCH', '请求体至少要带一个待修改字段');
       }
       try {
-        const out = await deps
-          .library()
-          .setStar(requireParam(req, 'id'), body.data.star, body.data.expectedRevision);
+        const out = await deps.library().setAnnotation(
+          requireParam(req, 'id'),
+          { star: body.data.star, status: body.data.status },
+          body.data.expectedRevision
+        );
         res.json(out);
       } catch (e) {
         if (e instanceof AnnotationConflictError) {

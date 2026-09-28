@@ -10,6 +10,7 @@ import type {
   NoteDetail,
   NoteListResult,
   NoteQuery,
+  NoteStatus,
   NoteSummary,
   RefreshJobInfo,
   TagCount,
@@ -193,7 +194,15 @@ export class LibraryService {
 
   query(params: NoteQuery): NoteListResult {
     const cid = params.collection || 'rednote';
-    let items = this.doc.notes.filter((r) => r.sourceStatus === 'available' && r.collection === cid);
+    // 归档视图要能看见源文件已消失的记录（"取消收藏已完成"那条链路），其它视图只看文件还在的
+    const includeMissing = params.includeMissing === true;
+    const view = params.status ?? 'active';
+    let items = this.doc.notes.filter(
+      (r) =>
+        r.collection === cid &&
+        (includeMissing || r.sourceStatus === 'available') &&
+        this.matchesStatus(r.id, view)
+    );
 
     const q = (params.q ?? '').trim().toLowerCase();
     if (q) {
@@ -274,6 +283,23 @@ export class LibraryService {
     return this.byId.has(id);
   }
 
+  /** 状态视图匹配：'archived' 是"已过期 + 已取消收藏"的合集 */
+  private matchesStatus(noteId: string, view: NonNullable<NoteQuery['status']>): boolean {
+    const s = this.annotations.statusOf(noteId);
+    if (view === 'active') return s === 'active';
+    if (view === 'archived') return s !== 'active';
+    return s === view;
+  }
+
+  /**
+   * 「工作集」判定：源文件可用且状态为在用。
+   * **所有计数（分类 / 未分类 / 标星 / 标签 / 侧栏）都走这一条口径**——
+   * 否则把一篇标成过期后，列表少了一篇而侧栏的数字不动，界面自相矛盾。
+   */
+  private inWorkSet(r: NoteRecord): boolean {
+    return r.sourceStatus === 'available' && this.annotations.statusOf(r.id) === 'active';
+  }
+
   private detailFields(r: NoteRecord): Pick<NoteDetail, 'bodyHtml' | 'media' | 'originalUrl' | 'sourceRelativePath'> {
     return {
       bodyHtml: r.bodyHtml,
@@ -330,22 +356,27 @@ export class LibraryService {
     const def = this.colMap.get(cid);
     if (!def) return null;
     const recs = this.doc.notes.filter((r) => r.collection === cid && r.sourceStatus === 'available');
+    // 计数一律用工作集（见 inWorkSet 的说明），total 仍表示"文件还在的全部篇数"
+    const work = recs.filter((r) => this.inWorkSet(r));
+    const archived = this.doc.notes.filter(
+      (r) => r.collection === cid && this.annotations.statusOf(r.id) !== 'active'
+    ).length;
     const catMap = new Map<string, number>();
     let uncategorized = 0;
     const extraCount = new Map<string, number>();
     if (cid === 'rednote') {
-      const { counts, uncategorized: u } = this.categories.countEffective(recs.map((r) => r.id));
+      const { counts, uncategorized: u } = this.categories.countEffective(work.map((r) => r.id));
       for (const [k, v] of Object.entries(counts)) catMap.set(k, v);
       uncategorized = u;
     } else {
-      for (const r of recs) {
+      for (const r of work) {
         const c = r.derivedCategory;
         if (c) catMap.set(c, (catMap.get(c) ?? 0) + 1);
         else uncategorized++;
       }
     }
     if (def.type === 'treasures') {
-      for (const r of recs) {
+      for (const r of work) {
         for (const k of Object.keys(r.extra ?? {})) extraCount.set(k, (extraCount.get(k) ?? 0) + 1);
       }
     }
@@ -361,8 +392,18 @@ export class LibraryService {
     const extraFields: ExtraFieldInfo[] = [...extraCount.entries()]
       .map(([key, count]) => ({ key, count }))
       .sort((a, b) => b.count - a.count);
-    const starred = this.annotations.countStarred(recs.map((r) => r.id));
-    return { id: def.id, name: def.name, total: recs.length, uncategorized, starred, categories, extraFields };
+    const starred = this.annotations.countStarred(work.map((r) => r.id));
+    return {
+      id: def.id,
+      name: def.name,
+      total: recs.length,
+      active: work.length,
+      archived,
+      uncategorized,
+      starred,
+      categories,
+      extraFields,
+    };
   }
 
   /** 全部收藏库信息 */
@@ -390,6 +431,7 @@ export class LibraryService {
       lastScan: this.doc.lastScan,
       indexRevision: this.doc.revision,
       categoryRevision: this.categories.revision,
+      annotationRevision: this.annotations.revision,
       indexStatus: this.job?.state === 'running' ? 'scanning' : this.doc.notes.length > 0 ? 'ready' : 'empty',
       diagnostics: [...this.bootDiagnostics, ...this.doc.diagnostics].slice(0, 50),
     };
@@ -399,21 +441,30 @@ export class LibraryService {
     return this.categories.categories.slice().sort((a, b) => a.order - b.order);
   }
 
-  private tagCountCache: Map<string, { revision: number; tags: TagCount[] }> = new Map();
+  private tagCountCache: Map<string, { indexRevision: number; annotationRevision: number; tags: TagCount[] }> =
+    new Map();
 
-  /** 指定收藏库的标签与使用次数（按次数降序），按 indexRevision 缓存 */
+  /** 指定收藏库的标签与使用次数（按次数降序），按索引 + 标注两个 revision 缓存 */
   tagCounts(cid = 'rednote'): TagCount[] {
     const cached = this.tagCountCache.get(cid);
-    if (cached && cached.revision === this.doc.revision) return cached.tags;
+    // 标注 revision 必须一起参与缓存键：改状态会让条目标签计数变化，而索引 revision 不动
+    if (cached && cached.indexRevision === this.doc.revision && cached.annotationRevision === this.annotations.revision) {
+      return cached.tags;
+    }
     const m = new Map<string, number>();
     for (const r of this.doc.notes) {
-      if (r.sourceStatus !== 'available' || r.collection !== cid) continue;
+      // 与列表同一口径：归档/源文件消失的条目不参与标签计数
+      if (!this.inWorkSet(r) || r.collection !== cid) continue;
       for (const t of r.tags) m.set(t, (m.get(t) ?? 0) + 1);
     }
     const tags = [...m.entries()]
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, 'zh-Hans-CN'));
-    this.tagCountCache.set(cid, { revision: this.doc.revision, tags });
+    this.tagCountCache.set(cid, {
+      indexRevision: this.doc.revision,
+      annotationRevision: this.annotations.revision,
+      tags,
+    });
     return tags;
   }
 
@@ -437,18 +488,42 @@ export class LibraryService {
   // ---------- 人工标注（星标 / 状态 / 备注） ----------
 
   /**
-   * 标星 / 取消标星。**三个收藏库都可标星**（这是个人标注，不是分类，不涉及"分类以笔记为准"那条约束）。
-   * 星标是单字段幂等动作，可以不传 expectedRevision —— 连点两下不会互相冲突，
-   * 也不会把正开着详情编辑备注的另一个客户端顶成 409。
+   * 改一条笔记的人工标注（星标 / 状态），一次写盘合并所有出现的字段，返回新 revision。
+   * 星标是卡片上的单字段幂等动作，可不传 expectedRevision（连点不会互相冲突）；
+   * 状态是在详情面板里"看一眼再改"的编辑，带 revision——冲突返 409 让前端重新读一次。
    */
+  async setAnnotation(
+    noteId: string,
+    patch: { star?: boolean; status?: Exclude<NoteStatus, 'active'> | null },
+    expectedRevision?: number
+  ): Promise<{ revision: number; starred: boolean; status: NoteStatus }> {
+    if (!this.byId.has(noteId)) throw new NotFoundError(`未找到笔记 ${noteId}`);
+    const revision = await this.annotations.patch(noteId, patch, expectedRevision);
+    return {
+      revision,
+      starred: this.annotations.isStarred(noteId),
+      status: this.annotations.statusOf(noteId),
+    };
+  }
+
+  /** 标星 / 取消标星。三个收藏库都可标（个人标注，不像分类那样受"以笔记为准"限制） */
   async setStar(
     noteId: string,
     star: boolean,
     expectedRevision?: number
   ): Promise<{ revision: number; starred: boolean }> {
-    if (!this.byId.has(noteId)) throw new NotFoundError(`未找到笔记 ${noteId}`);
-    const revision = await this.annotations.patch(noteId, { star }, expectedRevision);
-    return { revision, starred: this.annotations.isStarred(noteId) };
+    const out = await this.setAnnotation(noteId, { star }, expectedRevision);
+    return { revision: out.revision, starred: out.starred };
+  }
+
+  /** 改状态：在用（传 null）/ 已过期 / 已取消收藏。三个收藏库都可改 */
+  async setStatus(
+    noteId: string,
+    status: Exclude<NoteStatus, 'active'> | null,
+    expectedRevision: number
+  ): Promise<{ revision: number; status: NoteStatus }> {
+    const out = await this.setAnnotation(noteId, { status }, expectedRevision);
+    return { revision: out.revision, status: out.status };
   }
 
   // ---------- 刷新 ----------

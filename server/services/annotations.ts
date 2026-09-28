@@ -194,6 +194,11 @@ export class AnnotationsService {
     return this.doc.entries[noteId]?.starredAt !== undefined;
   }
 
+  /** 只要状态：计数与列表过滤都按每条调一次，避免为每个 id 建对象 */
+  statusOf(noteId: string): NoteStatus {
+    return this.doc.entries[noteId]?.status ?? 'active';
+  }
+
   /** 生效标注（补默认值，供 API 输出） */
   effective(noteId: string): {
     starred: boolean;

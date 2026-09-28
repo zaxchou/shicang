@@ -335,6 +335,51 @@ describe('HTTP 路由', () => {
       expect((await (await fetch(`${base}/api/notes?starred=true`)).json()).total).toBe(0);
     });
 
+    it('PATCH 状态：归档后默认列表看不到、归档视图能看到，revision 冲突 409', async () => {
+      const patch = (id: string, body: unknown) =>
+        fetch(`${base}/api/notes/${id}/annotation`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Origin: ALLOWED_ORIGIN },
+          body: JSON.stringify(body),
+        });
+
+      const lib = await (await fetch(`${base}/api/library`)).json();
+      const rev = lib.annotationRevision;
+      expect(typeof rev).toBe('number');
+
+      // zod 拦非法状态值；expectedRevision 过期 → 409
+      expect((await patch('id-0001', { status: 'bogus' })).status).toBe(400);
+      expect((await patch('id-0001', { status: 'expired', expectedRevision: rev + 5 })).status).toBe(409);
+
+      const ok = await patch('id-0001', { status: 'expired', expectedRevision: rev });
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toMatchObject({ status: 'expired', revision: rev + 1 });
+
+      // status 缺省即 active：归档掉的就该从默认视图消失
+      const active = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(active.items.map((n: { id: string }) => n.id)).not.toContain('id-0001');
+
+      const arch = await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json();
+      expect(arch.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+      expect(arch.items[0].annotation.status).toBe('expired');
+
+      expect((await (await fetch(`${base}/api/notes?status=expired`)).json()).total).toBe(1);
+      expect((await fetch(`${base}/api/notes?status=uncollected`)).status).toBe(200);
+      expect((await fetch(`${base}/api/notes?status=bogus`)).status).toBe(400);
+
+      // 侧栏计数与列表同口径
+      const lib2 = await (await fetch(`${base}/api/library`)).json();
+      const rn = lib2.collections.find((c: { id: string }) => c.id === 'rednote');
+      expect(rn.archived).toBe(1);
+      expect(rn.active).toBe(rn.total - 1);
+
+      // 恢复在用 → 回到默认列表
+      const back = await patch('id-0001', { status: null, expectedRevision: rev + 1 });
+      expect(await back.json()).toMatchObject({ status: 'active' });
+      const active2 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(active2.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+    });
+
     it('非法请求体与非 JSON 请求体都是 400', async () => {
       const bad = await fetch(`${base}/api/notes/id-0001/category`, {
         method: 'PATCH',

@@ -4,6 +4,7 @@ import type {
   LibraryInfo,
   NoteDetail,
   NoteListResult,
+  NoteStatus,
   RefreshJobInfo,
   TagCount,
 } from '../../shared/types';
@@ -53,6 +54,10 @@ export interface QueryParams {
   tag?: string | null; // 精确标签过滤
   /** 只看已标星 */
   starred?: boolean;
+  /** 状态视图：active=工作集（默认）；archived=过期+已取消；expired/uncollected 是细分 */
+  status?: 'active' | 'archived' | 'expired' | 'uncollected';
+  /** 归档视图带上源文件已消失的记录 */
+  includeMissing?: boolean;
   timeField: 'published' | 'synced';
   range: 'all' | '7d' | '30d' | 'custom';
   from?: string;
@@ -69,6 +74,8 @@ export function buildQuery(p: QueryParams): string {
   if (p.categoryId) sp.set('category', p.categoryId);
   if (p.tag) sp.set('tag', p.tag);
   if (p.starred) sp.set('starred', 'true');
+  sp.set('status', p.status ?? 'active');
+  if (p.includeMissing) sp.set('includeMissing', 'true');
   sp.set('timeField', p.timeField);
   sp.set('range', p.range);
   if (p.range === 'custom') {
@@ -98,6 +105,12 @@ export const api = {
     request<{ revision: number; starred: boolean }>(`/api/notes/${encodeURIComponent(id)}/annotation`, {
       method: 'PATCH',
       body: JSON.stringify({ star }),
+    }),
+  /** 改状态：在用（null）/ 已过期 / 已取消收藏。状态是"看一眼再改"的编辑，必须带 revision */
+  setStatus: (id: string, status: 'expired' | 'uncollected' | null, expectedRevision: number) =>
+    request<{ revision: number; status: NoteStatus }>(`/api/notes/${encodeURIComponent(id)}/annotation`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, expectedRevision }),
     }),
   startRefresh: () => request<{ job: RefreshJobInfo }>('/api/refresh', { method: 'POST' }),
   refreshJob: (jobId: string) => request<{ job: RefreshJobInfo }>(`/api/refresh/${encodeURIComponent(jobId)}`),

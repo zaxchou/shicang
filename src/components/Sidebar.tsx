@@ -1,5 +1,5 @@
 import type { CollectionInfo, LibraryInfo } from '../../shared/types';
-import { IconInbox, IconLibrary, IconPen, IconStar, IconTag, categoryIcon, IconGem } from './Icons';
+import { IconArchive, IconInbox, IconLibrary, IconPen, IconStar, IconTag, categoryIcon, IconGem } from './Icons';
 import { ThemeToggle } from './ThemeToggle';
 
 interface Props {
@@ -9,10 +9,12 @@ interface Props {
   activeCategoryId: string | null; // null=该库全部
   tagsView: boolean; // 当前是否处于标签视图
   starredOnly: boolean; // 当前是否只看标星
+  archiveView: boolean; // 当前是否处于归档视图（已过期 / 已取消收藏）
   onSelectCollection(id: string): void;
   onSelectCategory(id: string | null): void;
   onSelectTags(): void;
   onSelectStarred(): void;
+  onSelectArchive(): void;
 }
 
 const COLLECTION_ICONS: Record<string, typeof IconLibrary> = {
@@ -27,10 +29,12 @@ export function Sidebar({
   activeCategoryId,
   tagsView,
   starredOnly,
+  archiveView,
   onSelectCollection,
   onSelectCategory,
   onSelectTags,
   onSelectStarred,
+  onSelectArchive,
 }: Props) {
   const infos = library?.collections ?? [];
   const cur: CollectionInfo | null = infos.find((c) => c.id === collection) ?? null;
@@ -55,7 +59,8 @@ export function Sidebar({
             >
               <Icon size={15} />
               <span className="nav-label">{c.name}</span>
-              <span className="nav-count">{c.total}</span>
+              {/* 计数用"工作集"（在用）：点进去看到的条数必须和这里一致 */}
+              <span className="nav-count">{c.active}</span>
             </button>
           );
         })}
@@ -106,6 +111,17 @@ export function Sidebar({
           <IconStar size={15} filled={starredOnly} />
           <span className="nav-label">标星</span>
           <span className="nav-count">{cur?.starred ?? 0}</span>
+        </button>
+        {/* 归档：已过期 + 已取消收藏。点进去会带上源文件已消失的记录（"取消收藏已完成"那条链路） */}
+        <button
+          className={`nav-item${archiveView ? ' active' : ''}`}
+          onClick={onSelectArchive}
+          aria-current={archiveView ? 'page' : undefined}
+          title="已过期与已取消收藏的笔记"
+        >
+          <IconArchive size={15} />
+          <span className="nav-label">归档</span>
+          <span className="nav-count">{cur?.archived ?? 0}</span>
         </button>
         <button
           className={`nav-item${tagsView ? ' active' : ''}`}

@@ -927,6 +927,35 @@ img {
   right: auto;
 }
 
+/* ===== 状态标记（归档）：卡片上的一行小标签 =====
+   放在标题上方独立成行，而不是塞进作者行——作者行已经是"头像+作者+分类+星标"，
+   再加两个标签在窄列宽下会挤出去；独立一行还能换行。 */
+.card-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+.card-status {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--surface-sunken);
+  box-shadow: var(--trough);
+  color: var(--text-secondary);
+}
+/* 已取消收藏：这是"打算去小红书取消"的待办，用暖色轻提示（与标星同一个色系但不是金色满填） */
+.card-status.uncollected {
+  color: var(--star);
+}
+/* 源文件已移除：这条只是历史记录，弱化 */
+.card-status.missing {
+  color: var(--text-weak);
+}
+
 /* ===== 标星（人工标注层） =====
    三个落点：卡片图片左上角、无封面卡片的作者行右端、详情弹层头部。
    未标星时默认隐藏，只在悬停/键盘聚焦/触屏设备上出现——无框卡片上常驻一个空星会显脏。 */
@@ -1283,6 +1312,55 @@ img {
   padding-bottom: 16px;
   margin-bottom: 20px;
 }
+/* 人工标注行：状态是三选一，用分段控件。与筛选行的 view-toggle 同语法（凹陷槽 + 浮起选中项） */
+.detail-annotation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -8px 0 20px;
+}
+.detail-annotation.saving {
+  opacity: 0.6;
+}
+.ann-label {
+  font-size: 12.5px;
+  color: var(--text-weak);
+}
+.status-picker {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  box-shadow: var(--trough);
+}
+.status-picker button {
+  height: 27px;
+  padding: 0 13px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-weak);
+  font-size: 12.5px;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition),
+    transform 130ms var(--ease-out);
+}
+.status-picker button:hover {
+  color: var(--text-secondary);
+}
+.status-picker button:active {
+  transform: scale(0.95);
+}
+.status-picker button.active {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--elev-1), var(--inset-top);
+}
+/* 已过期/已取消选中时用暖色文字点一下，和"在用"区分开 */
+.status-picker button.active:not(:first-child) {
+  color: var(--star);
+}
 .cat-picker {
   position: relative;
 }
@@ -1489,6 +1567,26 @@ img {
 /* toast 里可能是长路径或诊断信息，没有断行机会就会溢出胶囊 */
 .toast {
   overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+/* 撤销：时间敏感的动作，做成实心胶囊而不是文字链接，避免误点旁边 */
+.toast-action {
+  flex: none;
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1), var(--inset-top);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  transition: background var(--transition), transform 130ms var(--ease-out);
+}
+.toast-action:hover {
+  background: var(--surface-raised-hover);
+}
+.toast-action:active {
+  transform: scale(0.95);
 }
 
 /* ===== 滚动条 ===== */

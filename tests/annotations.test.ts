@@ -339,6 +339,158 @@ describe('列表与详情的标注', () => {
   });
 });
 
+describe('状态与归档视图', () => {
+  it('默认只显示在用；标成过期后从默认列表消失、进入归档，详情仍可读', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    fx.writeNote({ id: 'id-0002', title: '笔记二' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    expect(svc.query({ ...baseQuery }).total).toBe(2);
+
+    const out = await svc.setStatus('id-0001', 'expired', 0);
+    expect(out).toMatchObject({ status: 'expired', revision: 1 });
+
+    expect(svc.query({ ...baseQuery }).total).toBe(1);
+    expect(svc.query({ ...baseQuery }).items[0]?.id).toBe('id-0002');
+
+    const arch = svc.query({ ...baseQuery, status: 'archived' });
+    expect(arch.total).toBe(1);
+    expect(arch.items[0]?.id).toBe('id-0001');
+    expect(arch.items[0]?.annotation.status).toBe('expired');
+    // 归档不是删除：详情一直读得到
+    expect(svc.detail('id-0001').annotation.status).toBe('expired');
+  });
+
+  it('归档的细分：expired 与 uncollected 各自只出对应的', async () => {
+    const fx = createFixture();
+    for (const id of ['id-0001', 'id-0002', 'id-0003']) fx.writeNote({ id, title: `笔记${id}` });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setStatus('id-0001', 'expired', 0);
+    await svc.setStatus('id-0002', 'uncollected', 1);
+
+    expect(svc.query({ ...baseQuery, status: 'archived' }).total).toBe(2);
+    expect(svc.query({ ...baseQuery, status: 'expired' }).items.map((n) => n.id)).toEqual(['id-0001']);
+    expect(svc.query({ ...baseQuery, status: 'uncollected' }).items.map((n) => n.id)).toEqual(['id-0002']);
+  });
+
+  it('计数与列表同口径：归档后 active/uncategorized/starred 一起减，archived 加', async () => {
+    const fx = createFixture();
+    for (const id of ['id-0001', 'id-0002', 'id-0003']) fx.writeNote({ id, title: `笔记${id}` });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setStar('id-0001', true);
+
+    const before = svc.libraryInfo().collections.find((c) => c.id === 'rednote')!;
+    expect(before).toMatchObject({ total: 3, active: 3, archived: 0, starred: 1, uncategorized: 3 });
+
+    await svc.setStatus('id-0003', 'uncollected', 1);
+    const after = svc.libraryInfo().collections.find((c) => c.id === 'rednote')!;
+    expect(after).toMatchObject({ total: 3, active: 2, archived: 1, starred: 1, uncategorized: 2 });
+    // 侧栏的数字必须等于列表条数
+    expect(svc.query({ ...baseQuery }).total).toBe(after.active);
+    expect(svc.query({ ...baseQuery, status: 'archived' }).total).toBe(after.archived);
+
+    // 归档掉被标星的那条 → 标星计数只算工作集
+    await svc.setStatus('id-0001', 'expired', 2);
+    expect(svc.libraryInfo().collections.find((c) => c.id === 'rednote')?.starred).toBe(0);
+    // 但"归档 ∩ 标星"这个组合查询还找得到它
+    expect(svc.query({ ...baseQuery, status: 'archived', starred: true }).total).toBe(1);
+  });
+
+  it('标签计数只算工作集，且缓存不能忽略标注变化', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一', tags: ['茶器'] });
+    fx.writeNote({ id: 'id-0002', title: '笔记二', tags: ['茶器'] });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    expect(svc.tagCounts('rednote').find((t) => t.tag === '茶器')?.count).toBe(2);
+
+    await svc.setStatus('id-0001', 'expired', 0);
+    // 索引 revision 没变，但标签计数必须跟着变（缓存键要含标注 revision）
+    expect(svc.tagCounts('rednote').find((t) => t.tag === '茶器')?.count).toBe(1);
+  });
+
+  it('取消收藏后源文件消失：归档视图带着它，默认视图看不到（"已完成取消"这条链路）', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setStatus('id-0001', 'uncollected', 0);
+
+    fx.removeNote('id-0001');
+    const job = svc.startRefresh();
+    await waitForJob(svc, job.jobId);
+    expect(svc.detail('id-0001').sourceStatus).toBe('missing');
+
+    const arch = svc.query({ ...baseQuery, status: 'archived', includeMissing: true });
+    expect(arch.total).toBe(1);
+    expect(arch.items[0]?.sourceStatus).toBe('missing');
+    expect(arch.items[0]?.annotation.status).toBe('uncollected');
+    // 不带 includeMissing 就看不到（文件确实不在了）
+    expect(svc.query({ ...baseQuery, status: 'archived' }).total).toBe(0);
+    // 归档计数与带 includeMissing 的列表一致（侧栏数字不撒谎）
+    expect(svc.libraryInfo().collections.find((c) => c.id === 'rednote')?.archived).toBe(1);
+  });
+
+  it('恢复在用：回到默认列表，归档计数归零', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setStatus('id-0001', 'expired', 0);
+    expect(svc.query({ ...baseQuery }).total).toBe(0);
+
+    const back = await svc.setStatus('id-0001', null, 1);
+    expect(back.status).toBe('active');
+    expect(svc.query({ ...baseQuery }).total).toBe(1);
+    expect(svc.libraryInfo().collections.find((c) => c.id === 'rednote')?.archived).toBe(0);
+  });
+
+  it('状态与星标互不影响（同一条目、字段级合并）', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setStar('id-0001', true);
+    await svc.setStatus('id-0001', 'uncollected', 1);
+
+    expect(svc.detail('id-0001').annotation).toMatchObject({ starred: true, status: 'uncollected' });
+    // 取消标星不能把状态一起带走
+    await svc.setStar('id-0001', false);
+    expect(svc.detail('id-0001').annotation).toMatchObject({ starred: false, status: 'uncollected' });
+    expect(svc.libraryInfo().annotationRevision).toBe(3);
+  });
+
+  it('状态的 expectedRevision 冲突会抛错；不存在的笔记 404', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await expect(svc.setStatus('id-0001', 'expired', 99)).rejects.toBeInstanceOf(AnnotationConflictError);
+    await expect(svc.setStatus('id-9999', 'expired', 0)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('非小红书收藏库也能改状态', async () => {
+    const fx = createFixture();
+    fs.mkdirSync(path.join(fx.root, '我的收藏品'), { recursive: true });
+    fs.writeFileSync(path.join(fx.root, '我的收藏品', '宝贝一.md'), '---\n收藏分类: 茶器\n---\n\n# 宝贝一\n\n正文\n', 'utf8');
+    const svc = new LibraryService(
+      makeCfg(fx, [
+        { id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' },
+        { id: 'treasures', name: '我的宝贝', root: '我的收藏品', type: 'treasures' },
+      ])
+    );
+    await svc.init();
+    const id = svc.query({ ...baseQuery, collection: 'treasures' }).items[0]?.id;
+    expect(id).toBeTruthy();
+    await expect(svc.setStatus(id!, 'expired', 0)).resolves.toMatchObject({ status: 'expired' });
+    expect(svc.query({ ...baseQuery, collection: 'treasures' }).total).toBe(0);
+    expect(svc.query({ ...baseQuery, collection: 'treasures', status: 'archived' }).total).toBe(1);
+  });
+});
+
 async function waitForJob(svc: LibraryService, jobId: string): Promise<void> {
   for (let i = 0; i < 200; i++) {
     const job = svc.getRefreshJob(jobId);

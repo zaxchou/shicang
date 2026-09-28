@@ -646,3 +646,53 @@ HTTP 用例报路由不存在；恢复新代码后 124 条全绿。说明这些�
 **落点**：`server/services/annotations.ts`（新）、`server/services/library.ts`、`server/routes/api.ts`、
 `shared/types.ts`、`src/components/{NoteCard,Masonry,Sidebar,Toolbar,DetailDialog,Icons}.tsx`、
 `src/App.tsx`、`src/api/client.ts`、`src/styles/{app,tokens}.css`、`tests/{annotations.test.ts,http.test.ts}`。
+
+## 人工标注层·状态与归档（2026-09-28，v0.7.1）
+
+`plan.md` §18.1 的第二个功能。"取消收藏"在我们这边只能是**本地记录**（没有小红书接口），
+所以它和"已过期"合成一个互斥的 `status` 字段，一起进归档视图；用户真正去 App 取消、
+导出工具删掉 .md 之后，记录变 `missing`，还能在归档里看见——那就是这条待办的"已完成"。
+
+**这一轮真正的设计决定是「计数口径」**：默认视图只显示在工作集（`status=active` 且源文件可用）里的笔记，
+那么**所有数字都必须跟着变**，否则把一篇标成过期后，列表少了一篇而侧栏数字纹丝不动，界面自相矛盾。
+于是新增 `inWorkSet()`，分类 / 未分类 / 标星 / 标签 / 侧栏计数全部走它；
+`CollectionInfo` 也拆成 `total`（文件还在的全部）+ `active`（工作集）+ `archived`。
+
+**写测试时抓到一个真 bug**：`tagCounts` 的缓存键只有 `indexRevision`，而改状态**不动索引 revision**——
+于是归档一篇后，标签计数会一直返回旧数字。缓存键补上 `annotationRevision` 后测试通过。
+这正是"先写用例再谈完成"的价值：这个 bug 光靠点界面很难发现（数字只差 1，而且看起来"挺合理"）。
+
+**测试：124 → 134（新增 10 条）**。覆盖：默认视图只用工作集、归档细分（expired / uncollected 各自只出对的）、
+计数与列表同口径（`active`/`uncategorized`/`starred` 一起减、`archived` 加）、标签计数与缓存键、
+**取消收藏后源文件消失仍能在归档里看见（"已完成取消"链路）**、恢复在用、状态与星标互不影响（字段级合并）、
+revision 冲突与 404、非小红书库也能改状态、HTTP 层的状态补丁与 `status=` 参数校验。
+
+**证伪**：把 `library.ts` / `api.ts` 回退到上一版（只有标星、没有状态）后重跑，**10 条失败**
+（8 条 `svc.setStatus is not a function`、1 条计数断言、1 条 HTTP 里 `annotationRevision` 为 undefined）；
+恢复新代码后 134 条全绿。
+
+**浏览器实测（DOM 断言，全程避开用户自己标星的那一条）**：
+
+| 检查 | 结果 |
+| --- | --- |
+| 侧栏四个入口计数 | 小红书收藏 606 / 标星 1（用户标的）/ 归档 0 / 标签 › |
+| 详情里的状态控件 | 三选一「在用 / 已过期 / 已取消」，默认在用，带说明性 title |
+| 标为已过期 | toast「已标为过期，移入归档」+ 撤销按钮；控件立即切到已过期 |
+| 计数联动 | 小红书收藏 606→**605**、归档 0→**1**、标题范围「605 篇」 |
+| 列表联动 | 该卡片立即从列表消失（`stillHasTarget=false`），关掉详情后列表 60 张、无它 |
+| 归档视图 | 标题「归档」、范围「1 篇」、入口高亮、卡片带「已过期」标签、筛选行出现「全部归档/已过期/已取消收藏」 |
+| 从归档恢复在用 | 打开详情时控件正确显示「已过期」→ 点在用后立即离开归档，空状态「归档里还没有笔记」，计数回到 0 / 606 |
+| 撤销按钮 | 标「已取消」→ toast 带撤销 → 点撤销后该条**重新出现在列表里**，归档计数归 0 |
+| 不碰用户数据 | 用户自己标的星标在整轮测试后仍在那张卡上（`.btn-star.starred` 还在，标星计数 1） |
+| 回归：列表模式 | 606 行表格正常 |
+| 回归：标签目录 | 891 个标签正常（计数口径改过，需确认没被改坏） |
+| 回归：详情分类选择器 | 正常显示「生活」，与状态控件并存 |
+
+**只读边界**：改动前后 `node scripts/source-hash.mjs --check` 结果 `added 0 / removed 0 / changed 0`。
+
+**已知缺口**：列表（表格）模式既没有星标列也没有状态列，只能在卡片或详情里改；
+批量操作（一次选中多条改状态）留到后面——真要去小红书批量取消时，一条条点会很难受。
+
+**落点**：`server/services/library.ts`、`server/routes/api.ts`、`shared/types.ts`、
+`src/components/{NoteCard,Sidebar,Toolbar,DetailDialog,Icons}.tsx`、`src/App.tsx`、`src/api/client.ts`、
+`src/styles/app.css`、`tests/annotations.test.ts`、`tests/http.test.ts`。

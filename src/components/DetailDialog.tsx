@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { NoteDetail, NoteSummary } from '../../shared/types';
+import type { NoteDetail, NoteStatus, NoteSummary } from '../../shared/types';
 
 interface CategoryOption {
   id: string;
@@ -25,8 +25,19 @@ interface Props {
   onCategoryError(message: string): void;
   /** 标星开关（三个库都可标） */
   onToggleStar(): void;
+  /** 标注 revision，改状态时作为 expectedRevision */
+  annotationRevision: number;
+  onStatusChanged(noteId: string, status: NoteStatus, revision: number): void;
+  onStatusError(message: string): void;
   onClose(): void;
 }
+
+/** 状态三选一：互斥，所以用分段控件而不是下拉——一眼能看出"现在是什么状态" */
+const STATUS_OPTIONS = [
+  { key: 'active', label: '在用', title: '还在我的工作集里（默认）' },
+  { key: 'expired', label: '已过期', title: '内容用过一次，不再需要 → 移入归档' },
+  { key: 'uncollected', label: '已取消', title: '打算去小红书取消收藏 → 移入归档，等源文件消失即视为完成' },
+] as const;
 
 export function DetailDialog({
   summary,
@@ -36,12 +47,16 @@ export function DetailDialog({
   onCategoryChanged,
   onCategoryError,
   onToggleStar,
+  annotationRevision,
+  onStatusChanged,
+  onStatusError,
   onClose,
 }: Props) {
   const [detail, setDetail] = useState<NoteDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -147,6 +162,24 @@ export function DetailDialog({
   );
 
   const currentCat = categories.find((c) => c.id === summary.categoryId) ?? null;
+
+  const currentStatus = summary.annotation.status;
+  const setStatus = useCallback(
+    async (next: Exclude<NoteStatus, 'active'> | null) => {
+      const cur = summary.annotation.status === 'active' ? null : summary.annotation.status;
+      if (next === cur) return; // 点当前状态不做无谓的写盘
+      setStatusSaving(true);
+      try {
+        const out = await api.setStatus(summary.id, next, annotationRevision);
+        onStatusChanged(summary.id, out.status, out.revision);
+      } catch (e) {
+        onStatusError(e instanceof ApiError ? e.message : '状态保存失败');
+      } finally {
+        setStatusSaving(false);
+      }
+    },
+    [summary.id, summary.annotation.status, annotationRevision, onStatusChanged, onStatusError]
+  );
 
   return (
     <div
@@ -269,6 +302,26 @@ export function DetailDialog({
                 <span>发布：{formatShanghai(detail.publishedAt) ?? '未知'}</span>
                 <span>同步：{formatShanghai(detail.syncedAt) ?? '未知'}</span>
                 {detail.sourceStatus === 'missing' && <span style={{ color: 'var(--accent)' }}>源文件暂不可用</span>}
+              </div>
+
+              {/* 人工标注：状态是互斥的三选一，用分段控件比下拉更容易看出"现在是什么状态" */}
+              <div className={`detail-annotation${statusSaving ? ' saving' : ''}`}>
+                <span className="ann-label">状态</span>
+                <div className="status-picker" role="group" aria-label="标注状态">
+                  {STATUS_OPTIONS.map((o) => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      className={currentStatus === o.key ? 'active' : ''}
+                      aria-pressed={currentStatus === o.key}
+                      disabled={statusSaving}
+                      title={o.title}
+                      onClick={() => void setStatus(o.key === 'active' ? null : o.key)}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {videoFailed && (

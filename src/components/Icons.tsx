@@ -88,6 +88,15 @@ export const IconInbox = ({ size, className }: IconProps) => (
   </svg>
 );
 
+/** 归档：带盖子的收纳盒 */
+export const IconArchive = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <rect x="3.4" y="4.2" width="17.2" height="4.6" rx="1.4" />
+    <path d="M5.2 8.8v9.3A1.9 1.9 0 0 0 7.1 20h9.8a1.9 1.9 0 0 0 1.9-1.9V8.8" />
+    <path d="M10.2 12.6h3.6" />
+  </svg>
+);
+
 export const IconBrush = ({ size, className }: IconProps) => (
   <svg {...base(size, className)}>
     <path d="M14.8 3.7 20.3 9.2 10 19.5a2.2 2.2 0 0 1-1.2.62l-5.2.78.78-5.2A2.2 2.2 0 0 1 5 14.5L14.8 3.7Z" />

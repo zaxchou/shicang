@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LibraryInfo, NoteSummary, RefreshJobInfo, TagCount } from '../shared/types';
+import type { LibraryInfo, NoteStatus, NoteSummary, RefreshJobInfo, TagCount } from '../shared/types';
 import { api, ApiError, type QueryParams } from './api/client';
 import { Sidebar } from './components/Sidebar';
 import { Toolbar, type QueryState } from './components/Toolbar';
@@ -7,7 +7,7 @@ import { Masonry } from './components/Masonry';
 import { DetailDialog } from './components/DetailDialog';
 import { TagsDirectory } from './components/TagsDirectory';
 import { DataTable } from './components/Table';
-import { IconRefresh } from './components/Icons';
+import { IconArchive, IconRefresh } from './components/Icons';
 
 const PAGE_SIZE = 60;
 const TABLE_LIMIT = 1000;
@@ -21,6 +21,7 @@ const INITIAL_QUERY: QueryState = {
   to: '',
   order: 'desc',
   starred: false,
+  status: 'active',
 };
 
 type View = 'library' | 'tags';
@@ -64,7 +65,12 @@ export default function App() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [detailSummary, setDetailSummary] = useState<NoteSummary | null>(null);
-  const [toast, setToast] = useState<{ id: number; msg: string; kind: 'info' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{
+    id: number;
+    msg: string;
+    kind: 'info' | 'error';
+    action?: { label: string; run(): void };
+  } | null>(null);
 
   const seqRef = useRef(0);
   const composingRef = useRef(false);
@@ -90,12 +96,16 @@ export default function App() {
   const curInfo = infos.find((c) => c.id === collection) ?? null;
   const curCategories = curInfo?.categories ?? [];
 
-  const showToast = useCallback((msg: string, kind: 'info' | 'error' = 'info') => {
-    // 用自增 id 而不是消息文本判归属：相同文案的两条 toast 会在第一条的定时器上被提前清掉
-    const id = ++toastIdRef.current;
-    setToast({ id, msg, kind });
-    window.setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 4200);
-  }, []);
+  const showToast = useCallback(
+    (msg: string, kind: 'info' | 'error' = 'info', action?: { label: string; run(): void }) => {
+      // 用自增 id 而不是消息文本判归属：相同文案的两条 toast 会在第一条的定时器上被提前清掉
+      const id = ++toastIdRef.current;
+      setToast({ id, msg, kind, action });
+      // 带「撤销」的多留一会儿，否则手还没移到按钮上就消失了
+      window.setTimeout(() => setToast((t) => (t?.id === id ? null : t)), action ? 6500 : 4200);
+    },
+    []
+  );
 
   const loadLibrary = useCallback(async () => {
     try {
@@ -134,6 +144,8 @@ export default function App() {
         categoryId: viewRef.current === 'library' ? q.categoryId : null,
         tag: viewRef.current === 'tags' ? activeTagRef.current : null,
         starred: q.starred,
+        status: q.status,
+        includeMissing: q.status !== 'active',
         timeField: q.timeField,
         range: q.range,
         from: q.range === 'custom' && q.from ? q.from : undefined,
@@ -185,6 +197,8 @@ export default function App() {
         categoryId: viewRef.current === 'library' ? q.categoryId : null,
         tag: viewRef.current === 'tags' ? activeTagRef.current : null,
         starred: q.starred,
+        status: q.status,
+        includeMissing: q.status !== 'active',
         timeField: q.timeField,
         range: q.range,
         from: q.range === 'custom' && q.from ? q.from : undefined,
@@ -284,7 +298,7 @@ export default function App() {
     });
     setView('library');
     setActiveTag(null);
-    setQuery((q) => ({ ...q, categoryId: null, q: '', starred: false }));
+    setQuery((q) => ({ ...q, categoryId: null, q: '', starred: false, status: 'active' }));
     setItems([]);
     setTotal(null);
     setListLoading(true);
@@ -303,8 +317,8 @@ export default function App() {
       }
       setView('library');
       setActiveTag(null);
-      // 选分类 = 想"看这个分类"，顺手关掉标星筛选，避免在分类里再被标星悄悄过滤一层
-      patchQuery({ categoryId: id, starred: false });
+      // 选分类 = 想"看这个分类"，顺手关掉标星筛选与归档视图，避免在分类里再被悄悄过滤一层
+      patchQuery({ categoryId: id, starred: false, status: 'active' });
     },
     [patchQuery]
   );
@@ -314,11 +328,29 @@ export default function App() {
     setActiveTag(null);
   }, []);
 
-  /** 侧栏「标星」：当前库内的一层筛选，打开时清掉分类（否则计数与条数对不上） */
+  /**
+   * 侧栏「归档」：已过期 + 已取消收藏。打开时清掉分类与标星筛选（计数是全库口径），
+   * 并且会把源文件已消失的记录一并列出——"取消收藏已完成"这条链路要看得见。
+   */
+  const selectArchive = useCallback(() => {
+    setView('library');
+    setActiveTag(null);
+    setQuery((q) =>
+      q.status !== 'active'
+        ? { ...q, status: 'active' }
+        : { ...q, status: 'archived', categoryId: null, starred: false }
+    );
+  }, []);
+
+  /** 侧栏「标星」：当前库内的一层筛选，打开时清掉分类与归档视图 */
   const selectStarred = useCallback(() => {
     setView('library');
     setActiveTag(null);
-    setQuery((q) => (q.starred ? { ...q, starred: false } : { ...q, starred: true, categoryId: null }));
+    setQuery((q) =>
+      q.starred
+        ? { ...q, starred: false }
+        : { ...q, starred: true, categoryId: null, status: 'active' }
+    );
   }, []);
 
   const selectTag = useCallback((tag: string) => {
@@ -454,6 +486,78 @@ export default function App() {
     [loadLibrary, showToast]
   );
 
+  const statusLabel = (s: NoteStatus): string =>
+    s === 'expired' ? '已标为过期，移入归档' : s === 'uncollected' ? '已标为「已取消收藏」' : '已恢复为在用';
+
+  /**
+   * 改状态后的本地同步：不再符合当前视图的立刻移出（否则列表与筛选条件自相矛盾），
+   * 之后再拉一次列表与库信息，保证与服务端一致——恢复一条归档笔记时它得重新出现。
+   */
+  const syncStatusLocally = useCallback(
+    (noteId: string, status: NoteStatus, revision: number) => {
+      const view = queryRef.current.status;
+      const matches =
+        view === 'active' ? status === 'active' : view === 'archived' ? status !== 'active' : status === view;
+      const patchNote = (n: NoteSummary): NoteSummary =>
+        n.id === noteId ? { ...n, annotation: { ...n.annotation, status } } : n;
+      if (matches) {
+        setItems((prev) => prev.map(patchNote));
+      } else {
+        setItems((prev) => prev.filter((n) => n.id !== noteId));
+        setTotal((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
+      }
+      setDetailSummary((prev) => (prev && prev.id === noteId ? patchNote(prev) : prev));
+      setLibrary((prev) => (prev ? { ...prev, annotationRevision: revision } : prev));
+      void loadLibrary();
+      void reload();
+    },
+    [loadLibrary, reload]
+  );
+
+  /** 自引用（撤销要能再调一次）只能走 ref，否则 useCallback 里拿不到自己 */
+  const applyStatusRef = useRef<
+    ((noteId: string, status: NoteStatus, expectedRevision: number, prev?: NoteStatus) => Promise<void>) | null
+  >(null);
+
+  /**
+   * 写入状态。带 expectedRevision（冲突说明别处动过这条标注），
+   * 变更后给一个带「撤销」的 toast——标错状态会把笔记移出列表，没有撤销就得去归档里翻。
+   */
+  const applyStatus = useCallback(
+    async (noteId: string, status: NoteStatus, expectedRevision: number, prev?: NoteStatus) => {
+      try {
+        const out = await api.setStatus(noteId, status === 'active' ? null : status, expectedRevision);
+        syncStatusLocally(noteId, out.status, out.revision);
+        if (prev !== undefined && prev !== out.status) {
+          showToast(statusLabel(out.status), 'info', {
+            label: '撤销',
+            run: () => void applyStatusRef.current?.(noteId, prev, out.revision),
+          });
+        }
+      } catch (e) {
+        showToast(e instanceof ApiError ? e.message : '状态保存失败', 'error');
+        void loadLibrary();
+      }
+    },
+    [syncStatusLocally, showToast, loadLibrary]
+  );
+  applyStatusRef.current = applyStatus;
+
+  const onStatusChanged = useCallback(
+    (noteId: string, status: NoteStatus, revision: number, prev: NoteStatus) => {
+      void applyStatus(noteId, status, revision, prev);
+    },
+    [applyStatus]
+  );
+
+  const onStatusError = useCallback(
+    (msg: string) => {
+      showToast(msg, 'error');
+      void loadLibrary();
+    },
+    [loadLibrary, showToast]
+  );
+
   /**
    * 标星 / 取消标星。先乐观更新（点一下要立刻有反馈，等一个来回会显得卡），失败再回滚。
    * 服务端那边是单字段幂等写入，不需要 expectedRevision，所以连点不会互相冲突。
@@ -500,24 +604,34 @@ export default function App() {
     ? '标签'
     : inTagResult
       ? `#${activeTag}`
-      : query.starred
-        ? '标星'
-        : query.categoryId === 'uncategorized'
-          ? '未分类'
-          : query.categoryId
-            ? (categoryName(query.categoryId) ?? '收藏')
-            : (curInfo?.name ?? '收藏');
+      : query.status !== 'active'
+        ? query.status === 'expired'
+          ? '归档 · 已过期'
+          : query.status === 'uncollected'
+            ? '归档 · 已取消收藏'
+            : '归档'
+        : query.starred
+          ? '标星'
+          : query.categoryId === 'uncategorized'
+            ? '未分类'
+            : query.categoryId
+              ? (categoryName(query.categoryId) ?? '收藏')
+              : (curInfo?.name ?? '收藏');
   const scopeCount = inDirectory
     ? (tags?.length ?? null)
     : inTagResult
       ? (tags?.find((t) => t.tag === activeTag)?.count ?? null)
-      : query.starred
-        ? (curInfo?.starred ?? null)
-        : query.categoryId === 'uncategorized'
-          ? (curInfo?.uncategorized ?? null)
-          : query.categoryId
-            ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
-            : (curInfo?.total ?? null);
+      : query.status !== 'active'
+        ? query.status === 'archived'
+          ? (curInfo?.archived ?? null)
+          : null // 细分视图没有现成计数，工具栏的「当前结果 N 篇」已经说明问题，不假装知道
+        : query.starred
+          ? (curInfo?.starred ?? null)
+          : query.categoryId === 'uncategorized'
+            ? (curInfo?.uncategorized ?? null)
+            : query.categoryId
+              ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
+              : (curInfo?.active ?? null);
 
   const bootLoading = !library && !libraryError;
   const emptyLibrary = (curInfo?.total ?? 0) === 0 && view === 'library' && !libraryError && library !== null;
@@ -525,6 +639,19 @@ export default function App() {
   /** 「只看标星」且一条都没有：这不是"筛没了"，而是还没标过任何一条，提示要不一样 */
   const emptyStarred =
     query.starred && !inTagResult && !query.q.trim() && query.range === 'all' && total === 0;
+  /** 工作集空了但归档里有东西：提示去归档，而不是说"没有匹配的收藏" */
+  const allArchived =
+    query.status === 'active' &&
+    !inTagResult &&
+    !query.starred &&
+    query.categoryId === null &&
+    !query.q.trim() &&
+    query.range === 'all' &&
+    total === 0 &&
+    (curInfo?.archived ?? 0) > 0;
+  /** 归档视图本身是空的 */
+  const emptyArchive =
+    query.status !== 'active' && !inTagResult && !query.q.trim() && query.range === 'all' && total === 0;
   const listSwitching = listLoading && items.length === 0;
   const showNotes = !inDirectory && !libraryError && !emptyLibrary && items.length > 0;
   const showTableView = showNotes && viewMode === 'table';
@@ -537,10 +664,12 @@ export default function App() {
         activeCategoryId={query.categoryId}
         tagsView={view === 'tags'}
         starredOnly={query.starred}
+        archiveView={query.status !== 'active'}
         onSelectCollection={selectCollection}
         onSelectCategory={selectCategory}
         onSelectTags={selectTagsView}
         onSelectStarred={selectStarred}
+        onSelectArchive={selectArchive}
       />
 
       <main className="main glass-surface">
@@ -604,21 +733,35 @@ export default function App() {
               {noResult && !libraryError && !bootLoading && (
                 <div className="results-state">
                   <div className="state-title">
-                    {emptyStarred ? '还没有标星的笔记' : '没有匹配的收藏'}
+                    {allArchived
+                      ? '在用的笔记都在归档里'
+                      : emptyArchive
+                        ? '归档里还没有笔记'
+                        : emptyStarred
+                          ? '还没有标星的笔记'
+                          : '没有匹配的收藏'}
                   </div>
                   <div>
-                    {emptyStarred ? (
+                    {allArchived ? (
+                      <>
+                        归档里有 {curInfo?.archived} 篇（已过期 / 已取消收藏）。在详情面板里把状态改回「在用」就能取回。
+                      </>
+                    ) : emptyArchive ? (
+                      <>在详情面板里把一条笔记标成「已过期」或「已取消」，它就会出现在这里。</>
+                    ) : emptyStarred ? (
                       <>在卡片左上角（没有封面的卡片在作者行右端）点一下星标，就会出现在这里。</>
                     ) : (
                       <>
                         当前条件：
                         {inTagResult
                           ? `标签 #${activeTag}`
-                          : query.starred
-                            ? '标星'
-                            : query.categoryId === 'uncategorized'
-                              ? '未分类'
-                              : (categoryName(query.categoryId ?? null) ?? curInfo?.name ?? '全部')}
+                          : query.status !== 'active'
+                            ? '归档'
+                            : query.starred
+                              ? '标星'
+                              : query.categoryId === 'uncategorized'
+                                ? '未分类'
+                                : (categoryName(query.categoryId ?? null) ?? curInfo?.name ?? '全部')}
                         {query.q.trim() ? `，搜索“${query.q.trim()}”` : ''}
                         {query.range !== 'all'
                           ? `，时间范围 ${query.range === 'custom' ? `${query.from} 至 ${query.to}` : query.range === '7d' ? '最近 7 天' : '最近 30 天'}`
@@ -626,24 +769,31 @@ export default function App() {
                       </>
                     )}
                   </div>
-                  <button
-                    className="btn-refresh"
-                    onClick={() => {
-                      patchQuery({
-                        q: '',
-                        range: 'all',
-                        from: '',
-                        to: '',
-                        order: 'desc',
-                        timeField: 'published',
-                        categoryId: null,
-                        starred: false,
-                      });
-                      setActiveTag(null);
-                    }}
-                  >
-                    返回并清除筛选
-                  </button>
+                  {allArchived ? (
+                    <button className="btn-refresh" onClick={selectArchive}>
+                      <IconArchive size={14} /> 打开归档
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-refresh"
+                      onClick={() => {
+                        patchQuery({
+                          q: '',
+                          range: 'all',
+                          from: '',
+                          to: '',
+                          order: 'desc',
+                          timeField: 'published',
+                          categoryId: null,
+                          starred: false,
+                          status: 'active',
+                        });
+                        setActiveTag(null);
+                      }}
+                    >
+                      返回并清除筛选
+                    </button>
+                  )}
                 </div>
               )}
               {listError && items.length === 0 && !libraryError && !bootLoading && (
@@ -699,13 +849,30 @@ export default function App() {
           onCategoryChanged={onCategoryChanged}
           onCategoryError={onCategoryError}
           onToggleStar={() => void toggleStar(detailSummary)}
+          annotationRevision={library.annotationRevision}
+          onStatusChanged={(id, status, revision) =>
+            onStatusChanged(id, status, revision, detailSummary.annotation.status)
+          }
+          onStatusError={onStatusError}
           onClose={closeDetail}
         />
       )}
 
       {toast && (
         <div key={toast.id} className={`toast${toast.kind === 'error' ? ' error' : ''}`} role="status">
-          {toast.msg}
+          <span>{toast.msg}</span>
+          {toast.action && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                const run = toast.action?.run;
+                setToast(null);
+                run?.();
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
         </div>
       )}
     </div>

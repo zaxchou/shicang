@@ -11,8 +11,8 @@ import {
   AnnotationValidationError,
   applyAnnotationPatch,
   normalizeEntry,
-  MAX_REMARK,
 } from '../server/services/annotations';
+import { MAX_REMARK } from '../shared/types';
 import { LibraryService, NotFoundError, ValidationError } from '../server/services/library';
 import type { AppConfig } from '../server/config';
 import { createFixture, type Fixture } from './helpers/fixture';
@@ -496,6 +496,92 @@ describe('状态与归档视图', () => {
     await expect(svc.setStatus(id!, 'archived', 0)).resolves.toMatchObject({ status: 'archived' });
     expect(svc.query({ ...baseQuery, collection: 'treasures' }).total).toBe(0);
     expect(svc.query({ ...baseQuery, collection: 'treasures', status: 'archived' }).total).toBe(1);
+  });
+});
+
+describe('备注', () => {
+  it('写入后列表与详情都带备注，且能按备注搜到（正文里没有那些字）', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一', body: '正文里没有那个词' });
+    fx.writeNote({ id: 'id-0002', title: '笔记二' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+
+    await svc.setAnnotation('id-0001', { remark: '下次装修参考这个配色' }, 0);
+    const listed = svc.query({ ...baseQuery }).items.find((n) => n.id === 'id-0001');
+    expect(listed?.annotation.remark).toBe('下次装修参考这个配色');
+    expect(svc.detail('id-0001').annotation.remark).toBe('下次装修参考这个配色');
+
+    // 备注是后加字段，必须显式并进搜索，否则"搜自己写的东西"搜不到
+    const hit = svc.query({ ...baseQuery, q: '装修' });
+    expect(hit.total).toBe(1);
+    expect(hit.items[0]?.id).toBe('id-0001');
+    // 多词 AND：一个词命中正文、一个词命中备注，也算命中
+    expect(svc.query({ ...baseQuery, q: '笔记一 装修' }).total).toBe(1);
+    // 有一个词哪都不在 → 排除
+    expect(svc.query({ ...baseQuery, q: '装修 不存在的词' }).total).toBe(0);
+    // 大小写不敏感
+    expect(svc.query({ ...baseQuery, q: '装修' }).total).toBe(1);
+  });
+
+  it('清空备注（null / 空串）之后不再被搜到，也不留空壳', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setAnnotation('id-0001', { remark: '独特词' }, 0);
+    expect(svc.query({ ...baseQuery, q: '独特词' }).total).toBe(1);
+
+    const out = await svc.setAnnotation('id-0001', { remark: null }, 1);
+    expect(out.remark).toBeNull();
+    expect(svc.query({ ...baseQuery, q: '独特词' }).total).toBe(0);
+  });
+
+  it('备注 revision 冲突与长度上限', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await expect(svc.setAnnotation('id-0001', { remark: 'x' }, 99)).rejects.toBeInstanceOf(
+      AnnotationConflictError
+    );
+    const out = await svc.setAnnotation('id-0001', { remark: 'x'.repeat(MAX_REMARK + 100) }, 0);
+    expect(out.remark?.length).toBe(MAX_REMARK);
+  });
+
+  it('备注与星标、归档互不影响（同一条目的不同字段）', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setAnnotation('id-0001', { star: true }, 0);
+    await svc.setAnnotation('id-0001', { remark: '留个记号' }, 1);
+    await svc.setAnnotation('id-0001', { status: 'archived' }, 2);
+
+    const ann = svc.detail('id-0001').annotation;
+    expect(ann).toMatchObject({ starred: true, status: 'archived', remark: '留个记号' });
+    // 归档视图里备注也还在，并且能搜到
+    const arch = svc.query({ ...baseQuery, status: 'archived' });
+    expect(arch.items[0]?.annotation.remark).toBe('留个记号');
+    expect(svc.query({ ...baseQuery, status: 'archived', q: '记号' }).total).toBe(1);
+  });
+
+  it('刷新与索引重建之后备注仍在', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const first = new LibraryService(makeCfg(fx));
+    await first.init();
+    await first.setAnnotation('id-0001', { remark: '不该丢' }, 0);
+
+    const job = first.startRefresh();
+    await waitForJob(first, job.jobId);
+    expect(first.detail('id-0001').annotation.remark).toBe('不该丢');
+
+    fs.rmSync(path.join(fx.dataDir, 'library-index.json'));
+    const second = new LibraryService(makeCfg(fx));
+    await second.init();
+    expect(second.detail('id-0001').annotation.remark).toBe('不该丢');
+    expect(second.query({ ...baseQuery, q: '不该丢' }).total).toBe(1);
   });
 });
 

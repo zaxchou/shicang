@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { NoteDetail, NoteStatus, NoteSummary } from '../../shared/types';
+import { MAX_REMARK, type NoteDetail, type NoteStatus, type NoteSummary } from '../../shared/types';
 
 interface CategoryOption {
   id: string;
@@ -28,7 +28,10 @@ interface Props {
   /** 标注 revision，改状态时作为 expectedRevision */
   annotationRevision: number;
   onStatusChanged(noteId: string, status: NoteStatus, revision: number): void;
-  onStatusError(message: string): void;
+  /** 备注保存成功（App 更新列表卡片与详情） */
+  onRemarkChanged(noteId: string, remark: string | null, revision: number): void;
+  /** 标注类操作（归档 / 备注）出错时的统一提示 */
+  onAnnotationError(message: string): void;
   onClose(): void;
 }
 
@@ -43,7 +46,8 @@ export function DetailDialog({
   onToggleStar,
   annotationRevision,
   onStatusChanged,
-  onStatusError,
+  onRemarkChanged,
+  onAnnotationError,
   onClose,
 }: Props) {
   const [detail, setDetail] = useState<NoteDetail | null>(null);
@@ -51,6 +55,8 @@ export function DetailDialog({
   const [menuOpen, setMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [remarkDraft, setRemarkDraft] = useState(summary.annotation.remark ?? '');
+  const [remarkSaving, setRemarkSaving] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -166,13 +172,34 @@ export function DetailDialog({
         const out = await api.setStatus(summary.id, next, annotationRevision);
         onStatusChanged(summary.id, out.status, out.revision);
       } catch (e) {
-        onStatusError(e instanceof ApiError ? e.message : '归档操作失败');
+        onAnnotationError(e instanceof ApiError ? e.message : '归档操作失败');
       } finally {
         setStatusSaving(false);
       }
     },
-    [summary.id, currentStatus, annotationRevision, onStatusChanged, onStatusError]
+    [summary.id, currentStatus, annotationRevision, onStatusChanged, onAnnotationError]
   );
+
+  // 换一条笔记（或备注被别处改过）时把草稿同步回来
+  useEffect(() => {
+    setRemarkDraft(summary.annotation.remark ?? '');
+  }, [summary.id, summary.annotation.remark]);
+
+  const savedRemark = summary.annotation.remark ?? '';
+  const remarkDirty = remarkDraft.trim() !== savedRemark;
+  const saveRemark = useCallback(async () => {
+    const next = remarkDraft.trim();
+    if (next === savedRemark) return;
+    setRemarkSaving(true);
+    try {
+      const out = await api.setRemark(summary.id, next === '' ? null : next, annotationRevision);
+      onRemarkChanged(summary.id, out.remark, out.revision);
+    } catch (e) {
+      onAnnotationError(e instanceof ApiError ? e.message : '备注保存失败');
+    } finally {
+      setRemarkSaving(false);
+    }
+  }, [remarkDraft, savedRemark, summary.id, annotationRevision, onRemarkChanged, onAnnotationError]);
 
   return (
     <div
@@ -317,6 +344,41 @@ export function DetailDialog({
                 {currentStatus === 'archived' && (
                   <span className="ann-hint">已归档：只影响拾藏，不删源文件，随时可以取回</span>
                 )}
+              </div>
+
+              {/* 备注：纯文本（不当 HTML 渲染），只存在拾藏里 */}
+              <div className="detail-remark">
+                <div className="remark-head">
+                  <span className="remark-label">备注</span>
+                  {remarkDirty && <span className="remark-dirty">未保存</span>}
+                </div>
+                <textarea
+                  className="remark-input"
+                  value={remarkDraft}
+                  onChange={(e) => setRemarkDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      void saveRemark();
+                    }
+                  }}
+                  placeholder="给自己记点什么：为什么留下它、下次怎么用…"
+                  maxLength={MAX_REMARK}
+                  rows={4}
+                  disabled={remarkSaving}
+                  aria-label="备注"
+                />
+                <div className="remark-actions">
+                  <button
+                    type="button"
+                    className="btn-remark-save"
+                    onClick={() => void saveRemark()}
+                    disabled={!remarkDirty || remarkSaving}
+                  >
+                    {remarkSaving ? '保存中…' : '保存备注'}
+                  </button>
+                  <span className="ann-hint">⌘/Ctrl + Enter 保存 · 只存在拾藏里，不写回 Obsidian</span>
+                </div>
               </div>
 
               {videoFailed && (

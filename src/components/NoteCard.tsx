@@ -124,6 +124,8 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
           {/* 无封面的卡片（日记居多）没有图片可压，星标落在元信息行右端，避免压住标题 */}
           {!note.cover && <StarButton starred={note.annotation.starred} onToggle={() => onToggleStar(note)} />}
         </div>
+        {/* 自己的备注：只藏在详情里等于废掉一半价值，卡片上要能看见（最多两行） */}
+        {note.annotation.remark && <p className="card-remark">{note.annotation.remark}</p>}
       </div>
     </article>
   );

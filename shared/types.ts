@@ -212,4 +212,7 @@ export interface ApiErrorBody {
 export const DEFAULT_PAGE_SIZE = 60;
 export const MAX_PAGE_SIZE = 100;
 
+/** 备注长度上限：存储侧截断、服务端校验、前端 maxlength 共用同一个数 */
+export const MAX_REMARK = 2000;
+
 export const UNCATEGORIZED_ID = 'uncategorized';

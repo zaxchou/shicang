@@ -112,6 +112,12 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ status, expectedRevision }),
     }),
+  /** 写备注（纯文本，传 null/空串清空）。与状态一样带 revision */
+  setRemark: (id: string, remark: string | null, expectedRevision: number) =>
+    request<{ revision: number; remark: string | null }>(
+      `/api/notes/${encodeURIComponent(id)}/annotation`,
+      { method: 'PATCH', body: JSON.stringify({ remark, expectedRevision }) }
+    ),
   startRefresh: () => request<{ job: RefreshJobInfo }>('/api/refresh', { method: 'POST' }),
   refreshJob: (jobId: string) => request<{ job: RefreshJobInfo }>(`/api/refresh/${encodeURIComponent(jobId)}`),
 };

@@ -85,8 +85,9 @@ export function Sidebar({
                 </button>
               );
             })}
-            {/* 未分类固定排在分类列表末尾，不参与上面的类目排序 */}
-            {(cur!.uncategorized > 0 || collection === 'rednote') && (
+            {/* 未分类固定排在分类列表末尾，不参与上面的类目排序；
+                计数为 0 时整条隐藏（用户要求：没有未分类就别显示这一项） */}
+            {cur!.uncategorized > 0 && (
               <button
                 className={`nav-item nav-item-last${!tagsView && activeCategoryId === 'uncategorized' ? ' active' : ''}`}
                 onClick={() => onSelectCategory('uncategorized')}

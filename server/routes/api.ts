@@ -8,7 +8,7 @@ import type {
   RefreshJobInfo,
   Category,
 } from '../../shared/types.js';
-import { DEFAULT_PAGE_SIZE } from '../../shared/types.js';
+import { DEFAULT_PAGE_SIZE, MAX_REMARK } from '../../shared/types.js';
 
 /** 表格模式一次取全量（列排序在前端做） */
 const MAX_PAGE_SIZE_TABLE = 1000;
@@ -75,6 +75,8 @@ const patchAnnotationSchema = z.object({
   star: z.boolean().optional(),
   /** null = 取回（回到在用） */
   status: z.literal('archived').nullable().optional(),
+  /** 备注（纯文本）；null 或空串 = 清空。上限与存储侧同一个常量 */
+  remark: z.string().max(MAX_REMARK, `备注最多 ${MAX_REMARK} 字`).nullable().optional(),
   expectedRevision: z.number().int().nonnegative().optional(),
 });
 
@@ -220,13 +222,13 @@ export function apiRouter(deps: ApiDeps): express.Router {
       if (!body.success) {
         throw new HttpError(400, 'INVALID_BODY', '请求体无效', body.error.flatten());
       }
-      if (body.data.star === undefined && body.data.status === undefined) {
+      if (body.data.star === undefined && body.data.status === undefined && body.data.remark === undefined) {
         throw new HttpError(400, 'EMPTY_PATCH', '请求体至少要带一个待修改字段');
       }
       try {
         const out = await deps.library().setAnnotation(
           requireParam(req, 'id'),
-          { star: body.data.star, status: body.data.status },
+          { star: body.data.star, status: body.data.status, remark: body.data.remark },
           body.data.expectedRevision
         );
         res.json(out);

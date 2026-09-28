@@ -378,6 +378,33 @@ describe('HTTP 路由', () => {
       expect((await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json()).total).toBe(0);
     });
 
+    it('PATCH 备注：写入能被搜索命中、超长 400、冲突 409、清空后搜不到', async () => {
+      const patch = (id: string, body: unknown) =>
+        fetch(`${base}/api/notes/${id}/annotation`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Origin: ALLOWED_ORIGIN },
+          body: JSON.stringify(body),
+        });
+      const lib = await (await fetch(`${base}/api/library`)).json();
+      const rev = lib.annotationRevision;
+
+      expect((await patch('id-0001', { remark: 'x'.repeat(2001), expectedRevision: rev })).status).toBe(400);
+      expect((await patch('id-0001', { remark: '搜索用的独特词', expectedRevision: rev + 9 })).status).toBe(409);
+
+      const ok = await patch('id-0001', { remark: '搜索用的独特词', expectedRevision: rev });
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toMatchObject({ remark: '搜索用的独特词', revision: rev + 1 });
+
+      // 备注参与搜索：这个词只出现在备注里
+      const found = await (await fetch(`${base}/api/notes?q=${encodeURIComponent('独特词')}`)).json();
+      expect(found.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+
+      const cleared = await patch('id-0001', { remark: null, expectedRevision: rev + 1 });
+      expect(await cleared.json()).toMatchObject({ remark: null });
+      const gone = await (await fetch(`${base}/api/notes?q=${encodeURIComponent('独特词')}`)).json();
+      expect(gone.total).toBe(0);
+    });
+
     it('非法请求体与非 JSON 请求体都是 400', async () => {
       const bad = await fetch(`${base}/api/notes/id-0001/category`, {
         method: 'PATCH',

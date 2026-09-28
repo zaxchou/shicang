@@ -8,7 +8,7 @@
 // 一个文件、一条 revision 装齐三项，写入做字段级浅合并：三项总是一起编辑（详情面板里一处改），
 // 拆成三个文件就有了三条冲突链；而浅合并让"两个客户端同时改不同字段"不会互相覆盖。
 import path from 'node:path';
-import type { NoteStatus } from '../../shared/types.js';
+import { MAX_REMARK, type NoteStatus } from '../../shared/types.js';
 import { JsonStore } from '../storage/json-store.js';
 
 /** 单条笔记的标注；字段缺失 = 该字段从未标过 */
@@ -37,8 +37,6 @@ export interface AnnotationPatch {
   status?: Exclude<NoteStatus, 'active'> | null;
   remark?: string | null;
 }
-
-export const MAX_REMARK = 2000;
 
 const STATUS_VALUES: ReadonlySet<string> = new Set(['archived']);
 
@@ -206,6 +204,11 @@ export class AnnotationsService {
   /** 只要状态：计数与列表过滤都按每条调一次，避免为每个 id 建对象 */
   statusOf(noteId: string): NoteStatus {
     return this.doc.entries[noteId]?.status ?? 'active';
+  }
+
+  /** 只要备注：全文搜索要按条调用（备注是人工字段，不在索引的 searchText 里） */
+  remarkOf(noteId: string): string {
+    return this.doc.entries[noteId]?.remark ?? '';
   }
 
   /** 生效标注（补默认值，供 API 输出） */

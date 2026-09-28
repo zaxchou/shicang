@@ -207,7 +207,12 @@ export class LibraryService {
     const q = (params.q ?? '').trim().toLowerCase();
     if (q) {
       const terms = q.split(/\s+/).filter(Boolean);
-      items = items.filter((r) => terms.every((t) => r.searchText.includes(t)));
+      // 备注是人工字段，不在索引里预处理的 searchText 内——必须显式并进搜索，
+      // 否则"搜自己写的备注"会搜不到（用户记东西时最先用的就是这个）
+      items = items.filter((r) => {
+        const remark = this.annotations.remarkOf(r.id).toLowerCase();
+        return terms.every((t) => r.searchText.includes(t) || (remark !== '' && remark.includes(t)));
+      });
     }
 
     if (params.categoryId === 'uncategorized') {
@@ -492,15 +497,16 @@ export class LibraryService {
    */
   async setAnnotation(
     noteId: string,
-    patch: { star?: boolean; status?: Exclude<NoteStatus, 'active'> | null },
+    patch: { star?: boolean; status?: 'archived' | null; remark?: string | null },
     expectedRevision?: number
-  ): Promise<{ revision: number; starred: boolean; status: NoteStatus }> {
+  ): Promise<{ revision: number; starred: boolean; status: NoteStatus; remark: string | null }> {
     if (!this.byId.has(noteId)) throw new NotFoundError(`未找到笔记 ${noteId}`);
     const revision = await this.annotations.patch(noteId, patch, expectedRevision);
     return {
       revision,
       starred: this.annotations.isStarred(noteId),
       status: this.annotations.statusOf(noteId),
+      remark: this.annotations.remarkOf(noteId) || null,
     };
   }
 
@@ -512,6 +518,16 @@ export class LibraryService {
   ): Promise<{ revision: number; starred: boolean }> {
     const out = await this.setAnnotation(noteId, { star }, expectedRevision);
     return { revision: out.revision, starred: out.starred };
+  }
+
+  /** 写备注（纯文本；传 null 或空串即清空）。与状态一样带 expectedRevision */
+  async setRemark(
+    noteId: string,
+    remark: string | null,
+    expectedRevision: number
+  ): Promise<{ revision: number; remark: string | null }> {
+    const out = await this.setAnnotation(noteId, { remark }, expectedRevision);
+    return { revision: out.revision, remark: out.remark };
   }
 
   /** 改状态：在用（传 null）/ 已过期 / 已取消收藏。三个收藏库都可改 */

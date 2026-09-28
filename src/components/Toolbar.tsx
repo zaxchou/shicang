@@ -133,7 +133,7 @@ export function Toolbar({
               <input
                 type="text"
                 value={query.q}
-                placeholder={searchPlaceholder ?? '搜索标题、正文、作者或标签…'}
+                placeholder={searchPlaceholder ?? '搜索标题、正文、作者、标签或备注…'}
                 onChange={(e) => onChange({ q: e.target.value })}
                 onCompositionStart={onCompositionStart}
                 onCompositionEnd={onCompositionEnd}

@@ -549,7 +549,8 @@ export default function App() {
     [applyStatus]
   );
 
-  const onStatusError = useCallback(
+  /** 标注类操作（归档 / 备注）出错：统一提示 + 拉一次库信息，避免本地状态与服务端不一致 */
+  const onAnnotationError = useCallback(
     (msg: string) => {
       showToast(msg, 'error');
       void loadLibrary();
@@ -585,6 +586,20 @@ export default function App() {
       }
     },
     [loadLibrary, showToast]
+  );
+
+  /** 备注保存成功：更新列表卡片与详情；若当前有搜索词就重查一次（备注本身参与搜索） */
+  const onRemarkChanged = useCallback(
+    (noteId: string, remark: string | null, revision: number) => {
+      const patch = (n: NoteSummary): NoteSummary =>
+        n.id === noteId ? { ...n, annotation: { ...n.annotation, remark } } : n;
+      setItems((prev) => prev.map(patch));
+      setDetailSummary((prev) => (prev && prev.id === noteId ? patch(prev) : prev));
+      setLibrary((prev) => (prev ? { ...prev, annotationRevision: revision } : prev));
+      showToast('备注已保存');
+      if (queryRef.current.q.trim()) void reload();
+    },
+    [showToast, reload]
   );
 
   const categoryName = useCallback(
@@ -848,7 +863,8 @@ export default function App() {
           onStatusChanged={(id, status, revision) =>
             onStatusChanged(id, status, revision, detailSummary.annotation.status)
           }
-          onStatusError={onStatusError}
+          onRemarkChanged={onRemarkChanged}
+          onAnnotationError={onAnnotationError}
           onClose={closeDetail}
         />
       )}

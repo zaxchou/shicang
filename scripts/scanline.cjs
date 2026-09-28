@@ -44,14 +44,20 @@ function decode(file) {
   return { w, h, bpp, stride, out };
 }
 const img = decode(process.argv[2]);
-const y = Number(process.argv[3]);
-const x0 = Number(process.argv[4] || 0), x1 = Number(process.argv[5] || img.w), step = Number(process.argv[6] || 1);
-const L = (x) => { const i = y * img.stride + x * img.bpp; return Math.round(0.2126 * img.out[i] + 0.7152 * img.out[i + 1] + 0.0722 * img.out[i + 2]); };
+// --vertical：改为沿竖直方向取一条线（量"两行之间有没有留白、几像素"用）
+const vertical = process.argv.includes('--vertical');
+const args = process.argv.slice(3).filter((a) => a !== '--vertical').map(Number);
+const y = args[0];
+const limit = vertical ? img.h : img.w;
+const x0 = Math.max(0, args[1] || 0), x1 = Math.min(limit, args[2] || limit), step = args[3] || 1;
+const L = vertical
+  ? (n) => { const i = (x0 + n) * img.stride + y * img.bpp; return Math.round(0.2126 * img.out[i] + 0.7152 * img.out[i + 1] + 0.0722 * img.out[i + 2]); }
+  : (x) => { const i = y * img.stride + x * img.bpp; return Math.round(0.2126 * img.out[i] + 0.7152 * img.out[i + 1] + 0.0722 * img.out[i + 2]); };
 let line = '';
 const vals = [];
 for (let x = x0; x < x1; x++) { const v = L(x); vals.push(v); }
 const max = Math.max(...vals), min = Math.min(...vals);
-console.log(`y=${y} x=${x0}..${x1}  min=${min} max=${max}`);
+console.log(vertical ? `x=${y} y=${x0}..${x1}  min=${min} max=${max}` : `y=${y} x=${x0}..${x1}  min=${min} max=${max}`);
 const ramp = ' .:-=+*#%@';
 for (let x = x0; x < x1; x += step) {
   const v = L(x);

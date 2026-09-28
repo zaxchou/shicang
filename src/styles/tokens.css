@@ -40,6 +40,9 @@
   --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.075);
   --trough: inset 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 -1px 0 rgba(255, 255, 255, 0.045);
   --card-shadow: 0 16px 36px -20px rgba(0, 0, 0, 0.85);
+  /* 工具栏下边缘投到内容上的那层柔光（配合 --hairline 分界线用，见 app.css 的 .main-header::after） */
+  --edge-shadow: rgba(0, 0, 0, 0.34);
+  --edge-line: rgba(255, 255, 255, 0.11);
 
   /* 文本 */
   --text-primary: #f2f3f5;
@@ -106,6 +109,9 @@
   --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.95);
   --trough: inset 0 1px 3px rgba(32, 42, 78, 0.10), inset 0 -1px 0 rgba(255, 255, 255, 0.85);
   --card-shadow: 0 16px 34px -20px rgba(32, 42, 78, 0.34);
+  --edge-shadow: rgba(32, 42, 78, 0.10);
+  /* 工具栏下边缘的分界线：比表格行线（--hairline）稍明显一点，才读得出"一条线" */
+  --edge-line: rgba(24, 32, 60, 0.14);
 
   --text-primary: #16181f;
   --text-secondary: #4b4e59;

@@ -284,7 +284,30 @@ img {
 /* ===== 主区头部 ===== */
 .main-header {
   flex: none;
-  padding: var(--main-pad) var(--main-pad) 0;
+  /* 工具栏块与内容之间不靠留白分界，靠"一条边缘线 + 线下的投影"（见 ::after）：
+     留白只会显得空、发白；有线有影才读得出是两层空间。
+     z-index 让 ::after 能压在滚动内容之上（.results 是滚动容器，内容会从线下滑过） */
+  position: relative;
+  z-index: 3; /* 要比表格粘性表头（z-index: 2）高，否则表头滑到边界时会盖住这条线 */
+  /* 下内边距 = 筛选行到分界线之间的空隙（用户指定 5px）：线不能贴着控件走 */
+  padding: var(--main-pad) var(--main-pad) 5px;
+}
+
+/* 工具栏层的下边缘：1px 分界线 + 向下渐隐的投影。
+   内容滚动时从这条线下面滑过，投影压在其上，形成"两层空间"的观感；
+   pointer-events: none 是必须的——否则这条 12px 高的覆盖层会吃掉卡片的点击。 */
+.main-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+  background: linear-gradient(to bottom, var(--edge-shadow), transparent);
+  /* 就一条 1px 分界线：之前额外加过一层"上缘受光"的亮边，它会占掉你要的那 3px 空隙，
+     所以去掉——线以上的 3px 是干净的面板底色 */
+  border-top: 1px solid var(--edge-line);
+  pointer-events: none;
 }
 .header-row {
   display: flex;
@@ -534,7 +557,8 @@ img {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 20px var(--main-pad) 34px;
+  /* 线下方：12px 正好容纳投影的渐隐带（内容不被压住） */
+  padding: 12px var(--main-pad) 34px;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar) transparent;
 }

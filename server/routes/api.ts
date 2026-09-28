@@ -8,7 +8,7 @@ import type {
   RefreshJobInfo,
   Category,
 } from '../../shared/types.js';
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../shared/types.js';
+import { DEFAULT_PAGE_SIZE } from '../../shared/types.js';
 
 /** 表格模式一次取全量（列排序在前端做） */
 const MAX_PAGE_SIZE_TABLE = 1000;

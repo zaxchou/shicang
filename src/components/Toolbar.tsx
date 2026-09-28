@@ -1,4 +1,4 @@
-
+import { shanghaiDateDaysAgo } from '../../shared/time';
 import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconRefresh, IconSearch } from './Icons';
 
 export interface QueryState {
@@ -64,12 +64,8 @@ export function Toolbar({
       onChange({ range, from: '', to: '' });
       return;
     }
-    // 预填最近 7 天
-    const fmt = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const to = new Date();
-    const from = new Date(to.getTime() - 6 * 86400_000);
-    onChange({ range, from: fmt(from), to: fmt(to) });
+    // 预填最近 7 天（按上海日历日，与服务端筛选口径一致）
+    onChange({ range, from: shanghaiDateDaysAgo(6), to: shanghaiDateDaysAgo(0) });
   };
 
   return (

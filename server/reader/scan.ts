@@ -101,6 +101,8 @@ export async function scanVault(
   const byPath = new Map<string, NoteRecord>();
   const records: NoteRecord[] = [];
   const idOwner = new Map<string, NoteRecord>();
+  /** 本次有意跳过的路径：不算 missing，也不保留旧记录（诊断说的是"已从库中移除"） */
+  const intentionalSkips = new Set<string>();
   let done = 0;
   const colMap = new Map(collections.map((c) => [c.id, c]));
 
@@ -119,6 +121,9 @@ export async function scanVault(
         Math.abs(prev.sourceMtimeMs - meta.mtimeMs) < 1 &&
         prev.sourceSize === meta.size
       ) {
+        // 快路径也必须登记 ID：否则下一轮刷新时，与它撞 ID 的文件会因为"先入者没登记"被当成首个
+        // 占用者收进索引，同一 ID 出现两条记录（实测可复现，真实库里目前没有重复 resourceId）
+        idOwner.set(prev.id, prev);
         byPath.set(meta.relPath, prev);
         records.push(prev);
         counts.skipped++;
@@ -130,6 +135,7 @@ export async function scanVault(
       if (outcome.skippedReason) {
         // 有意跳过（收藏索引页/空笔记等）：不算错误；若之前在库里则这次直接移除
         counts.skipped++;
+        intentionalSkips.add(meta.relPath);
         if (prev) diagnostics.push(`${meta.relPath}: ${outcome.skippedReason}；已从库中移除`);
         continue;
       }
@@ -151,7 +157,17 @@ export async function scanVault(
       if (owner && owner.sourceRelativePath !== rec.sourceRelativePath) {
         counts.errors++;
         diagnostics.push(`${meta.relPath}: ID 与 ${owner.sourceRelativePath} 冲突，保留先入记录`);
-        if (prev) records.push(prev);
+        // 旧记录继续留在库里（否则本次扫描会把它当"文件已消失"再补一条，同一路径出现两条记录）；
+        // 但它的 ID 若已被别人占用，就只能一并移除，避免索引里出现重复 ID
+        if (prev) {
+          if (idOwner.has(prev.id)) {
+            diagnostics.push(`${meta.relPath}: 旧记录的 ID ${prev.id} 也被占用，本次一并移除`);
+          } else {
+            byPath.set(meta.relPath, prev);
+            records.push(prev);
+            idOwner.set(prev.id, prev);
+          }
+        }
         continue;
       }
       idOwner.set(rec.id, rec);
@@ -164,14 +180,14 @@ export async function scanVault(
   });
   await Promise.all(workers);
 
-  // 完整枚举成功后：旧索引中已消失的文件标记 missing（保留记录与分类）
+  // 完整枚举成功后：旧索引中已消失的文件标记 missing（保留记录与分类）。
+  // 有意跳过的文件除外——它们不是"消失"，而是不再算库内条目。
   for (const [rel, rec] of existingByPath) {
-    if (!byPath.has(rel)) {
-      const missing: NoteRecord = { ...rec, sourceStatus: 'missing' };
-      byPath.set(rel, missing);
-      records.push(missing);
-      diagnostics.push(`${rel}: 源文件已消失，标记为 missing（保留记录与人工分类）`);
-    }
+    if (byPath.has(rel) || intentionalSkips.has(rel)) continue;
+    const missing: NoteRecord = { ...rec, sourceStatus: 'missing' };
+    byPath.set(rel, missing);
+    records.push(missing);
+    diagnostics.push(`${rel}: 源文件已消失，标记为 missing（保留记录与人工分类）`);
   }
 
   return { records, diagnostics, counts, enumerated: true };

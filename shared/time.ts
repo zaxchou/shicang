@@ -34,6 +34,16 @@ export function todayShanghai(): string {
   return shanghaiDate(new Date().toISOString()) as string;
 }
 
+/**
+ * 上海日历日往前推 n 天（n=0 即今天）。
+ * 前端预填「自定义范围」用它而不是浏览器的本地日期：日期口径必须与服务端筛选一致，
+ * 否则设备不在东八区时预填范围会整体差一天。
+ */
+export function shanghaiDateDaysAgo(n: number): string {
+  const todayStart = shanghaiDayStartMs(todayShanghai()) as number;
+  return shanghaiDate(new Date(todayStart - n * 24 * 3600 * 1000).toISOString()) as string;
+}
+
 /** 含今天的最近 n 个自然日 [起始日00:00, 明日00:00) 的毫秒区间 */
 export function lastNDaysRangeMs(n: number): [number, number] {
   const today = todayShanghai();

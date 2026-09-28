@@ -17,9 +17,16 @@ interface IndexedNote {
   id: string;
   title: string;
   tags?: string[];
+  collection?: string;
+  sourceStatus?: string;
 }
 
-const idx = JSON.parse(fs.readFileSync('.local/data/library-index.json', 'utf8')) as { notes: IndexedNote[] };
+// 只处理小红书收藏：宝贝/日记的分类来自笔记本身（收藏分类 / tags[0]），
+// 而且它们的 id 是源文件路径——混进 seed 会写入几百条无效条目
+const raw = JSON.parse(fs.readFileSync('.local/data/library-index.json', 'utf8')) as { notes: IndexedNote[] };
+const idx = {
+  notes: raw.notes.filter((n) => (n.collection ?? 'rednote') === 'rednote' && (n.sourceStatus ?? 'available') === 'available'),
+};
 
 const results: Array<{ id: string; title: string; cat: string; rule: string }> = [];
 const fallback: Array<{ id: string; title: string; tags: string }> = [];
@@ -48,6 +55,8 @@ console.log('未命中:', fallback.length);
 for (const f of fallback) console.log(`  ${f.id.slice(0, 8)} | ${f.title.slice(0, 42)} | ${f.tags.slice(0, 50)}`);
 
 // ---- 生成 data-seed/categories-seed.json ----
+// 覆盖不全不报错：规则命中不了的（AI 兜底过的、体裁判断不了的）留给运行时的自动分类/AI，
+// 由页面「未分类」兜底。以前这里 throw，导致只要有一篇没命中就再也刷不动 seed。
 const known = new Set(REDNOTE_CATEGORIES.map((c) => c.id));
 for (const r of results) if (!known.has(r.cat)) throw new Error(`非法分类 ${r.cat}`);
 const seen = new Set<string>();
@@ -55,7 +64,6 @@ for (const r of results) {
   if (seen.has(r.id)) throw new Error(`重复分配 ${r.id}`);
   seen.add(r.id);
 }
-if (seen.size !== idx.notes.length) throw new Error(`覆盖不全 ${idx.notes.length - seen.size}`);
 
 const classifiedAt = new Date().toISOString();
 const seed = {
@@ -74,3 +82,6 @@ const seed = {
 fs.mkdirSync('data-seed', { recursive: true });
 fs.writeFileSync('data-seed/categories-seed.json', JSON.stringify(seed, null, 2), 'utf8');
 console.log('seed 已生成:', results.length, '条');
+if (fallback.length > 0) {
+  console.log(`注意：${fallback.length} 篇未写入 seed（规则未命中），首次导入后由自动分类/AI 或人工处理`);
+}

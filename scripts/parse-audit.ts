@@ -31,7 +31,11 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const NON_DISPLAYABLE = /\.(heic|heif|tiff?)$/i;
+/** 能读出尺寸的位图格式（SVG 天生没有像素尺寸，不算问题） */
+const RASTER = /\.(webp|png|jpe?g|gif|avif)$/i;
 let total = 0;
+let covers = 0;
+const noDimCovers: string[] = [];
 const problems: string[] = [];
 
 for (const col of cfg.collections as CollectionDef[]) {
@@ -42,11 +46,14 @@ for (const col of cfg.collections as CollectionDef[]) {
   }
   for (const abs of walk(rootDir)) {
     const rel = path.relative(vaultRoot, abs).split(path.sep).join('/');
-    if ((col.exclude ?? []).some((re) => new RegExp(re).test(rel))) continue;
+    // 排除项一律按「收藏库内相对路径」评估（与 server/reader/scan.ts 一致）：
+    // 用 vault 相对路径的话 '^MOC\.md$' 这类锚定正则永远不匹配，审计结果会比库里多出几篇
+    const relInCollection = path.relative(rootDir, abs).split(path.sep).join('/');
+    if ((col.exclude ?? []).some((re) => new RegExp(re).test(relInCollection))) continue;
     const st = fs.statSync(abs);
     const out = parseNote({
       absolutePath: abs,
-      relativePath: rel,
+      relativePath: relInCollection,
       sourceRelativePath: rel,
       mtimeMs: st.mtimeMs,
       size: st.size,
@@ -89,6 +96,14 @@ for (const col of cfg.collections as CollectionDef[]) {
     if (cover && NON_DISPLAYABLE.test(cover.localRelativePath ?? '')) {
       problems.push(`${tag} 封面是浏览器无法显示的格式: ${cover.localRelativePath}`);
     }
+    if (cover) {
+      covers++;
+      // 无扩展名的图片（藏品库里叫 640 的那批）也要能读到尺寸：按文件头判断，不看扩展名
+      const ext = path.extname(cover.localRelativePath ?? '');
+      if ((!ext || RASTER.test(ext)) && !(cover.width && cover.height)) {
+        noDimCovers.push(`${tag} 封面读不到尺寸（瀑布流按 4:3 裁切）: ${cover.localRelativePath}`);
+      }
+    }
     for (const w of out.warnings) {
       // 已按设计回退的情况只作提示，不算问题（如封面是 HEIC 改用正文首图）
       if (/浏览器不支持/.test(w)) console.log(`提示  ${tag} —— ${w}`);
@@ -97,11 +112,16 @@ for (const col of cfg.collections as CollectionDef[]) {
   }
 }
 
-console.log(`\n解析 ${total} 篇`);
+console.log(`\n解析 ${total} 篇，封面 ${covers} 张（其中读不到尺寸 ${noDimCovers.length} 张）`);
+if (noDimCovers.length > 0) {
+  console.log(`\n封面尺寸缺失 ${noDimCovers.length} 处（瀑布流只能按 4:3 占位）：`);
+  noDimCovers.slice(0, 30).forEach((p) => console.log('  ' + p));
+  if (noDimCovers.length > 30) console.log(`  …另有 ${noDimCovers.length - 30} 处`);
+}
 if (problems.length === 0) {
-  console.log('未发现问题');
+  console.log('\n未发现问题');
 } else {
-  console.log(`发现 ${problems.length} 处问题：`);
+  console.log(`\n发现 ${problems.length} 处问题：`);
   problems.forEach((p) => console.log('  ' + p));
   process.exitCode = 1;
 }

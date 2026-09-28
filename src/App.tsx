@@ -134,7 +134,7 @@ export default function App() {
         to: q.range === 'custom' && q.to ? q.to : undefined,
         order: q.order,
         offset,
-        limit: append ? PAGE_SIZE : PAGE_SIZE,
+        limit: PAGE_SIZE,
       };
       const res = await api.notes(params);
       if (seq !== seqRef.current) return; // 过期响应丢弃

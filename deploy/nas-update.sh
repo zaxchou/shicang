@@ -17,7 +17,7 @@ COMPOSE_FILE="$PROJ/deploy/production/compose.yaml"
 export PATH=/usr/local/bin:$PATH
 
 [ -f "$REL/manifest.json" ] || { echo "错误：$REL/manifest.json 不存在，不是有效发布包" >&2; exit 1; }
-[ -f "$ENV_FILE" ] || { echo "错误：$ENV_FILE 不存在，先完成首次部署配置" >&2; }
+[ -f "$ENV_FILE" ] || { echo "错误：$ENV_FILE 不存在，先完成首次部署配置" >&2; exit 1; }
 grep -q "MYINFOBASE_TAG=" "$ENV_FILE" || { echo "错误：.env 缺少 MYINFOBASE_TAG" >&2; exit 1; }
 
 echo "== 更新 myinfobase -> $VER =="

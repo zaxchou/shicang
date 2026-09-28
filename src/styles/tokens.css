@@ -1,7 +1,8 @@
 /* 设计 token：Soft Glass = Glassmorphism（透明玻璃层级）+ Soft UI（柔和光影塑形）。
    两条原则：
    1) 层次靠光影与透明叠加表达，不靠描边和装饰；
-   2) 昂贵效果要有预算——backdrop-filter 只留给三块大玻璃，其余用光影模拟。
+   2) 昂贵效果要有预算——backdrop-filter 只留给大玻璃（侧栏 / 主面板 / 详情遮罩 / 详情面板四个元素），
+   其余一律用光影模拟。
    深色为默认主题，[data-theme='light'] 覆盖为亮色。 */
 :root {
   color-scheme: dark;
@@ -14,7 +15,7 @@
   --ambient-tint-3: rgba(45, 205, 190, 0.13);  /* 青 */
   --ambient-tint-4: rgba(168, 92, 255, 0.16);  /* 紫 */
 
-  /* 玻璃表面（backdrop-filter 预算：仅侧栏 / 主面板 / 详情三处） */
+  /* 玻璃表面（backdrop-filter 预算：侧栏 / 主面板 / 详情遮罩 / 详情面板） */
   --glass-bg: rgba(40, 42, 55, 0.70);
   --glass-bg-strong: rgba(44, 46, 60, 0.90);
   --glass-edge: rgba(255, 255, 255, 0.085);

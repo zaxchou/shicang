@@ -37,11 +37,31 @@ async function main(): Promise<void> {
   );
 
   if (fs.existsSync(webDist)) {
-    app.use(express.static(webDist, { index: false, maxAge: '1h' }));
+    // 资源带内容哈希 → 长缓存；index.html 必须每次回源校验，
+    // 否则部署新版本后浏览器在缓存有效期内仍会拿旧壳（表现为"部署了但没变化"）
+    app.use(
+      express.static(webDist, {
+        index: false,
+        etag: true,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else if (/[\\/]assets[\\/]/.test(filePath)) {
+            // Vite 只在 assets/ 下输出带内容哈希的文件名（哈希长度会变，别按长度猜）
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+          }
+        },
+      })
+    );
     app.use((req, res, next) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
       const indexFile = path.join(webDist, 'index.html');
-      if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
+      if (fs.existsSync(indexFile)) {
+        res.setHeader('Cache-Control', 'no-cache');
+        return res.sendFile(indexFile);
+      }
       res.status(503).send('前端尚未构建（dist/web 缺失）。请先运行 npm run build。');
     });
   } else {

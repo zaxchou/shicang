@@ -32,11 +32,12 @@
 
 ## 首批分类执行方式与复核
 
-1. 解析全部 598 篇的标题与 tags（`server/reader` 解析快照）。
-2. 通读全部 598 条，按上述边界设计**标题规则 + 标签规则 + 人工表**三层分类器（`scripts/classify.mjs`）。
-3. 输出全量 598 行复核清单逐条审查；共 4 轮规则迭代，修正 30+ 处误判（详见 git 历史中的 classify.mjs），人工表 20 条。
-4. 校验：598 个 resourceId 全覆盖、无重复分配、无非法类别 ID；六类合计 269+105+65+69+49+41 = 598。
-5. 每条记录命中理由（seed 的 `rationale` 字段）；最终全量清单可随时用 `node scripts/classify.mjs` 重新生成到 `.local/classify-review.txt`。
+1. 解析当轮全部小红书收藏的标题与 tags（`server/reader` 解析快照）。
+2. 通读全部条目，按上述边界设计**标题规则 + 标签规则 + 人工表**三层分类器（规则本体在 `server/services/classify.ts`）。
+3. 输出全量复核清单逐条审查；共 4 轮规则迭代，修正 30+ 处误判（详见 git 历史中的 classify.mjs），人工表 28 条。
+4. 校验：resourceId 全覆盖、无重复分配、无非法类别 ID。当前六类合计 271+106+69+70+49+41 = 606（v0.3.0 定版时是 598）。
+5. 每条记录命中理由（seed 的 `rationale` 字段）；最终全量清单可随时用 `npx tsx scripts/classify.ts` 重新生成到 `.local/classify-review.txt`。
+   该脚本同时重写 `data-seed/categories-seed.json`（seed 只在未初始化的库导入；日常新增由刷新时的自动分类处理）。
 
 ## 后续新笔记
 

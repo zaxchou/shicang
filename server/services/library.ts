@@ -5,7 +5,6 @@ import type {
   Category,
   CollectionDef,
   CollectionInfo,
-  DerivedCategory,
   ExtraFieldInfo,
   LibraryInfo,
   NoteDetail,
@@ -69,6 +68,8 @@ function validateIndexDoc(data: unknown): IndexDoc | null {
   if (typeof data !== 'object' || data === null) return null;
   const d = data as IndexDoc;
   if (d.schemaVersion !== 1 || !Array.isArray(d.notes) || typeof d.revision !== 'number') return null;
+  if (d.lastScan !== null && d.lastScan !== undefined && typeof d.lastScan !== 'object') return null;
+  if (d.diagnostics !== undefined && !Array.isArray(d.diagnostics)) return null;
   const notes = d.notes.filter(
     (n): n is NoteRecord =>
       typeof n === 'object' &&
@@ -461,13 +462,14 @@ export class LibraryService {
    * 规则（classify.ts，v0.3.0 人工沉淀的三层规则）优先，未命中且配置了 AI 时走 AI 兜底；
    * 都不行就保持未分类。全程只写 initialAssignments，人工覆盖（overrides.json）永不触碰。
    */
-  private async autoClassify(notes: NoteRecord[], job?: InternalRefreshJob): Promise<void> {
+  private async autoClassify(notes: NoteRecord[], job?: InternalRefreshJob): Promise<string | null> {
     const rednote = notes.filter((n) => n.collection === 'rednote' && n.sourceStatus === 'available');
-    if (rednote.length === 0) return;
+    if (rednote.length === 0) return null;
     const aiCfg = aiClassifyConfigFromEnv();
     const validIds = new Set(this.categories.categories.map((c) => c.id));
     let byRule = 0;
     let byAi = 0;
+    let aiDeferred = 0;
     const result = await this.categories.ensureClassified(
       rednote.map((n) => ({ id: n.id, title: n.title, tags: n.tags, excerpt: n.excerpt })),
       async (item) => {
@@ -477,19 +479,22 @@ export class LibraryService {
           return rule;
         }
         if (!aiCfg) return null;
-        const hit = await classifyByAi(aiCfg, item, validIds);
-        if (hit) {
-          byAi++;
-          return hit;
+        // 上限保护：超出后不再调用接口，保持未分类，下次刷新继续
+        if (byAi + aiDeferred >= aiCfg.maxPerRefresh) {
+          aiDeferred++;
+          return null;
         }
-        return null;
+        const hit = await classifyByAi(aiCfg, item, validIds);
+        if (hit) byAi++;
+        return hit;
       }
     );
-    if (result.assigned > 0) {
-      const msg = `自动分类 ${result.assigned} 篇（规则 ${byRule}${aiCfg ? ` / AI ${byAi}` : ''}），未分类 ${result.unclassified.length} 篇`;
-      log.info(msg);
-      if (job) job.diagnostics.push(msg);
-    }
+    if (result.assigned === 0 && aiDeferred === 0) return null;
+    const deferred = aiDeferred > 0 ? `；AI 本次上限 ${aiCfg?.maxPerRefresh} 次，剩余 ${aiDeferred} 篇留待下次刷新` : '';
+    const msg = `自动分类 ${result.assigned} 篇（规则 ${byRule}${aiCfg ? ` / AI ${byAi}` : ''}），未分类 ${result.unclassified.length} 篇${deferred}`;
+    log.info(msg);
+    if (job) job.diagnostics.push(msg);
+    return msg;
   }
 
   private async doScan(mode: 'initial' | 'refresh', job?: InternalRefreshJob): Promise<void> {
@@ -502,6 +507,21 @@ export class LibraryService {
       }
     });
 
+    // 可用条目从「有」变成「零」→ 极可能是内容源挂载空了（而不是用户真的清空了库）：
+    // 给醒目提示，但**不**硬拒绝——消失的文件会以 missing 保留、分类不丢，修好挂载再刷新就回来；
+    // 硬失败会让"确实删光了笔记"的用户永远刷不过去，没有出路。
+    // （判据用 available 而不是 records：消失的文件会被标成 missing 保留，records 永远不会为空。）
+    const availableBefore = this.doc.notes.filter((n) => n.sourceStatus === 'available').length;
+    const availableNow = outcome.records.filter((n) => n.sourceStatus === 'available').length;
+    const wipeWarning =
+      availableNow === 0 && availableBefore > 0
+        ? `本次扫描一篇可读笔记都没读到（旧库 ${availableBefore} 篇）：请检查内容源挂载与文件权限；旧记录已标记为 missing 并保留分类`
+        : null;
+    if (wipeWarning) {
+      log.warn(wipeWarning);
+      if (job) job.diagnostics.push(wipeWarning);
+    }
+
     const nextDoc: IndexDoc = {
       schemaVersion: 1,
       revision: this.doc.revision + 1,
@@ -509,7 +529,7 @@ export class LibraryService {
       contentSource: this.cfg.vaultRoot,
       indexSig: this.indexSig(),
       notes: outcome.records,
-      diagnostics: outcome.diagnostics.slice(0, 200),
+      diagnostics: (wipeWarning ? [wipeWarning, ...outcome.diagnostics] : outcome.diagnostics).slice(0, 200),
       lastScan: {
         finishedAt: new Date().toISOString(),
         scanned: outcome.counts.scanned,
@@ -519,18 +539,6 @@ export class LibraryService {
         errors: outcome.counts.errors,
       },
     };
-
-    // 枚举成功但零笔记且旧库非空 → 视为异常，不覆盖旧索引
-    if (outcome.records.length === 0 && this.doc.notes.length > 0) {
-      const msg = '扫描结果为空而旧库非空，拒绝覆盖旧索引';
-      if (job) {
-        job.state = 'failed';
-        job.finishedAt = new Date().toISOString();
-        job.diagnostics.push(msg);
-      }
-      log.error(msg);
-      return;
-    }
 
     try {
       await this.indexStore.save(nextDoc);
@@ -549,7 +557,10 @@ export class LibraryService {
     this.doc = nextDoc;
     this.rebuildMaps();
 
-    await this.autoClassify(nextDoc.notes, job);
+    const classifyMsg = await this.autoClassify(nextDoc.notes, job);
+    // 首扫没有 job（诊断只走 onProgress），把自动分类结果放进页面诊断；
+    // 只留在内存里（不再多写一次索引文件），重启后从日志里查
+    if (classifyMsg && !job) this.doc.diagnostics = [classifyMsg, ...this.doc.diagnostics].slice(0, 200);
 
     if (job) {
       job.state = outcome.counts.errors > 0 ? 'partial' : 'completed';

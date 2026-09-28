@@ -97,15 +97,9 @@ img {
   box-shadow: var(--elev-3), var(--inset-top);
 }
 
-/* ===== 浮起 / 凹陷的通用语法 ===== */
-.raised {
-  background: var(--surface-raised);
-  box-shadow: var(--elev-2), var(--inset-top);
-}
-.sunken {
-  background: var(--surface-sunken);
-  box-shadow: var(--trough);
-}
+/* 浮起 / 凹陷没有通用工具类：都由各自的组件规则直接书写（曾有一对 .raised/.sunken
+   从未被任何 JSX 引用，已删除——保留没人用的样式只会让人误以为改它有用）。
+   新增浮起/凹陷时按 tokens.css 里的 --surface-raised / --surface-sunken + 阴影组合来写。 */
 
 /* ===== 应用框架 ===== */
 .app {
@@ -247,6 +241,7 @@ img {
   background: var(--surface-sunken);
   box-shadow: var(--trough);
 }
+/* 主题切换是侧栏里的整行控件，故意把上面共享规则的 inline-flex 覆盖成 flex（撑满宽度） */
 .theme-toggle {
   display: flex;
   margin-bottom: 10px;
@@ -1351,8 +1346,12 @@ img {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    /* 入场动画的延迟写成内联 style（Masonry 的 stagger），只压时长不压延迟的话，
+       卡片会保持 fill-mode: both 的起始态（opacity: 0）最长 420ms 才出现 */
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
   }
 }
 

@@ -12,22 +12,23 @@
 
 | 收藏库 | 来源（Obsidian） | 内容 | 展示 |
 | --- | --- | --- | --- |
-| 小红书收藏 | `RedNote/Bookmarks` | 598 篇小红书帖子收藏 | 瀑布流 + 列表 |
-| 我的宝贝 | `我的收藏品` | 336 件个人藏品（有封面、价格、购买时间、朝代/作者/工艺等字段） | 瀑布流 + **列表（数据表，字段自动成列、可排序）** |
-| 日记 | `flomo` | 272 条 flomo 闪念/日记（标题=日期+摘要，主题来自标签） | 瀑布流 + 列表 |
+| 小红书收藏 | `RedNote/Bookmarks` | 606 篇小红书帖子收藏 | 瀑布流 + 列表 |
+| 我的宝贝 | `我的收藏品` | 331 件个人藏品（有封面、价格、购买时间、朝代/作者/工艺等字段） | 瀑布流 + **列表（数据表，字段自动成列、可排序）** |
+| 日记 | `flomo` | 267 条 flomo 闪念/日记（标题=日期+摘要，主题来自标签） | 瀑布流 + 列表 |
 
 ## 功能
 
 - **收藏流浏览**：按发布时间从新到旧的无框瀑布流（缩略图 + 标题 + 作者 + 分类标签）；多图数量角标、视频标记。
-- **分类导航**：小红书收藏 6 大类（书画 269 / AI 工具 105 / 设计与创作 65 / 生活 69 / 学习语言 49 / 数码硬件 41）；我的宝贝按「收藏分类」派生 8 类（茶器/拓片/书法/篆刻/文房/玉石/中国画/杂件）；日记按主题（画画/书法/日记…）。
+- **分类导航**：小红书收藏 6 大类（书画 271 / AI 工具 106 / 设计与创作 69 / 生活 70 / 学习语言 49 / 数码硬件 41）；我的宝贝按「收藏分类」派生 8 类（茶器/拓片/书法/篆刻/文房/玉石/中国画/杂件）；日记按主题（画画/书法/日记…）。
 - **列表（表格）模式**：每个收藏库可切换瀑布流 / 列表；表格列按数据自动生成——我的宝贝显示价格、购买时间、作者品牌、朝代、书风、装裱等（点击表头排序），小红书收藏显示作者/分类/两种时间/标签，日记显示日期/主题/摘要。
-- **标签目录**：侧栏「标签」进入全部标签页（872 个标签按热度排列，可搜索），点标签直达对应内容，可与搜索、时间筛选叠加。
+- **标签目录**：侧栏「标签」进入全部标签页（小红书 891 个标签按热度排列，可搜索；全库去重 1059 个），点标签直达对应内容，可与搜索、时间筛选叠加。
 - **搜索与筛选**：标题/正文/作者/标签全文搜索（多词 AND），时间范围（最近 7 天 / 30 天 / 自定义）、时间类型（发布时间 / 同步时间）、排序独立可配。
 - **详情阅读**：居中弹层展示完整图文与视频；远程视频不可用时给出提示与原文入口；可在详情中修改主类（即时落盘，刷新不丢失）。
 - **亮色 / 深色 / 跟随系统**：侧栏底部三档切换，跟随系统时实时响应系统外观变化，选择持久保存。
 - **动效**：弹层开合、卡片入场、悬停缩放、图片淡入等克制过渡；尊重系统「减弱动态效果」设置。
-- **手动刷新 + 自动分类**：点击「刷新收藏库」增量读取 Obsidian 中新增/变更的笔记（只解析新文件，秒级完成），并按沉淀的三层分类规则自动归类；规则未命中时可选调用 AI（MiMo/DeepSeek 等 OpenAI 兼容接口）兜底，人工在网页里改过的分类永远优先。不写入源目录。
-- **质感（Soft Glass）**：三层表面语法（浮起 / 平面 / 凹陷）+ 柔和光影代替描边，近白面板压在淡彩背景上，缓慢漂移的环境光透过玻璃；`backdrop-filter` 只用于三块大玻璃，滚动 + 指针交互实测 0 掉帧（详见 `docs/design-language.md`）。
+- **手动刷新 + 自动分类**：点击「刷新收藏库」增量读取 Obsidian 中新增/变更的笔记（只解析新文件，秒级完成），并按沉淀的三层分类规则自动归类；规则未命中时可选调用 AI（MiMo/DeepSeek 等 OpenAI 兼容接口）兜底，单次刷新有调用上限（`AI_CLASSIFY_MAX_PER_REFRESH`，默认 40），人工在网页里改过的分类永远优先。不写入源目录。
+- **图片按文件头识别**：封面尺寸与类型不看扩展名——藏品库里有名为 `640` 的无扩展名图片（37 个），也有下载失败留下的错误响应体（3 个）；后者不会被当成封面。封面缺尺寸时才按 4:3 占位。
+- **质感（Soft Glass）**：三层表面语法（浮起 / 平面 / 凹陷）+ 柔和光影代替描边，近白面板压在淡彩背景上，缓慢漂移的环境光透过玻璃；`backdrop-filter` 只用于四块大玻璃（侧栏 / 主面板 / 详情遮罩 / 详情面板），滚动 + 指针交互实测 0 掉帧（详见 `docs/design-language.md`）。
 
 ## 快速开始（Windows 开发预览）
 
@@ -63,18 +64,19 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
    docker build -t myinfobase:<版本> <项目>/releases/<版本>
    docker compose -f <项目>/deploy/production/compose.yaml --env-file <项目>/deploy/production/.env up -d'
    ```
-5. 首次启动自动全量扫描（598 篇）并从 `data-seed/categories-seed.json` 导入首批分类（仅未初始化的库导入，之后不再重复）。
+5. 首次启动自动全量扫描（v0.6.0 起 1204 篇：小红书 606 / 宝贝 331 / 日记 267）并从 `data-seed/categories-seed.json` 导入首批分类（仅未初始化的库导入，之后不再重复）。
 
 ### 日常更新（改完代码 → 上线，约 2 分钟）
 
 ```powershell
-# Windows：构建 + 打包新版本
-npm run build; powershell -File scripts\release.ps1 -Version <新版本>
+# Windows：打包新版本（release.ps1 会先跑 typecheck + 测试，不过就中止；确需跳过用 -SkipChecks）
+powershell -File scripts\release.ps1 -Version <新版本>
 # SSH 助手（scripts/nas-deploy.mjs，凭据走环境变量）一键更新：
 $env:NAS_HOST='192.168.31.246'; $env:NAS_USER='zaxchou'; $env:NAS_PASS='<密码>'
 node scripts\nas-deploy.mjs sudo-sh "sh /volume2/Media/BaiduNetdiskWorkspace/myagent-work/zcode/MyInfobase/deploy/nas-update.sh <新版本>"
 ```
 `nas-update.sh` 会：构建新镜像 → 更新 `.env` 版本标签 → 重建容器 → 健康检查并校验版本一致。
+镜像在 NAS 上构建（`deploy/Dockerfile` 里跑 `npm run build`），本地不需要先 build。
 
 ### 回滚
 
@@ -114,7 +116,7 @@ releases/          版本化发布包
 | 现象 | 处理 |
 | --- | --- |
 | 页面显示「无法连接收藏库服务」 | 服务未启动或端口不对；`curl http://127.0.0.1:<端口>/api/health` 检查 |
-| 首页为空 | 点击「刷新收藏库」；仍为空检查 `SOURCE_ROOT` 是否指向 RedNote 目录（其下应有 `Bookmarks/` 与 `Media/`） |
+| 首页为空 | 点击「刷新收藏库」；仍为空检查 `SOURCE_ROOT` 是否指向 **vault 根**（其下应有 `RedNote/`、`我的收藏品/`、`flomo/`） |
 | 图片不显示 | 多为媒体路径或挂载问题；确认 `Media/` 与笔记同源挂载，浏览器 DevTools 看 `/api/media/...` 响应 |
 | 远程视频无法播放 | 平台防盗链或网络策略所致，详情页有提示与原文入口；本地图片不受影响 |
 | 分类保存失败 | 多标签页并发冲突（409）时刷新页面重试即可；数据目录不可写时服务会拒绝写入并提示 |
@@ -124,7 +126,7 @@ releases/          版本化发布包
 
 ```bash
 npm run typecheck   # 前后端类型检查
-npm test            # vitest：解析/路径/时间/分类优先级/幂等刷新等 43 个用例
+npm test            # vitest：解析/媒体路由/扫描完整性/分类优先级/幂等刷新等 102 个用例
 npm run build       # 构建服务端 + 前端到 dist/
 npm run dev:server  # 服务端热重载（开发）
 npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）
@@ -138,14 +140,18 @@ npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）
 
 ```bash
 cp scripts/probe-client.js dist/web/_probe.js      # 注入浏览器
-# 控制台：await (0,eval)(await (await fetch('/_probe.js')).text())
+# 控制台：await (0,eval)(await (await fetch('/_probe.js?v='+Date.now())).text())
 #   __uiAudit()                      合成色 / 明度台阶 / WCAG 对比度（4 视图 × 2 主题应为零失败）
 #   __uiBench(150,{mode:'both'})     滚动+指针帧耗（over32ms 必须为 0）
 #   __uiLayout()                     越界与重叠检查
+#   __uiSettle()                     等界面稳定（连续两次读数一致）后再取数
 
 node scripts/pngview.cjs <png> 100 32              # 截图 → 亮度字符视图（看构图）
 node scripts/scanline.cjs <png> <y> <x0> <x1> 2    # 明度扫描线（验证阴影/玻璃亮边）
 ```
+
+量之前先让界面静止：切主题会让所有颜色过渡几百毫秒，此刻 audit 会把合格界面判成对比度不合格。
+可靠做法是 `localStorage.setItem('mb-theme','dark')` 后整页重载再量；同一主题内可先用 `__uiSettle()`。
 
 `src/styles/app.css` 末尾的「性能预算」注释记录了每条硬性约束的实测数字（例如瀑布流条目的
 `will-change: transform`：360 张卡片 23ms → 8ms/帧），改动前请先复测。

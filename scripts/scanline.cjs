@@ -9,17 +9,25 @@
 const fs = require('fs'); const zlib = require('zlib');
 function decode(file) {
   const buf = fs.readFileSync(file);
-  let off = 8, w = 0, h = 0, color = 0; const idat = [];
+  let off = 8, w = 0, h = 0, depth = 0, color = 0, interlace = 0; const idat = [];
   while (off < buf.length) {
     const len = buf.readUInt32BE(off); const type = buf.toString('ascii', off + 4, off + 8);
     const data = buf.subarray(off + 8, off + 8 + len);
-    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); color = data[9]; }
+    if (type === 'IHDR') {
+      w = data.readUInt32BE(0); h = data.readUInt32BE(4);
+      depth = data[8]; color = data[9]; interlace = data[12];
+    }
     else if (type === 'IDAT') idat.push(data); else if (type === 'IEND') break;
     off += 12 + len;
   }
-  const ch = color === 6 ? 4 : 3;
+  // 只解 8 位、非隔行的灰度/RGB/RGBA：解不出来的必须报错，否则亮度数字是假的
+  if (depth !== 8) throw new Error(`不支持的位深 depth=${depth}（仅 8 位）`);
+  if (interlace !== 0) throw new Error('不支持隔行（Adam7）PNG');
+  if (color === 3) throw new Error('不支持调色板 PNG（color type 3）');
+  // 通道数按 color type 定：写死 4/3 会把灰度 PNG 解成乱码（每像素多读 2 字节）
+  const bpp = color === 6 ? 4 : color === 2 ? 3 : color === 4 ? 2 : 1;
   const raw = zlib.inflateSync(Buffer.concat(idat));
-  const bpp = ch, stride = w * bpp; const out = Buffer.alloc(h * stride);
+  const stride = w * bpp; const out = Buffer.alloc(h * stride);
   let pos = 0;
   for (let y = 0; y < h; y++) {
     const ft = raw[pos++]; const line = raw.subarray(pos, pos + stride); pos += stride;

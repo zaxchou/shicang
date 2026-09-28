@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
+import { sniffImageMime } from '../reader/image-size.js';
 import type { LibraryService } from '../services/library.js';
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -12,13 +13,26 @@ const CONTENT_TYPES: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.avif': 'image/avif',
-  // 藏品库的统一占位封面就是 SVG（39 篇引用）：缺了会按 application/octet-stream 下发，<img> 不渲染
+  // 藏品库的统一占位封面就是 SVG（35 篇引用）：缺了会按 application/octet-stream 下发，<img> 不渲染
   '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
   '.m4v': 'video/x-m4v',
+  // 日记里的附件音频：类型不对浏览器只会下载而不是内联播放
+  '.m4a': 'audio/mp4',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.aac': 'audio/aac',
 };
+
+/** 扩展名无法判断时按文件头嗅探（藏品库有名为 `640` 的无扩展名图片） */
+function contentTypeFor(abs: string): string {
+  const byExt = CONTENT_TYPES[path.extname(abs).toLowerCase()];
+  if (byExt) return byExt;
+  return sniffImageMime(abs) ?? 'application/octet-stream';
+}
 
 export function mediaRouter(getLibrary: () => LibraryService): express.Router {
   const router = express.Router();
@@ -65,8 +79,7 @@ export function mediaRouter(getLibrary: () => LibraryService): express.Router {
       return;
     }
 
-    const ext = path.extname(abs).toLowerCase();
-    const contentType = CONTENT_TYPES[ext] ?? 'application/octet-stream';
+    const contentType = contentTypeFor(abs);
     const etag = `"${stat.size}-${Math.round(stat.mtimeMs)}"`;
     res.setHeader('Content-Type', contentType);
     res.setHeader('Accept-Ranges', 'bytes');

@@ -35,6 +35,7 @@ export function projectRoot(): string {
   throw new Error('cannot locate project root (package.json not found)');
 }
 
+/** 内置默认值：与 config/app.json 保持一致，避免配置文件缺失时行为悄悄变差 */
 const DEFAULT_COLLECTIONS: CollectionDef[] = [
   { id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks', type: 'rednote' },
   {
@@ -44,7 +45,14 @@ const DEFAULT_COLLECTIONS: CollectionDef[] = [
     type: 'treasures',
     exclude: ['-索引\\.md$', '^MOC\\.md$', '^未命名页面\\.md$'],
   },
-  { id: 'diary', name: '日记', root: 'flomo', type: 'diary', exclude: ['^闪念笔记概览\\.md$'] },
+  {
+    id: 'diary',
+    name: '日记',
+    root: 'flomo',
+    type: 'diary',
+    // flomo 导出工具自带的首页/导航页不是日记条目（v0.5.3 修的就是这几篇）
+    exclude: ['^闪念笔记概览\\.md$', '^flomo-首页\\.md$', '^flomo-.+-首页\\.md$'],
+  },
 ];
 
 function readConfigFile(): Record<string, unknown> {

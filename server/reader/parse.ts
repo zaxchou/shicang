@@ -8,7 +8,7 @@ import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import type { CollectionDef, ExtraFields, MediaItem } from '../../shared/types.js';
 import { shanghaiDate } from '../../shared/time.js';
-import { imageSize } from './webp-size.js';
+import { imageSize, sniffImageMime } from './image-size.js';
 
 export interface NoteRecord {
   id: string;
@@ -62,9 +62,9 @@ export interface ParseOutcome {
  * 索引里记录该值，不一致就整体重建——否则解析已修好、用户看到的却还是旧索引，
  * 因为扫描按 mtime/size 跳过未变更的源文件（v0.5.1 修「正文图片不显示」时踩到）。
  */
-export const PARSE_VERSION = 3;
+export const PARSE_VERSION = 4;
 
-const IMAGE_EXTS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif']);
+const IMAGE_EXTS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.svg']);
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v']);
 const AUDIO_EXTS = new Set(['.m4a', '.mp3', '.wav', '.ogg', '.aac']);
 /** 浏览器（Chrome/Firefox/Edge）无法直接显示：文件照常提供，但不选作封面 */
@@ -206,19 +206,28 @@ function resolveLocal(rb: ResolveBases, rel: string): { abs: string; relToVault:
   return null;
 }
 
-/** 登记媒体（按文件名作 id，重名加后缀）；读取图片尺寸 */
+/**
+ * 登记媒体（按文件名作 id，重名加后缀）；读取图片尺寸并判定浏览器可渲染性。
+ * 尺寸与可渲染性都按**文件头**判断：藏品库既有名为 `640` 的无扩展名图片（WebP/PNG/JPEG），
+ * 也有下载失败后存下来的 500 JSON 响应体（扩展名像图片、文件头不是）。
+ */
 function registerLocal(
   media: MediaItem[],
   mediaIds: Set<string>,
   abs: string,
-  relToVault: string
+  relToVault: string,
+  warnings?: string[]
 ): MediaItem {
   // 同一文件被正文与封面重复引用时复用同一条，避免出现 `xxx.png#2` 这类冗余条目
   const seen = media.find((m) => m.localRelativePath === relToVault);
   if (seen) return seen;
   const base = path.basename(relToVault);
   const ext = path.extname(base).toLowerCase();
-  const kind = VIDEO_EXTS.has(ext) ? 'video' : AUDIO_EXTS.has(ext) ? 'audio' : 'image';
+  const kind: MediaItem['kind'] = VIDEO_EXTS.has(ext)
+    ? 'video'
+    : AUDIO_EXTS.has(ext)
+      ? 'audio'
+      : 'image';
   let mid = base;
   let n = 2;
   while (mediaIds.has(mid)) mid = `${base}#${n++}`;
@@ -230,15 +239,29 @@ function registerLocal(
       item.width = dim.width;
       item.height = dim.height;
     }
+    const sniffed = sniffImageMime(abs);
+    if (ext && IMAGE_EXTS.has(ext)) {
+      item.displayable = true; // 已知图片扩展名（HEIC/TIFF 不在这个集合里）
+    } else if (sniffed) {
+      item.displayable = sniffed !== 'image/heic';
+    } else {
+      item.displayable = false;
+      warnings?.push(`文件头不是可识别的图片格式，已排除封面候选: ${relToVault.slice(0, 80)}`);
+    }
   }
   media.push(item);
   return item;
 }
 
-/** 浏览器无法直接渲染的图片格式：不能当封面（否则封面永远空白），也不适合当作可显示图片 */
+/** 浏览器无法直接渲染的图片格式：不能当封面（否则封面永远空白） */
 function isDisplayableImage(relPath: string | undefined): boolean {
   if (!relPath) return false;
   return !NON_DISPLAYABLE_EXTS.has(path.extname(relPath).toLowerCase());
+}
+
+/** 封面候选：按登记时判定的可渲染性取（回退到扩展名黑名单，兼容旧数据） */
+function coverCandidate(m: MediaItem): boolean {
+  return m.kind === 'image' && m.available !== false && m.displayable !== false && isDisplayableImage(m.localRelativePath);
 }
 
 function normalizeDate(v: unknown): string | null {
@@ -305,7 +328,7 @@ function parseRednote(base: ParseBase, fm: Record<string, unknown>, input: Parse
   const syncedAt = normalizeDate(fm['syncedAt']);
   if (fm['postCreatedAt'] !== undefined && publishedAt === null) warnings.push('postCreatedAt 无法解析为日期');
 
-  const cover = media.find((m) => m.kind === 'image' && m.available !== false && m.localRelativePath);
+  const cover = media.find(coverCandidate);
   const excerpt = buildExcerpt(bodyWithoutH1);
 
   return {
@@ -376,7 +399,7 @@ function resolveEmbed(
     }
     return null;
   }
-  return registerLocal(media, mediaIds, resolved.abs, resolved.relToVault);
+  return registerLocal(media, mediaIds, resolved.abs, resolved.relToVault, warnings);
 }
 
 function renderBody(body: string, id: string, media: MediaItem[], mediaIds: Set<string>, warnings: string[]): string {
@@ -487,7 +510,7 @@ function parseTreasures(
     // 直查各基准目录；再按 <基准>/Attachments/<文件名> 兜底（子目录笔记引用库级附件目录时）
     const r = resolveLocal(rb, src) ?? resolveLocal(rb, path.join('Attachments', path.basename(src)));
     if (!r) return full;
-    const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
+    const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);
     return `![${alt || ''}](media://${mediaToken(item.id)})`;
   });
   body = body.replace(/!\[\[([^\]\n]+)\]\]/g, (full, target: string) => {
@@ -499,7 +522,7 @@ function parseTreasures(
       warnings.push(`嵌入图片缺失: ${t.slice(0, 60)}`);
       return '';
     }
-    const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
+    const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);
     return `![图](media://${mediaToken(item.id)})`;
   });
 
@@ -508,17 +531,17 @@ function parseTreasures(
   const coverPath = str(fm['封面图']);
   if (coverPath) {
     const r = resolveLocal(rb, coverPath);
-    if (r && isDisplayableImage(r.relToVault)) {
-      coverId = registerLocal(media, mediaIds, r.abs, r.relToVault).id;
-    } else if (r) {
-      warnings.push(`封面图格式浏览器不支持，改用正文首图: ${coverPath.slice(0, 60)}`);
+    if (r) {
+      const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);
+      if (coverCandidate(item)) coverId = item.id;
+      else warnings.push(`封面图不能用作封面（格式不支持或文件损坏），改用正文首图: ${coverPath.slice(0, 60)}`);
     } else if (!/^https?:\/\//i.test(coverPath)) {
       warnings.push(`封面图缺失: ${coverPath.slice(0, 60)}`);
     }
     // 远程封面：当前媒体模型只服务本地文件，静默回退到正文首图（不当作缺失告警）
   }
   if (!coverId) {
-    const first = media.find((m) => m.kind === 'image' && isDisplayableImage(m.localRelativePath));
+    const first = media.find(coverCandidate);
     if (first) coverId = first.id;
   }
 
@@ -596,19 +619,19 @@ function parseDiary(
     const r = resolveLocal(rb, href);
     if (!r) return full;
     const ext = path.extname(r.relToVault).toLowerCase();
-    const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
+    const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);
     if (IMAGE_EXTS.has(ext)) return `![${text}](media://${mediaToken(item.id)})`; // 图片转内联
     return `[${text}](${mediaUrl(base.sourceRelativePath, item.id)})`;
   });
   body = body.replace(/!\[([^\]]*)\]\((attachments\/[^)]+)\)/g, (full, alt: string, href: string) => {
     const r = resolveLocal(rb, href);
     if (!r) return full;
-    const item = registerLocal(media, mediaIds, r.abs, r.relToVault);
+    const item = registerLocal(media, mediaIds, r.abs, r.relToVault, warnings);
     return `![${alt || ''}](media://${mediaToken(item.id)})`;
   });
 
   const bodyHtml = renderBody(body, base.sourceRelativePath, media, mediaIds, warnings);
-  const cover = media.find((m) => m.kind === 'image' && isDisplayableImage(m.localRelativePath));
+  const cover = media.find(coverCandidate);
   const excerpt = buildExcerpt(body);
 
   return {

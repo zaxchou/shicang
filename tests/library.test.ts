@@ -291,10 +291,21 @@ function baseQuery(patch: Record<string, unknown>) {
   };
 }
 
+/**
+ * 等待刷新结束，并且要求它是"正常完成"。
+ * 只等 state !== 'running' 的话，失败的刷新和成功的一样能让测试通过——
+ * 断言分类没被覆盖的用例在"刷新其实全挂了"的情况下也会绿。
+ */
 async function waitForJob(svc: LibraryService, jobId: string): Promise<void> {
   for (let i = 0; i < 100; i++) {
     const job = svc.getRefreshJob(jobId);
-    if (job && job.state !== 'running') return;
+    if (job && job.state !== 'running') {
+      if (job.state !== 'completed') {
+        throw new Error(`刷新未正常完成（${job.state}）：${job.diagnostics.join(' | ')}`);
+      }
+      expect(job.errors).toBe(0);
+      return;
+    }
     await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error('刷新任务超时');

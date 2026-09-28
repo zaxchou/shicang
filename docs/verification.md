@@ -1,11 +1,11 @@
 # 验收记录（verification）
 
-日期：2026-09-27。执行环境：Windows 11（win32 10.0.26200）、Git Bash、Node v24.18.0、npm 11.16.0；内容源 `Z:\BaiduNetdiskWorkspace\mynote\mynote\RedNote`（Baidu 同步盘，项目与源同盘）。每条记录标注「通过 / 失败 / 未验证」，未验证不冒充通过。
+日期：2026-09-27。执行环境：Windows 11（win32 10.0.26200）、Git Bash、Node v24.18.0、npm 11.16.0；内容源 `Z:\BaiduNetdiskWorkspace\mynote\mynote`（vault 根，含 RedNote / 我的收藏品 / flomo；Baidu 同步盘，项目与源同盘）。每条记录标注「通过 / 失败 / 未验证」，未验证不冒充通过。
 
 ## 运行环境与依赖
 
 - Node ≥ 22（engines 声明）；开发实际使用 v24.18.0。
-- 关键依赖（lockfile 锁定）：express 4.22.3、gray-matter 4.0.3、marked 15.0.12、sanitize-html 2.17.7、zod 3.25.76、vite 6.4.3、vitest 3.2.7、react 18.3.1、typescript 5.9.3。
+- 关键依赖（lockfile 锁定）：express 4.22.3、gray-matter 4.0.3、marked 15.0.12、sanitize-html 2.17.7、zod 3.25.76、vite 6.4.3、vitest 3.2.7、react 19.3.0、typescript 5.9.3。
 - 启动方式：生产 `node dist/server/index.js`（环境变量见 deploy/compose.yaml）；开发 `start.cmd` / `scripts/start.ps1`（127.0.0.1:4317，独立 `.local/data`）。
 
 ## 首批数据
@@ -21,7 +21,7 @@
 - 执行方式与边界判定见 `docs/category-taxonomy.md`；逐条理由存于 `data-seed/categories-seed.json` 的 rationale 字段。
 - 全量 598 条规则输出经逐条人工审查，29 条人工复核修正（含 23 条规则未命中 + 6 处规则误判，清单在 `scripts/classify.mjs` 的 MANUAL 段）。
 
-## 自动化测试（vitest，35 个用例全部通过）
+## 自动化测试（vitest；本节为首批 35 个用例，当前 102 个——见文末「全项目深度审查」）
 
 覆盖：frontmatter/正文解析（BOM、CRLF、缺日期、缺 tags、坏 YAML、缺 resourceId、H1 回退）；媒体路径（vault 前缀映射、中文与空格文件名、目录穿越拒绝、源外嵌入拒绝、缺失媒体标记不可用）；XSS 消毒（script/javascript: 链接）；WebP 尺寸解析；上海时区边界（UTC 跨午夜、不存在日期如 6/31、最近 7 天自然日、自定义区间）；JsonStore（回读、损坏后备份恢复且保留损坏文件、校验失败不覆盖、串行写入、备份保留上限）；幂等刷新（二扫新增 0、新增一篇只出现一次、文件变更更新、消失标记 missing、重启保留）；重复 resourceId 冲突保留先入记录；查询（多词 AND、覆盖标题/正文/作者/tags、desc/asc 排序、null 恒排末尾、同时间按 id 稳定、上海日历日过滤、同步时间过滤独立于排序、分页）；分类优先级（initial → override → 刷新 → 重启全部保留、人工置 null 不被 seed 恢复、expectedRevision 冲突、非法类别拒绝、刷新期间改分类两项结果都保留、未分类计数）。
 
@@ -324,7 +324,7 @@ exclude 属于索引指纹的一部分，改动后索引自动重建，无需手
 ## 已知限制（如实说明）
 
 1. **远程视频可用性未全量保证**：402 篇视频均为小红书 CDN 的 HTTP 直链，实测样本可加载；防盗链、链接失效或网络策略都可能导致个别不可播，届时详情页显示「视频暂时无法播放」与原文入口。未实现下载/转码/登录（按计划范围排除）。
-2. **NAS 部署参数待现场核实**：DSM/套件版本、CPU 架构、RedNote 在 NAS 上的本机路径、端口占用均需在部署时确认；`deploy/.env.example` 中路径为占位示例。NAS 上的首次部署、容器重启恢复、整机开机恢复为**未验证**（需要实际 NAS 操作窗口），部署步骤与回滚脚本已按 Container Manager Project 流程准备。
+2. **整机断电重启恢复未实测**：DSM 7.3.1 / x86_64 / 端口 / NAS 本机路径均已在部署时核实（见上文「NAS 实际部署」），NAS 首次部署与容器重启恢复均已验证；仅「整机断电后 Docker 自启」未观察过一次真实重启。
 3. **NAS rename/replace 行为**：JsonStore 在 rename 失败时自动退化为 copy+replace，本地 Windows 实测通过；NAS 文件系统上的行为将在首次部署时验证。
 4. **搜索为子串匹配**：中文按包含匹配，无语义检索或拼音模糊匹配（首版范围）。
 5. **瀑布流视觉顺序**：DOM 与数据严格按发布时间排序，交错的瀑布流布局不保证同屏视觉行序完全等同时间序（计划已声明）。
@@ -335,5 +335,91 @@ exclude 属于索引指纹的一部分，改动后索引自动重建，无需手
 - 截图：`docs/screenshots/`（softglass-light-masonry / softglass-dark-masonry / softglass-light-table / softglass-dark-detail 为 v0.5.0；早期 home-1280 / home-1440 / home-1920 / shuhua-1440 / detail-1440 为 v0.1.0）。
 - 测试：`npm test` 52/52 通过（vitest；日志见会话记录；v0.5.3 未新增用例，复用三库集成断言）。
 - 源哈希清单：`.local/source-hash.json`（基线与复查一致）。
-- 发布包：`releases/0.1.0/`（59 个文件，含 manifest.json 与逐文件 SHA-256）。
+- 发布包：`releases/0.5.4/`（94 个文件，含 manifest.json 与逐文件 SHA-256；v0.1.0 的旧记录已随版本更新）。
 - 分类 seed：`data-seed/categories-seed.json`；人工覆盖：`<DATA_DIR>/overrides.json`。
+
+## 全项目深度审查与修复（2026-09-28，v0.6.0）
+
+方式：逐行读完全部源码（服务端 / 前端 / 脚本，约 8900 行）+ 三路并行审查（样式死代码、部署脚本与
+文档一致性、测试覆盖缺口）。每条结论都先用真实 vault 数据或代码核实，修复后**回退旧代码验证新测试
+确实失败**，再跑全量回归。发现的问题分「真实影响用户」与「潜在/工具链」两类，全部落地。
+
+### 真实影响用户（按影响排序）
+
+1. **938 张封面里 293 张读不到尺寸，被强行按 4:3 裁切**。`server/reader/webp-size.ts` 只解析 WebP，
+   而 2375 个 jpg / 391 个 png 媒体全部拿不到宽高。改为按**文件头**解析 WebP/PNG/GIF/JPEG
+   （`server/reader/image-size.ts`），并支持无扩展名文件。修复后：解析审计 938 张封面 **0 张缺尺寸**。
+2. **无扩展名图片以 `application/octet-stream` 下发**（藏品库里有 37 个名为 `640` 的无扩展名图片）。
+   媒体路由现按文件头嗅探 MIME，并补齐音频类型（`.m4a/.mp3/.wav/.ogg/.aac`，此前日记音频只能下载）。
+   实测：`/api/media/<宝贝>/640` → `Content-Type: image/webp`。
+3. **3 个"破图"文件其实是下载失败时存下的 500 JSON 响应**（`{"code":500,"msg":"服务器异常…"}`）。
+   现在解析时判定 `displayable=false`：不选作封面，并在 `parse-audit` 里列出来（用户可去修那几篇笔记）。
+4. **扫描完整性三处缺陷**：
+   - 「有意跳过」的笔记诊断写着"已从库中移除"，实际会被扫描尾部的 missing 兜底重新加回（行为与诊断不符）；
+   - ID 冲突时同一路径会被推入两条记录（一条 available 一条 missing），`total` 多算、`detail` 指向 missing 副本；
+   - 快路径（mtime/size 未变）不登记 ID，导致撞 ID 的文件在**第二轮刷新**被当成首个占用者收进索引。
+   三处都已修，并用"回退旧代码 → 新用例失败"验证。
+5. **「零可用笔记」保护从不生效**：判据是 `records.length === 0`，而消失的文件会以 missing 保留，
+   该条件永远不成立。改为看 available 计数：一篇都读不到而旧库非空时给出醒目诊断
+   （**不**硬失败——硬失败会让"确实清空库"的用户没有出路；记录与分类始终保留）。
+6. **AI 兜底没有调用上限**：分类表被重置（删 categories.json）或一次导入几百篇时会串行打几百次接口。
+   新增 `AI_CLASSIFY_MAX_PER_REFRESH`（默认 40），超出的留待下次刷新并在诊断里说明。
+   顺带修掉 `AI_CLASSIFY_TIMEOUT_MS` 写错（NaN）时会"立即超时"从而静默关闭 AI 的问题。
+7. **首扫的自动分类结果只进服务端日志、不进页面诊断**（`job` 为空时消息丢失），现在会写进索引诊断。
+8. **静态缓存把 `index.html` 也缓存 1 小时**：部署完浏览器可能仍拿旧壳（"部署了但没变化"）。现按
+   Vite 的 assets 目录判定——`index.html` 为 `no-cache`，`/assets/*` 为一年 immutable。
+   注：第一版按"哈希长度 ≥8"猜，实测该构建的哈希是 7 位，被自己的测试头打回，已改为按目录判定。
+9. **自定义时间范围的预填用浏览器本地日期**，与全站 Asia/Shanghai 口径不一致（设备不在东八区会差一天）。
+   改为 `shanghaiDateDaysAgo()`。
+10. **`categories.json` 里 `initialAssignments: null` 会通过校验后崩溃**（`typeof null === 'object'`）。
+    校验改为非空对象判定，损坏文件按损坏处理并出诊断。
+
+### 潜在问题与工具链
+
+| 位置 | 问题 | 处理 |
+| --- | --- | --- |
+| `scripts/classify.ts` | 不过滤收藏库，会把宝贝/日记（id 是路径）写进 seed；且只要有一篇没命中就 throw | 只处理 rednote，未命中改为提示；重新生成 seed 后与旧 seed 逐条比对：**598 条类目零变化**，新增 7 条 |
+| `scripts/parse-audit.ts` | 排除项按 vault 相对路径匹配（`^MOC\.md$` 永不命中），审计比库内多 6 篇 | 与 `scan.ts` 统一按收藏库相对路径；现与库内一致（1204 篇） |
+| `scripts/source-hash.mjs` | 只哈希 RedNote，多收藏库后只读边界漏了两个库 | 按 `collections` 覆盖三库（4220 个文件），并支持 `--check` 非零退出口 |
+| `pngview.cjs` / `scanline.cjs` | 调色板/灰度/隔行 PNG 会静默解出乱码亮度（"体检测量"失真） | 不支持的格式直接报错退出；通道数按 color type 计算 |
+| `scripts/release.ps1` | 版本号未校验，`-Version ..\foo` 可把发布包写到 releases 之外；不跑任何检查 | 校验 `x.y.z`；新增 typecheck+测试预检（`-SkipChecks` 可跳过）；排除 `.git`；加 `.dockerignore` |
+| `deploy/nas-update.sh` | `.env` 缺失分支缺 `exit 1`，报错信息误导 | 补 `exit 1` |
+| `deploy/nas-rollback.sh` | 无 `.env` 守卫、无健康检查，失败也打印"已回滚" | 补守卫 + 健康检查与版本核对 |
+| `deploy/.env.example` | `SOURCE_ROOT` 指向 `.../RedNote`（v0.4.0 起应为 vault 根）→ 照抄会挂不到宝贝/日记 | 改为 vault 根并加说明；`MYINFOBASE_TAG` 示例更新 |
+| `deploy/compose.yaml`（模板） | 缺 AI 三项透传，照模板部署会静默关掉 AI 兜底 | 与 production 版同步（含新增的上限/超时项） |
+| `server/config.ts` | 内置默认 collections 的 diary 排除项落后于 `config/app.json`（配置读不到时 flomo 首页会混进日记） | 同步默认值 |
+| `src/styles/app.css` | `.raised`/`.sunken` 两条死规则；reduced-motion 只压时长不压延迟（卡片最长 420ms 不可见） | 删除死规则；补 `animation-delay: 0s` |
+| `scripts/probe-client.js` | 探针自身缺陷：等"动画列表为空"对无限循环的环境光漂移永远不成立；切主题过渡期读数会把合格界面判成不合格 | 改为"两次读数一致"判稳，新增 `__uiSettle()`，并把正确用法写进注释与 README |
+
+### 测试（52 → 102 个用例）
+
+新增 5 个文件：`tests/image-size.test.ts`（文件头识别 14 例）、`tests/http.test.ts`（媒体路由的
+Range/416/304/HEAD/越界/缺失/MIME + API 的 Origin 守卫、查询校验、409/400/404 映射、JSON 404）、
+`tests/scan-integrity.test.ts`（快路径计数、跳过移除、ID 冲突去重、零可用告警、AI 上限、分类表损坏）、
+`tests/config-guards.test.ts`（生产守卫、Origin 白名单构造）。同时强化既有弱断言：
+`waitForJob` 现在要求 `state === 'completed'` 且 `errors === 0`（此前刷新失败也能让测试通过）、
+`JsonStore` 备份数由 `≤3` 改为"恰好 3 份且是最新的三份"、`lastNDaysRangeMs` 锚定到今天而不只比跨度。
+
+**回退验证**：把 `scan.ts`/`library.ts`/`categories.ts` 临时换回旧版本运行新用例，5/7 失败；换回后 7/7 通过。
+
+### 端到端（真实 vault，只读）
+
+- 全量扫描：1204 篇（小红书 606 / 宝贝 331 / 日记 267），`added=1204 skipped=5 errors=0`。
+- 刷新幂等：`scanned=0 added=0 updated=0 skipped=1209 errors=0`，计数与分类不变。
+- 解析审计：1210 → **1204 篇**（与库内一致），封面 938 张 **0 张缺尺寸**，4 条警告全部可解释
+  （1 张 HEIC 封面按设计回退、3 个损坏文件被排除封面候选）。
+- HTTP：`/api/media/<宝贝>/640` → `image/webp`；`/` → `Cache-Control: no-cache`；
+  `/assets/index-*.js|css` → `max-age=31536000, immutable`；`/icon.svg` → `3600`。
+- 浏览器（Playwright）：浅色 11 项文字对比度**零失败**（最低 5.22）、暗色零失败（最低 5.01）；
+  `__uiLayout()` 无越界、无重叠；`backdrop-filter` 计 2（侧栏 + 主面板，弹层未开）。
+- 宝贝库封面比例从"全部 4:3"变为真实比例（首屏 120 张里仅 12 张是 SVG 占位按 4:3，其余为
+  0.48–1.78 的真实比例）。这是本次唯一**可见**的变化，属于修复目标本身。
+- **只读不变量**：审查前后对三库 4220 个文件做 SHA-256 清单比对 → `added=0 removed=0 changed=0`。
+
+### 未修但已记录
+
+- 详情弹层没有焦点陷阱（Tab 可以跑到弹层后面的页面元素）；`Escape`/焦点回归已实现。
+- 反向自定义时间范围（from > to）返回空区间而非报错——已用测试固定现状。
+- 扫描并发下"ID 冲突保留先入"依赖 worker 认领顺序（前 6 个文件按序认领，之后不保证）；
+  真实库无重复 resourceId，故未重构扫描循环。
+- 3 个损坏的图片附件属于 vault 数据问题，需要用户在 Obsidian 里重新下载（审计脚本会持续列出）。

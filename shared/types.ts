@@ -14,6 +14,12 @@ export interface MediaItem {
   height?: number;
   /** 本地文件是否确实存在 */
   available?: boolean;
+  /**
+   * 浏览器能否直接渲染（按文件头判定，不看扩展名）。
+   * false 的不会选作封面：HEIC/TIFF 这类格式，以及「扩展名像图片但文件头不是图片」的
+   * 坏文件（实测库里有 3 个下载失败时存下的 500 JSON 响应）。
+   */
+  displayable?: boolean;
 }
 
 /** 列表条目：不含正文 HTML 与全部媒体 */

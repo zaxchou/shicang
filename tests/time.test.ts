@@ -4,7 +4,9 @@ import {
   formatShanghai,
   lastNDaysRangeMs,
   shanghaiDate,
+  shanghaiDateDaysAgo,
   shanghaiDayStartMs,
+  todayShanghai,
 } from '../shared/time';
 
 describe('上海时区边界', () => {
@@ -21,15 +23,36 @@ describe('上海时区边界', () => {
     expect(shanghaiDayStartMs('bad')).toBeNull();
   });
 
-  it('最近 7 天含今天共 7 个自然日', () => {
+  it('最近 7 天：起点是今天往前 6 天的 00:00，终点是明日 00:00（不只是跨度对）', () => {
     const [s, e] = lastNDaysRangeMs(7);
     expect(e - s).toBe(7 * 24 * 3600 * 1000);
+    // 整体偏移一天的实现也能满足"跨度 = 7 天"，所以必须锚定到今天
+    const todayStart = shanghaiDayStartMs(todayShanghai())!;
+    expect(e).toBe(todayStart + 24 * 3600 * 1000);
+    expect(s).toBe(todayStart - 6 * 24 * 3600 * 1000);
+  });
+
+  it('往前推 N 天的上海日历日（前端预填自定义范围用）', () => {
+    const today = todayShanghai();
+    expect(shanghaiDateDaysAgo(0)).toBe(today);
+    const back = shanghaiDateDaysAgo(6);
+    expect(shanghaiDayStartMs(today)! - shanghaiDayStartMs(back)!).toBe(6 * 24 * 3600 * 1000);
   });
 
   it('自定义区间为 [起始00:00, 结束次日00:00)', () => {
     const [s, e] = customRangeMs('2026-06-01', '2026-06-03')!;
     expect(e - s).toBe(3 * 24 * 3600 * 1000);
     expect(customRangeMs('2026-06-31', '2026-06-03')).toBeNull();
+    // to 缺省 = 单日；跨月边界要按 31 天/30 天算
+    expect(customRangeMs('2026-06-15')).toEqual([
+      shanghaiDayStartMs('2026-06-15')!,
+      shanghaiDayStartMs('2026-06-16')!,
+    ]);
+    const [ms, me] = customRangeMs('2026-01-31', '2026-02-01')!;
+    expect(me - ms).toBe(2 * 24 * 3600 * 1000);
+    // 反向区间当前返回空区间（start > end），筛选结果为空而非报错——记录现状
+    const [rs, re] = customRangeMs('2026-06-05', '2026-06-01')!;
+    expect(rs).toBeGreaterThan(re);
   });
 
   it('格式化输出上海本地时间', () => {

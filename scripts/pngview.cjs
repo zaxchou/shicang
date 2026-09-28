@@ -5,17 +5,25 @@ const zlib = require('zlib');
 
 function decode(file) {
   const buf = fs.readFileSync(file);
-  let off = 8, w = 0, h = 0, depth = 0, color = 0;
+  let off = 8, w = 0, h = 0, depth = 0, color = 0, interlace = 0;
   const idat = [];
   while (off < buf.length) {
     const len = buf.readUInt32BE(off);
     const type = buf.toString('ascii', off + 4, off + 8);
     const data = buf.subarray(off + 8, off + 8 + len);
-    if (type === 'IHDR') { w = data.readUInt32BE(0); h = data.readUInt32BE(4); depth = data[8]; color = data[9]; }
+    if (type === 'IHDR') {
+      w = data.readUInt32BE(0); h = data.readUInt32BE(4);
+      depth = data[8]; color = data[9]; interlace = data[12];
+    }
     else if (type === 'IDAT') idat.push(data);
     else if (type === 'IEND') break;
     off += 12 + len;
   }
+  // 本工具只解「8 位、非隔行、灰度/RGB/带 alpha」的 PNG。解不了的必须报错退出：
+  // 硬解出来的是乱码亮度，而这是用来做客观视觉判断的，错数字比没有数字更危险。
+  if (depth !== 8) throw new Error(`不支持的位深 depth=${depth}（仅 8 位）`);
+  if (interlace !== 0) throw new Error('不支持隔行（Adam7）PNG');
+  if (color === 3) throw new Error('不支持调色板 PNG（color type 3）');
   const channels = color === 6 ? 4 : color === 2 ? 3 : color === 4 ? 2 : 1;
   const raw = zlib.inflateSync(Buffer.concat(idat));
   const bpp = channels * (depth / 8), stride = w * bpp;

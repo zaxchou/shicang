@@ -61,12 +61,18 @@ describe('JsonStore 持久化', () => {
     expect(store.load().doc?.value).toBe('c');
   });
 
-  it('备份保留数量受限', async () => {
+  it('备份保留数量受限，且保留的是最新的几份', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ib-store-'));
     const backupDir = path.join(dir, 'bak');
     const store = new JsonStore<Doc>(path.join(dir, 'a.json'), backupDir, validate, 3);
     for (let i = 0; i < 6; i++) await store.save({ schemaVersion: 1, value: `v${i}` });
     const backups = fs.readdirSync(backupDir).filter((f) => f.startsWith('a-'));
-    expect(backups.length).toBeLessThanOrEqual(3);
+    // 恰好 3 份：写成 ≤3 的话，一个都不备份也能通过
+    expect(backups.length).toBe(3);
+    // 保留的必须是最新的 3 份（v2/v3/v4；v5 在主文件里）
+    const values = backups
+      .map((f) => JSON.parse(fs.readFileSync(path.join(backupDir, f), 'utf8')).value as string)
+      .sort();
+    expect(values).toEqual(['v2', 'v3', 'v4']);
   });
 });

@@ -2,14 +2,22 @@
  * 浏览器端设计/性能探针（开发与验收用，不参与打包）。
  *
  * 用途：在「看不到画面」或需要客观数据时，把渲染结果量化成数字——
- *   window.__uiAudit()   合成后的表面色、明度台阶、文字对比度（WCAG）
- *   window.__uiBench(n)  滚动 / 指针移动的帧耗时（p50/p90/p99 + 掉帧数）
- *   window.__uiLayout()  关键容器几何：越界、重叠、留白分布
+ *   window.__uiAudit()     合成后的表面色、明度台阶、文字对比度（WCAG）
+ *   window.__uiBench(n)    滚动 / 指针移动的帧耗时（p50/p90/p99 + 掉帧数）
+ *   window.__uiLayout()    关键容器几何：越界、重叠、留白分布
+ *   window.__uiSettle(ms)  等过渡/动画跑完（切主题、切筛选之后必须先调）
  *
  * 用法（Windows 本地）：
  *   npm run build:web
  *   copy scripts\probe-client.js dist\web\_probe.js
  *   然后在浏览器里注入：await (0,eval)(await (await fetch('/_probe.js')).text())
+ *
+ * 坑（2026-09-28 实测）：
+ *   1) 切主题后立刻 audit 会量到颜色过渡的中间态，把合格界面判成 3 处对比度不合格。
+ *      可靠做法：localStorage.setItem('mb-theme','light'|'dark') 后整页重载再量。
+ *   2) 不能用"getAnimations() 里还有没有 running"判断是否稳定：Chromium 会把已结束的
+ *      过渡继续列为 running（.card-cat 的 0.2s 过渡 3s 后仍报 running，颜色其实已不变）。
+ *      所以 __uiSettle 用"连续两次读数一致"判稳，并且只在同一主题内可信。
  */
 (function () {
   const parse = (s) => {
@@ -127,7 +135,32 @@
         const s = getComputedStyle(e).backdropFilter;
         return s && s !== 'none';
       }).length,
+      /** 仅供排查：Chromium 会把已结束的过渡继续列为 running（实测 .card-cat 的 0.2s
+       *  过渡在 3s 后仍报 running，而颜色已不再变化），所以不要用它判定"是否稳定"，
+       *  判断稳定性请用 __uiSettle 的两次读数比对 */
+      pendingTransitions: document.getAnimations().filter((a) => a.playState === 'running').length,
     };
+  };
+
+  /**
+   * 等界面稳定再读数：连续两次 audit 结果一致才算稳（上限 ms 毫秒）。
+   * 不能用"动画列表为空"来等——Chromium 会把已结束的过渡一直列为 running；
+   * 也不能只固定 sleep：切主题时 120 张卡片的颜色过渡会持续几百毫秒。
+   */
+  window.__uiSettle = async function (ms = 4000) {
+    const snap = () => {
+      const a = window.__uiAudit();
+      return JSON.stringify({ t: a.texts, s: a.surfaces, p: a.pagePlusPanel });
+    };
+    const t0 = Date.now();
+    let prev = snap();
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 140));
+      const cur = snap();
+      if (cur === prev) return { waitedMs: Date.now() - t0, stable: true };
+      prev = cur;
+      if (Date.now() - t0 > ms) return { waitedMs: Date.now() - t0, stable: false };
+    }
   };
 
   window.__uiBench = function (frames = 150, opts = {}) {

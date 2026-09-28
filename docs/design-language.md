@@ -1,4 +1,4 @@
-# 设计语言：Soft Glass（v0.5.0）
+# 设计语言：Soft Glass（v0.5.0 定版；v0.6.0 起继续沿用）
 
 面向本项目的落地说明。通用方法已固化为 skill：`soft-glass-ui`
 （`~/.agents/skills/soft-glass-ui/`，含探针脚本与 token 模板）。
@@ -98,8 +98,8 @@ npm run build:web && cp scripts/probe-client.js dist/web/_probe.js
 配套两个离线看图工具（看不了截图时把画面变成数字）：
 
 ```bash
-node scripts/pngview.cjs docs/screenshots/sg-light-masonry.png 100 32   # 亮度字符视图
-node scripts/scanline.cjs docs/screenshots/sg-light-masonry.png 620 200 300 2 240 250 258 270  # 明度扫描线
+node scripts/pngview.cjs docs/screenshots/softglass-light-masonry.png 100 32   # 亮度字符视图
+node scripts/scanline.cjs docs/screenshots/softglass-light-masonry.png 620 200 300 2 240 250 258 270  # 明度扫描线
 ```
 
 验收门：4 视图 × 2 主题零对比度失败、无越界无重叠、`mode:'both'` 掉帧数为 0、p50 ≤ 10ms。

@@ -10,6 +10,11 @@ export interface AiClassifyConfig {
   baseUrl: string;
   model: string;
   timeoutMs: number;
+  /**
+   * 单次刷新的 AI 调用上限。分类表被重置（删除 categories.json）或一次导入几百篇时，
+   * 没有上限就会串行打几百次接口，把配额和刷新时长一起打爆。
+   */
+  maxPerRefresh: number;
 }
 
 export function aiClassifyConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AiClassifyConfig | null {
@@ -19,8 +24,16 @@ export function aiClassifyConfigFromEnv(env: NodeJS.ProcessEnv = process.env): A
     apiKey,
     baseUrl: (env.AI_CLASSIFY_BASE_URL ?? env.MIMO_API_BASE ?? 'https://api.xiaomimimo.com/v1').replace(/\/+$/, ''),
     model: (env.AI_CLASSIFY_MODEL ?? env.MIMO_MODEL ?? 'mimo-v2.5').trim(),
-    timeoutMs: Number(env.AI_CLASSIFY_TIMEOUT_MS ?? 30000),
+    timeoutMs: positiveInt(env.AI_CLASSIFY_TIMEOUT_MS, 30000, 1000),
+    maxPerRefresh: positiveInt(env.AI_CLASSIFY_MAX_PER_REFRESH, 40, 1),
   };
+}
+
+/** 环境变量里的正整数：缺失或写错（NaN）时用默认值，避免静默失效 */
+function positiveInt(raw: string | undefined, fallback: number, min: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min) return fallback;
+  return Math.floor(n);
 }
 
 /** 从模型回复里宽松地取出 JSON（有的模型会包 ```json 围栏或夹带说明文字） */

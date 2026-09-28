@@ -55,17 +55,22 @@ export class CategoryValidationError extends Error {
   }
 }
 
+/** 非空对象判定：`typeof null === 'object'`，JSON 里写出 `"overrides": null` 时不能放行 */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
 function validateCategoryDoc(data: unknown): CategoryDoc | null {
-  if (typeof data !== 'object' || data === null) return null;
-  const d = data as CategoryDoc;
-  if (d.schemaVersion !== 1 || !Array.isArray(d.categories) || typeof d.initialAssignments !== 'object') return null;
+  if (!isRecord(data)) return null;
+  const d = data as unknown as CategoryDoc;
+  if (d.schemaVersion !== 1 || !Array.isArray(d.categories) || !isRecord(d.initialAssignments)) return null;
   return d;
 }
 
 function validateOverrideDoc(data: unknown): OverrideDoc | null {
-  if (typeof data !== 'object' || data === null) return null;
-  const d = data as OverrideDoc;
-  if (d.schemaVersion !== 1 || typeof d.revision !== 'number' || typeof d.overrides !== 'object') return null;
+  if (!isRecord(data)) return null;
+  const d = data as unknown as OverrideDoc;
+  if (d.schemaVersion !== 1 || typeof d.revision !== 'number' || !isRecord(d.overrides)) return null;
   return d;
 }
 

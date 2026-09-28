@@ -35,7 +35,8 @@ export function TagsDirectory({ tags, loading, error, onRetry, onSelect }: Props
       </div>
 
       {loading && !tags && <div className="results-state">加载中…</div>}
-      {error && !tags && (
+      {/* 失败必须看得见：以前只在"还没有任何标签"时才报错，失败后会把上一个库的标签继续挂着 */}
+      {error && (
         <div className="results-state">
           <div className="state-title">标签加载失败</div>
           <div>{error}</div>
@@ -44,13 +45,13 @@ export function TagsDirectory({ tags, loading, error, onRetry, onSelect }: Props
           </button>
         </div>
       )}
-      {tags && filtered.length === 0 && (
+      {!error && tags && filtered.length === 0 && (
         <div className="results-state">
           <div className="state-title">没有匹配的标签</div>
           <div>{filter ? `不含“${filter.trim()}”的标签` : '收藏笔记暂无标签'}</div>
         </div>
       )}
-      {tags && filtered.length > 0 && (
+      {!error && tags && filtered.length > 0 && (
         <div className="tag-chips">
           {filtered.map((t) => (
             <button key={t.tag} className="tag-chip" onClick={() => onSelect(t.tag)} title={`${t.tag}（${t.count} 篇）`}>

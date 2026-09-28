@@ -50,6 +50,8 @@
 
   /* 强调色：整屏几乎保持中性，只让少量关键点着色 */
   --accent: #ff5a6e;
+  /* 深色抬升面（#353740）上 #ff5a6e 只有 3.92:1，小字要用更亮一档 */
+  --danger-text: #ff7b8c;
   --ring: rgba(96, 156, 255, 0.8);
   --ring-soft: rgba(96, 156, 255, 0.20);
 
@@ -90,7 +92,9 @@
 
   --surface: rgba(24, 32, 60, 0.045);
   --surface-raised: #ffffff;
-  --surface-raised-hover: #ffffff;
+  /* 亮色的"抬升"本身就是纯白，hover 必须往暗处走一点才看得出反馈
+     （此前两个值相同，5 条 hover 规则在亮色下等于没有效果） */
+  --surface-raised-hover: #f4f5f9;
   --surface-sunken: rgba(24, 32, 60, 0.07);
   --surface-sunken-2: rgba(24, 32, 60, 0.045);
   --surface-solid: rgba(255, 255, 255, 0.96);
@@ -110,6 +114,8 @@
   --link: #2f6bff;
 
   --accent: #ff375f;
+  /* 小字号错误/警示文字专用：--accent 在近白背景上只有 3.3~3.5:1，不到 AA */
+  --danger-text: #c2183f;
   --ring: rgba(0, 122, 255, 0.55);
   --ring-soft: rgba(0, 122, 255, 0.14);
 

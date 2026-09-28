@@ -7,6 +7,8 @@ interface Props {
   notes: NoteSummary[];
   /** 当前收藏库信息（含表格字段 extraFields） */
   info: CollectionInfo;
+  /** 当前筛选条件下的总条数：大于 notes.length 时说明只加载了前一段（要提示，否则像丢数据） */
+  resultTotal?: number | null;
   categoryName(id: string | null): string | null;
   onOpen(note: NoteSummary, el: HTMLElement): void;
   registerEl(id: string, el: HTMLElement | null): void;
@@ -87,7 +89,7 @@ function cellValue(note: NoteSummary, col: Col): string | number | null {
   }
 }
 
-export function DataTable({ notes, info, categoryName, onOpen, registerEl }: Props) {
+export function DataTable({ notes, info, resultTotal = null, categoryName, onOpen, registerEl }: Props) {
   const cols = useMemo(() => buildColumns(info), [info]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
 
@@ -155,8 +157,16 @@ export function DataTable({ notes, info, categoryName, onOpen, registerEl }: Pro
                 key={c.key}
                 style={{ minWidth: c.minW ?? 90 }}
                 className={sort?.key === c.key ? `sorted dir-${sort.dir}` : ''}
+                aria-sort={sort?.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}
+                tabIndex={0}
                 onClick={() => toggleSort(c)}
-                title="点击排序"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleSort(c);
+                  }
+                }}
+                title="点击或回车排序，再按一次反向"
               >
                 <span>{c.label}</span>
                 <IconChevronDown size={11} />
@@ -185,7 +195,14 @@ export function DataTable({ notes, info, categoryName, onOpen, registerEl }: Pro
           ))}
         </tbody>
       </table>
-      <div className="table-foot">共 {rows.length} 行</div>
+      <div className="table-foot">
+        共 {rows.length} 行
+        {resultTotal !== null && resultTotal > notes.length && (
+          <span className="table-foot-warn">
+            （当前筛选共 {resultTotal} 条，只加载了前 {notes.length} 条；列排序仅作用于已加载部分）
+          </span>
+        )}
+      </div>
     </div>
   );
 }

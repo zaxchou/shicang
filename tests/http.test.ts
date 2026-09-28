@@ -304,6 +304,31 @@ describe('HTTP 路由', () => {
       expect((await broken.json()).error.code).toBe('BAD_JSON');
     });
 
+    it('超过 64KB 的请求体返回 413，而不是兜底 500', async () => {
+      // 实测：不单独处理 entity.too.large 会落到 500「服务器内部错误」，日志里还留一条 ERROR
+      const big = '[' + '1,'.repeat(40000) + '1]';
+      const res = await fetch(`${base}/api/notes/id-0001/category`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Origin: ALLOWED_ORIGIN },
+        body: big,
+      });
+      expect(res.status).toBe(413);
+      expect((await res.json()).error.code).toBe('PAYLOAD_TOO_LARGE');
+    });
+
+    it('越界路径一律 404，不做文件系统访问', async () => {
+      for (const p of [
+        '/api/notes/%2E%2E%2F%2E%2E%2Fetc%2Fpasswd',
+        '/api/notes/%00abc',
+        '/api/media/%2E%2E%2F%2E%2E%2Fconfig%2Fapp.json/640',
+        '/api/refresh/%2E%2E%2Fetc',
+      ]) {
+        const res = await fetch(base + p);
+        expect(res.status, p).toBe(404);
+        expect(res.headers.get('content-type')).toContain('application/json');
+      }
+    });
+
     it('未知 API 路径返回 JSON 404（不会被媒体路由或前端兜底吃掉）', async () => {
       const res = await fetch(`${base}/api/nope`);
       expect(res.status).toBe(404);

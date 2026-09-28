@@ -250,6 +250,12 @@ export function apiRouter(deps: ApiDeps): express.Router {
         res.status(400).json({ error: { code: 'BAD_JSON', message: '请求体不是有效 JSON' } });
         return;
       }
+      // express.json 的 64kb 限制：不单独处理会落到兜底 500（用户看到"服务器内部错误"，
+      // 日志里却是一条 ERROR），实际是客户端请求过大
+      if ((err as { type?: string })?.type === 'entity.too.large') {
+        res.status(413).json({ error: { code: 'PAYLOAD_TOO_LARGE', message: '请求体过大（上限 64KB）' } });
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[ERROR] ${req.method} ${req.path}: ${msg}`);
       res.status(500).json({ error: { code: 'INTERNAL', message: '服务器内部错误，请查看服务日志' } });

@@ -46,7 +46,8 @@ export default function App() {
 
   // 收藏库与视图
   const [collection, setCollection] = useState<string>('rednote');
-  const [viewMode, setViewModeState] = useState<ViewMode>('masonry');
+  // 首屏也要用本库上次选的模式（此前只有切换收藏库时才读，刷新页面后偏好被忽略）
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => readViewMode('rednote'));
   const [view, setView] = useState<View>('library'); // library | tags
   const [tags, setTags] = useState<TagCount[] | null>(null);
   const [tagsError, setTagsError] = useState<string | null>(null);
@@ -62,10 +63,11 @@ export default function App() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [detailSummary, setDetailSummary] = useState<NoteSummary | null>(null);
-  const [toast, setToast] = useState<{ msg: string; kind: 'info' | 'error' } | null>(null);
+  const [toast, setToast] = useState<{ id: number; msg: string; kind: 'info' | 'error' } | null>(null);
 
   const seqRef = useRef(0);
   const composingRef = useRef(false);
+  const toastIdRef = useRef(0);
   const resultsRef = useRef<HTMLDivElement>(null);
   const focusedElRef = useRef<HTMLElement | null>(null);
   const cardElsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -88,8 +90,10 @@ export default function App() {
   const curCategories = curInfo?.categories ?? [];
 
   const showToast = useCallback((msg: string, kind: 'info' | 'error' = 'info') => {
-    setToast({ msg, kind });
-    window.setTimeout(() => setToast((t) => (t?.msg === msg ? null : t)), 4200);
+    // 用自增 id 而不是消息文本判归属：相同文案的两条 toast 会在第一条的定时器上被提前清掉
+    const id = ++toastIdRef.current;
+    setToast({ id, msg, kind });
+    window.setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 4200);
   }, []);
 
   const loadLibrary = useCallback(async () => {
@@ -140,7 +144,13 @@ export default function App() {
       if (seq !== seqRef.current) return; // 过期响应丢弃
       setTotal(res.total);
       setListError(null);
-      if (append && revisionRef.current === res.indexRevision) {
+      if (append && revisionRef.current !== res.indexRevision) {
+        // 追加期间索引被重建（别处点了刷新 / 跑过扫描）：这一份是"从 offset 开始的页"，
+        // 直接采用会把中间页当成首页，而且之后每次都重取同一段（看起来点了没反应）
+        void fetchPage(0);
+        return;
+      }
+      if (append) {
         setItems((prev) => {
           const seen = new Set(prev.map((p) => p.id));
           return [...prev, ...res.items.filter((i) => !seen.has(i.id))];
@@ -165,6 +175,7 @@ export default function App() {
     const q = queryRef.current;
     const seq = ++seqRef.current;
     setListLoading(true);
+    setLoadingMore(false); // 表格加载会作废进行中的"加载更多"，否则那个按钮会一直卡在"加载中…"
     try {
       const res = await api.notes({
         collection: collectionRef.current,
@@ -187,39 +198,67 @@ export default function App() {
     } catch (e) {
       if (seq === seqRef.current) setListError(e instanceof ApiError ? e.message : '加载列表失败');
     } finally {
+      setLoadingMore(false);
       if (seq === seqRef.current) setListLoading(false);
     }
   }, []);
+
+  /** 按当前展示模式重新加载（表格要一次取全量，瀑布流取第一页） */
+  const reload = useCallback(
+    () => (viewModeRef.current === 'table' ? loadAll() : fetchPage(0)),
+    [loadAll, fetchPage]
+  );
 
   // 首次加载
   useEffect(() => {
     void loadLibrary();
   }, [loadLibrary]);
 
-  // 查询/视图/标签/收藏库变化 → 重新加载第一页（搜索防抖 200ms）
+  // 查询/视图/标签/收藏库/展示模式变化 → 重新加载（搜索防抖 200ms）
+  // viewMode 必须在依赖里：瀑布流首屏只取 60 条，切到表格必须改用一次取全量，
+  // 否则表格会拿瀑布流已加载的那几十条当全部（实测：切到列表 0 个请求、显示 120/606 行）
   useEffect(() => {
-    if (viewModeRef.current === 'table') {
-      const t = window.setTimeout(() => {
-        if (!composingRef.current) void loadAll();
-      }, 200);
-      return () => window.clearTimeout(t);
-    }
     const t = window.setTimeout(() => {
-      if (!composingRef.current) void fetchPage(0);
+      if (composingRef.current) return;
+      if (viewMode === 'table') void loadAll();
+      else void fetchPage(0);
     }, 200);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, view, activeTag, collection]);
+  }, [query, view, activeTag, collection, viewMode]);
 
-  // 进入标签视图时按收藏库加载标签
+  // 输入法组合期间不重查；若 compositionend 丢事件（切窗口等）状态会永久卡住，失焦兜底
   useEffect(() => {
-    if (view === 'tags') void loadTags();
+    const reset = () => {
+      composingRef.current = false;
+    };
+    window.addEventListener('blur', reset);
+    return () => window.removeEventListener('blur', reset);
+  }, []);
+
+  // 进入标签视图时按收藏库加载标签；先清空，避免把上一个库的标签当成当前库的
+  useEffect(() => {
+    if (view !== 'tags') return;
+    setTags(null);
+    setTagsError(null);
+    void loadTags();
   }, [view, collection, indexRevision, loadTags]);
 
-  // 筛选/视图/库变化滚动回顶部
+  // 筛选/视图/库/搜索词变化滚动回顶部
   useEffect(() => {
     resultsRef.current?.scrollTo({ top: 0 });
-  }, [query.categoryId, query.range, query.timeField, query.order, query.from, query.to, view, activeTag, collection]);
+  }, [
+    query.q,
+    query.categoryId,
+    query.range,
+    query.timeField,
+    query.order,
+    query.from,
+    query.to,
+    view,
+    activeTag,
+    collection,
+  ]);
 
   // 库就绪轮询（首次启动自动扫描可能延迟）
   useEffect(() => {
@@ -245,10 +284,19 @@ export default function App() {
     setItems([]);
     setTotal(null);
     setListLoading(true);
+    setTags(null); // 标签目录属于上一个库，先清空（否则会显示别的库的标签）
+    setTagsError(null);
   }, []);
 
   const selectCategory = useCallback(
     (id: string | null) => {
+      // 从标签结果跳到分类：同一个提交里就会切回库视图，旧标签结果必须清掉，
+      // 否则新标题下面挂着上一批结果（等到防抖请求回来才换）
+      if (viewRef.current === 'tags') {
+        setItems([]);
+        setTotal(null);
+        setListLoading(true);
+      }
       setView('library');
       setActiveTag(null);
       patchQuery({ categoryId: id });
@@ -265,6 +313,7 @@ export default function App() {
     setActiveTag(tag);
     setItems([]);
     setTotal(null);
+    setListLoading(true); // 否则首次加载期间是一片空白（既没有骨架也没有内容）
   }, []);
 
   const setViewMode = useCallback((v: ViewMode) => {
@@ -308,7 +357,7 @@ export default function App() {
           setRefreshing(false);
           await loadLibrary();
           await loadTags();
-          await fetchPage(0);
+          await reload();
           if (j.state === 'completed') showToast(`刷新完成：新增 ${j.added} 篇`);
           else if (j.state === 'partial') showToast(`刷新部分完成：新增 ${j.added} 篇，${j.errors} 个问题`, 'error');
           else showToast(`刷新失败：${j.diagnostics[j.diagnostics.length - 1] ?? '未知错误'}`, 'error');
@@ -330,7 +379,7 @@ export default function App() {
       setRefreshing(false);
       showToast(e instanceof ApiError ? e.message : '触发刷新失败', 'error');
     }
-  }, [refreshing, loadLibrary, loadTags, fetchPage, showToast]);
+  }, [refreshing, loadLibrary, loadTags, reload, showToast]);
 
   useEffect(
     () => () => {
@@ -360,15 +409,27 @@ export default function App() {
 
   const onCategoryChanged = useCallback(
     (noteId: string, categoryId: string | null, revision: number) => {
-      setItems((prev) =>
-        prev.map((n) => (n.id === noteId ? { ...n, categoryId, categorySource: 'override' as const } : n))
-      );
+      // 改完分类后，这条可能已经不符合当前筛选（比如在「未分类」里把它归了类）：
+      // 留着会让列表和自己声称的筛选条件矛盾
+      const q = queryRef.current;
+      const filteredOut =
+        viewRef.current === 'library' &&
+        q.categoryId !== null &&
+        (q.categoryId === 'uncategorized' ? categoryId !== null : categoryId !== q.categoryId);
+      if (filteredOut) {
+        setItems((prev) => prev.filter((n) => n.id !== noteId));
+        setTotal((prev) => (prev === null ? prev : Math.max(0, prev - 1)));
+      } else {
+        setItems((prev) =>
+          prev.map((n) => (n.id === noteId ? { ...n, categoryId, categorySource: 'override' as const } : n))
+        );
+      }
       setDetailSummary((prev) =>
         prev && prev.id === noteId ? { ...prev, categoryId, categorySource: 'override' as const } : prev
       );
       setLibrary((prev) => (prev ? { ...prev, categoryRevision: revision } : prev));
       void loadLibrary();
-      showToast('分类已保存');
+      showToast(filteredOut ? '分类已保存，已移出当前筛选' : '分类已保存');
     },
     [loadLibrary, showToast]
   );
@@ -448,13 +509,13 @@ export default function App() {
           onBack={selectTagsView}
           resultCount={total}
           listError={listError}
-          onRetry={() => (viewModeRef.current === 'table' ? void loadAll() : void fetchPage(0))}
+          onRetry={() => void reload()}
           onCompositionStart={() => {
             composingRef.current = true;
           }}
           onCompositionEnd={() => {
             composingRef.current = false;
-            void (viewModeRef.current === 'table' ? loadAll() : fetchPage(0));
+            void reload();
           }}
         />
 
@@ -519,7 +580,7 @@ export default function App() {
                 <div className="results-state">
                   <div className="state-title">列表加载失败</div>
                   <div>{listError}</div>
-                  <button className="btn-refresh" onClick={() => void fetchPage(0)}>
+                  <button className="btn-refresh" onClick={() => void reload()}>
                     <IconRefresh size={14} /> 重试
                   </button>
                 </div>
@@ -529,6 +590,7 @@ export default function App() {
                 <DataTable
                   notes={items}
                   info={curInfo}
+                  resultTotal={total}
                   categoryName={categoryName}
                   onOpen={openDetail}
                   registerEl={registerEl}
@@ -565,7 +627,7 @@ export default function App() {
       )}
 
       {toast && (
-        <div className={`toast${toast.kind === 'error' ? ' error' : ''}`} role="status">
+        <div key={toast.id} className={`toast${toast.kind === 'error' ? ' error' : ''}`} role="status">
           {toast.msg}
         </div>
       )}
@@ -583,7 +645,7 @@ function SkeletonGrid() {
   return (
     <div className="skeleton-wrap" style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }} aria-hidden>
       {heights.map((h, i) => (
-        <div key={i} className="skeleton-card" style={{ width: 236 }}>
+        <div key={i} className="skeleton-card" style={{ width: 236, maxWidth: '100%' }}>
           <div className="skeleton-block" style={{ height: h - 90, margin: 0 }} />
           <div className="skeleton-line" style={{ width: '85%', marginTop: 10 }} />
           <div className="skeleton-line" style={{ width: '45%' }} />

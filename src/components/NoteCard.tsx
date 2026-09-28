@@ -25,7 +25,7 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, registerE
   return (
     <article
       ref={(el) => registerEl(note.id, el)}
-      className={`note-card${enterDelay > 0 ? ' enter' : ''}`}
+      className={`note-card${note.cover ? '' : ' card-no-cover'}${enterDelay > 0 ? ' enter' : ''}`}
       style={enterDelay > 0 ? { animationDelay: `${enterDelay}ms` } : undefined}
       role="button"
       tabIndex={0}
@@ -41,12 +41,16 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, registerE
       {note.cover && (
         <div className="card-media">
           {note.cover.available ? (
+            /* 缓存命中时不触发 load 事件：挂载时若图片已完成就补一次，否则封面永远停在 opacity: 0 */
             <img
               src={note.cover.url}
               alt={note.title}
               loading="lazy"
               decoding="async"
               style={coverStyle(note)}
+              ref={(el) => {
+                if (el && el.complete && el.naturalWidth > 0) setImgLoaded(true);
+              }}
               className={imgLoaded ? 'loaded' : ''}
               onLoad={() => setImgLoaded(true)}
               onError={(e) => {

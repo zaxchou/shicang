@@ -48,6 +48,12 @@ export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
     cardW: number;
     height: number;
   } | null>(null);
+  /** 上一次已定位过的条目 id：只有它们才带位移过渡。
+   *  新条目（首屏、切库、追加）第一次落位时不得有过渡——过渡起点是 none 的话，
+   *  卡片会从容器左上角"飞"到各自位置。
+   *  不用"首帧之后再打开过渡"的写法：resize observer 触发的重排会不断取消并重排 rAF，
+   *  低帧率环境下那个状态可能永远轮不到（实测 1.8s 内类名始终没加上）。 */
+  const settledIds = useRef<Set<string>>(new Set());
 
   const itemIds = items.map((i) => i.id).join('|');
   // 条目集合变化时清理失效的高度与延迟记录
@@ -96,6 +102,11 @@ export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemIds]);
 
+  // 布局提交后记录"这次已定位过的条目"，供下一轮渲染判断谁可以带过渡
+  useEffect(() => {
+    if (layout) settledIds.current = new Set(layout.positions.keys());
+  }, [layout]);
+
   const scheduleLayout = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(computeLayout);
@@ -134,7 +145,7 @@ export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
 
   return (
     <div
-      className={`masonry${layout ? ' ready' : ''}`}
+      className="masonry"
       ref={containerRef}
       style={{ height: layout?.height ?? undefined }}
     >
@@ -145,7 +156,7 @@ export function Masonry({ items, categoryName, onOpen, registerEl }: Props) {
             key={note.id}
             data-note-id={note.id}
             ref={(el) => registerWrapper(note.id, el)}
-            className="masonry-item"
+            className={`masonry-item${settledIds.current.has(note.id) ? ' settled' : ''}`}
             style={{
               width: layout?.cardW ?? '100%',
               transform: pos ? `translate(${pos.x}px, ${pos.y}px)` : undefined,

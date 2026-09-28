@@ -125,6 +125,36 @@ scripts/           安装/启动/发布/扫描 CLI
 releases/          版本化发布包
 ```
 
+## git 推送凭据（本机，2026-09-28 查清）
+
+推送 GitHub 时如果每次都弹登录，**先检查凭据存储有没有配**：
+
+```bash
+git config --global --get credential.credentialStore      # 空 = GCM 拿到令牌无处可存，所以每次都重新问
+git config --global credential.credentialStore wincredman # 补上，然后完成一次授权即可
+```
+
+排查时踩过的两个坑，别再重复：
+
+- **`cmdkey /list` 在 Git Bash 里要加 `MSYS_NO_PATHCONV=1`**——否则 `/list` 会被当成路径改写，命令直接报错退出，
+  看起来像"凭据管理器里什么都没有"。
+- **校验凭据要看 token 长度，不要看有没有输出**。`git credential fill` 在密码为空时同样会打印 `password=`，
+  把 `password=` 之后整段屏蔽掉就会把"空"误读成"已拿到"：
+  `printf 'protocol=https
+host=github.com
+
+' | git credential fill | awk -F= '/^password=/{print length(substr($0,10))}'`
+- **`credential.interactive=false` 会让 GCM 干脆不返回已存好的 token**（实测：允许交互 = 40 字符，禁止 = 0），
+  所以别指望用它来"禁止弹窗"；要让推送永不等待，应改用静态 PAT 存进凭据管理器：
+  `printf 'protocol=https
+host=github.com
+username=<账号>
+password=<PAT>
+
+' | git credential approve`
+- 自动化脚本里 **push 一律带超时**（如 `timeout 240 git push`）：仓库在网络盘上，打包本身就要几十秒到两分钟，
+  不加超时会把"慢"误判成"卡住等你确认"。
+
 ## 故障排查
 
 | 现象 | 处理 |

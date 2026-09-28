@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { NoteSummary } from '../../shared/types';
 import { formatDurationSec } from '../../shared/time';
 import { api } from '../api/client';
-import { IconLayers, IconPlay, IconStar } from './Icons';
+import { IconGlobe, IconLayers, IconPlay, IconStar } from './Icons';
 
 interface Props {
   note: NoteSummary;
@@ -72,10 +72,13 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
       alive = false;
     };
   }, [needProbe, note.id]);
-  const showWebCover = !note.cover && !webCoverFailed && (note.webCover ? true : probedReady);
+  // 网页剪藏一律给一块固定 4:3 的"底片"：抓到封面就换成图，抓不到就用站点瓷片占位。
+  // 不留空位是刻意的——网页库里大半剪藏没有首图，缺图的卡片混在封面卡片中间会让整列看着塌一块。
+  const isWebMedia = !note.cover && note.collection === 'web';
+  const showWebCover = isWebMedia && !webCoverFailed && (note.webCover ? true : probedReady);
   const webCoverUrl = note.webCover?.url ?? `/api/web-cover/${encodeURIComponent(note.id)}`;
   const webDuration = formatDurationSec(note.webCover?.durationSec ?? probedDuration);
-  const hasMedia = !!note.cover || showWebCover;
+  const hasMedia = !!note.cover || isWebMedia;
   return (
     <article
       ref={(el) => registerEl(note.id, el)}
@@ -93,7 +96,7 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
       }}
     >
       {hasMedia && (
-        <div className="card-media">
+        <div className={`card-media${isWebMedia ? ' web-media' : ''}`}>
           {note.cover ? (
             note.cover.available ? (
               /* 缓存命中时不触发 load 事件：挂载时若图片已完成就补一次，否则封面永远停在 opacity: 0 */
@@ -121,21 +124,32 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
               <div className="media-placeholder">图片缺失</div>
             )
           ) : (
-            /* 网页剪藏的封面（B 站/首图，服务端按需抓取）：失败就整块消失，不留碎图；
-               同样要走 .loaded 淡入（.card-media img 默认 opacity:0，不加就是块黑） */
-            <img
-              src={webCoverUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              style={{ aspectRatio: '4 / 3' }}
-              className={imgLoaded ? 'loaded' : ''}
-              ref={(el) => {
-                if (el && el.complete && el.naturalWidth > 0) setImgLoaded(true);
-              }}
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setWebCoverFailed(true)}
-            />
+            <>
+              {/* 网页剪藏的封面（B 站/首图，服务端按需抓取）；图没就位时下面垫占位瓷片，
+                  加载完 .loaded 淡入后占位层卸载。同样必须走 .loaded（.card-media img 默认 opacity:0） */}
+              {showWebCover && (
+                <img
+                  src={webCoverUrl}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className={imgLoaded ? 'loaded' : ''}
+                  ref={(el) => {
+                    if (el && el.complete && el.naturalWidth > 0) setImgLoaded(true);
+                  }}
+                  onLoad={() => setImgLoaded(true)}
+                  onError={() => setWebCoverFailed(true)}
+                />
+              )}
+              {(!showWebCover || !imgLoaded) && (
+                <div className="web-placeholder">
+                  <span className="web-placeholder-icon" aria-hidden>
+                    <IconGlobe size={26} />
+                  </span>
+                  <span className="web-placeholder-label">{categoryName ?? '网页'}</span>
+                </div>
+              )}
+            </>
           )}
           {note.mediaCount > 1 && (
             <span className="card-media-badge">
@@ -171,8 +185,8 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
           </span>
           <span className="card-author-name">{note.author}</span>
           {categoryName && <span className="card-cat">{categoryName}</span>}
-          {/* 无封面的卡片（日记居多）没有图片可压，星标落在元信息行右端，避免压住标题 */}
-          {!note.cover && <StarButton starred={note.annotation.starred} onToggle={() => onToggleStar(note)} />}
+          {/* 没有底片的卡片（日记居多）星标落在元信息行右端，避免压住标题 */}
+          {!hasMedia && <StarButton starred={note.annotation.starred} onToggle={() => onToggleStar(note)} />}
         </div>
         {/* 自己的备注：只藏在详情里等于废掉一半价值，卡片上要能看见（最多两行） */}
         {note.annotation.remark && <p className="card-remark">{note.annotation.remark}</p>}

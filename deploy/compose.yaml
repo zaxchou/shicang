@@ -3,7 +3,7 @@
 # 改动本文件后必须同步 deploy/production/compose.yaml —— 部署用的是后者。
 services:
   myinfobase:
-    image: myinfobase:${MYINFOBASE_TAG:-0.13.0}
+    image: myinfobase:${MYINFOBASE_TAG:-0.13.1}
     container_name: myinfobase
     restart: unless-stopped
     # 以共享目录属主身份运行，避免 root 写数据；uid/gid 按 NAS 实际账号在 .env 配置

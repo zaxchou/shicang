@@ -995,6 +995,41 @@ img {
   color: var(--text-weak);
   font-size: 12px;
 }
+/* 网页剪藏的底片固定 4:3：封面与占位瓷片同一尺寸，按需抓取的封面回来时不会跳版。
+   图改成撑满底片（.card-media img 默认 height:auto，靠图自身比例决定高度）。
+   没有封面时不留空框，垫一块"站点瓷片"——不然网页库里缺图的卡片会让整列塌一块。 */
+.card-media.web-media {
+  aspect-ratio: 4 / 3;
+}
+.card-media.web-media img {
+  height: 100%;
+}
+.web-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  text-align: center;
+  background: linear-gradient(158deg, var(--surface-raised), var(--surface));
+}
+.web-placeholder-icon {
+  display: inline-flex;
+  color: var(--text-weak);
+  opacity: 0.8;
+}
+.web-placeholder-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--text-weak);
+}
 /* 图片上的小徽标：直接上不透明底色，避免每张卡片一个 backdrop-filter */
 .card-media-badge {
   position: absolute;

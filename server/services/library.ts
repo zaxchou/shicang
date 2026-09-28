@@ -510,6 +510,19 @@ export class LibraryService {
     };
   }
 
+  /**
+   * 批量归档 / 取回 / 标星。只处理索引里真实存在的 id（不存在的静默跳过，返回实际改动条数），
+   * 一次写盘、一次 revision。
+   */
+  async setAnnotationMany(
+    ids: string[],
+    patch: { star?: boolean; status?: 'archived' | null }
+  ): Promise<{ revision: number; updated: number }> {
+    const known = ids.filter((id) => this.byId.has(id));
+    if (known.length === 0) return { revision: this.annotations.revision, updated: 0 };
+    return this.annotations.patchMany(known, patch);
+  }
+
   /** 标星 / 取消标星。三个收藏库都可标（个人标注，不像分类那样受"以笔记为准"限制） */
   async setStar(
     noteId: string,

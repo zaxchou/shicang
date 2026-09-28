@@ -585,6 +585,70 @@ describe('备注', () => {
   });
 });
 
+describe('批量归档', () => {
+  it('一次请求归档多条：只递增一次 revision，列表与计数一起跟上', async () => {
+    const fx = createFixture();
+    for (const id of ['id-0001', 'id-0002', 'id-0003']) fx.writeNote({ id, title: `笔记${id}` });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    const before = svc.libraryInfo().annotationRevision;
+
+    const out = await svc.setAnnotationMany(['id-0001', 'id-0002'], { status: 'archived' });
+    expect(out.updated).toBe(2);
+    expect(out.revision).toBe(before + 1); // 两条只写一次盘
+    expect(svc.query({ ...baseQuery }).total).toBe(1);
+    expect(svc.query({ ...baseQuery, status: 'archived' }).total).toBe(2);
+    expect(svc.libraryInfo().collections.find((c) => c.id === 'rednote')?.archived).toBe(2);
+  });
+
+  it('幂等：已经是归档的再来一次 updated=0、不抬 revision', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setAnnotationMany(['id-0001'], { status: 'archived' });
+    const rev = svc.libraryInfo().annotationRevision;
+    const again = await svc.setAnnotationMany(['id-0001'], { status: 'archived' });
+    expect(again).toMatchObject({ updated: 0, revision: rev });
+  });
+
+  it('取回：批量改回在用', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    fx.writeNote({ id: 'id-0002', title: '笔记二' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    await svc.setAnnotationMany(['id-0001', 'id-0002'], { status: 'archived' });
+    expect(svc.query({ ...baseQuery }).total).toBe(0);
+
+    const back = await svc.setAnnotationMany(['id-0001', 'id-0002'], { status: null });
+    expect(back.updated).toBe(2);
+    expect(svc.query({ ...baseQuery }).total).toBe(2);
+    expect(svc.libraryInfo().collections.find((c) => c.id === 'rednote')?.archived).toBe(0);
+  });
+
+  it('不存在的 id 被跳过，只算真实改动的条数', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    const out = await svc.setAnnotationMany(['id-0001', 'id-9999', 'id-8888'], { status: 'archived' });
+    expect(out.updated).toBe(1);
+    expect(await svc.setAnnotationMany(['id-9999'], { status: 'archived' })).toMatchObject({ updated: 0 });
+  });
+
+  it('批量标星也只写一次盘', async () => {
+    const fx = createFixture();
+    fx.writeNote({ id: 'id-0001', title: '笔记一' });
+    fx.writeNote({ id: 'id-0002', title: '笔记二' });
+    const svc = new LibraryService(makeCfg(fx));
+    await svc.init();
+    const out = await svc.setAnnotationMany(['id-0001', 'id-0002'], { star: true });
+    expect(out.updated).toBe(2);
+    expect(svc.query({ ...baseQuery, starred: true }).total).toBe(2);
+  });
+});
+
 async function waitForJob(svc: LibraryService, jobId: string): Promise<void> {
   for (let i = 0; i < 200; i++) {
     const job = svc.getRefreshJob(jobId);

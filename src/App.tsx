@@ -64,6 +64,8 @@ export default function App() {
   const [listError, setListError] = useState<string | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
+  /** 表格里勾选的条目（批量归档用）；换筛选/视图/库就清空 */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailSummary, setDetailSummary] = useState<NoteSummary | null>(null);
   const [toast, setToast] = useState<{
     id: number;
@@ -89,6 +91,8 @@ export default function App() {
   collectionRef.current = collection;
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
+  const libraryRef = useRef<LibraryInfo | null>(library);
+  libraryRef.current = library;
   const revisionRef = useRef(indexRevision);
   revisionRef.current = indexRevision;
 
@@ -243,6 +247,11 @@ export default function App() {
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, view, activeTag, collection, viewMode]);
+
+  // 勾选只在当前这一屏有意义：换了筛选/视图/库就清掉，避免"选了看不见的东西"再批量执行
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [query, view, collection, viewMode]);
 
   // 输入法组合期间不重查；若 compositionend 丢事件（切窗口等）状态会永久卡住，失焦兜底
   useEffect(() => {
@@ -589,6 +598,54 @@ export default function App() {
   );
 
   /** 备注保存成功：更新列表卡片与详情；若当前有搜索词就重查一次（备注本身参与搜索） */
+  /** 自引用（撤销要能再调一次） */
+  const applyBatchRef = useRef<((ids: string[], status: NoteStatus, prev?: NoteStatus) => Promise<void>) | null>(
+    null
+  );
+
+  /** 批量归档 / 取回：一次请求写盘，撤销就是把同一批改回去 */
+  const applyBatch = useCallback(
+    async (ids: string[], status: NoteStatus, prev?: NoteStatus) => {
+      try {
+        const out = await api.setAnnotationMany(ids, { status: status === 'active' ? null : status });
+        setSelectedIds(new Set());
+        setLibrary((prevLib) => (prevLib ? { ...prevLib, annotationRevision: out.revision } : prevLib));
+        void loadLibrary();
+        void reload();
+        if (prev !== undefined) {
+          const label = out.updated === 0 ? '这些已经是该状态了' : status === 'archived' ? `已归档 ${out.updated} 条` : `已取回 ${out.updated} 条`;
+          showToast(label, 'info', { label: '撤销', run: () => void applyBatchRef.current?.(ids, prev) });
+        }
+      } catch (e) {
+        showToast(e instanceof ApiError ? e.message : '批量操作失败', 'error');
+      }
+    },
+    [loadLibrary, reload, showToast]
+  );
+  applyBatchRef.current = applyBatch;
+
+  const toggleSelect = useCallback((id: string, on: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback((on: boolean) => {
+    setSelectedIds(on ? new Set(items.map((n) => n.id)) : new Set());
+  }, [items]);
+
+  /** 表格里的单条归档 / 取回（与详情里的按钮同一套逻辑） */
+  const toggleArchive = useCallback(
+    (note: NoteSummary) => {
+      const next: NoteStatus = note.annotation.status === 'archived' ? 'active' : 'archived';
+      void applyStatus(note.id, next, libraryRef.current?.annotationRevision ?? 0, note.annotation.status);
+    },
+    [applyStatus]
+  );
+
   const onRemarkChanged = useCallback(
     (noteId: string, remark: string | null, revision: number) => {
       const patch = (n: NoteSummary): NoteSummary =>
@@ -817,14 +874,42 @@ export default function App() {
               )}
 
               {showNotes && showTableView && curInfo && (
-                <DataTable
-                  notes={items}
-                  info={curInfo}
-                  resultTotal={total}
-                  categoryName={categoryName}
-                  onOpen={openDetail}
-                  registerEl={registerEl}
-                />
+                <>
+                  {selectedIds.size > 0 && (
+                    <div className="bulk-bar" role="region" aria-label="批量操作">
+                      <span className="bulk-count">已选 {selectedIds.size} 条</span>
+                      <button
+                        className="btn-refresh"
+                        onClick={() =>
+                          void applyBatch(
+                            [...selectedIds],
+                            query.status === 'archived' ? 'active' : 'archived',
+                            query.status === 'archived' ? 'archived' : 'active'
+                          )
+                        }
+                      >
+                        <IconArchive size={14} />
+                        {query.status === 'archived' ? '取回' : '归档'}
+                      </button>
+                      <button className="link-clear" onClick={() => setSelectedIds(new Set())}>
+                        取消选择
+                      </button>
+                    </div>
+                  )}
+                  <DataTable
+                    notes={items}
+                    info={curInfo}
+                    resultTotal={total}
+                    categoryName={categoryName}
+                    onOpen={openDetail}
+                    onToggleStar={toggleStar}
+                    onToggleArchive={toggleArchive}
+                    selected={selectedIds}
+                    onToggleSelect={toggleSelect}
+                    onToggleSelectAll={toggleSelectAll}
+                    registerEl={registerEl}
+                  />
+                </>
               )}
               {showNotes && !showTableView && (
                 <>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { CollectionInfo, NoteSummary } from '../../shared/types';
 import { shanghaiDate } from '../../shared/time';
-import { IconChevronDown } from './Icons';
+import { IconArchive, IconChevronDown, IconStar } from './Icons';
 
 interface Props {
   notes: NoteSummary[];
@@ -11,10 +11,17 @@ interface Props {
   resultTotal?: number | null;
   categoryName(id: string | null): string | null;
   onOpen(note: NoteSummary, el: HTMLElement): void;
+  onToggleStar(note: NoteSummary): void;
+  /** 归档 / 取回单条 */
+  onToggleArchive(note: NoteSummary): void;
+  /** 勾选（批量操作用） */
+  selected: Set<string>;
+  onToggleSelect(id: string, on: boolean): void;
+  onToggleSelectAll(on: boolean): void;
   registerEl(id: string, el: HTMLElement | null): void;
 }
 
-type ColKind = 'title' | 'author' | 'category' | 'date' | 'tags' | 'extra';
+type ColKind = 'title' | 'author' | 'category' | 'date' | 'tags' | 'extra' | 'remark';
 
 interface Col {
   key: string;
@@ -39,6 +46,7 @@ function buildColumns(info: CollectionInfo): Col[] {
       { key: 'publishedAt', label: '发布时间', kind: 'date', minW: 110 },
       { key: 'syncedAt', label: '同步时间', kind: 'date', minW: 110 },
       { key: 'tags', label: '标签', kind: 'tags', minW: 220 },
+      { key: 'remark', label: '备注', kind: 'remark', minW: 200 },
     ];
   }
   if (info.id === 'diary') {
@@ -47,6 +55,7 @@ function buildColumns(info: CollectionInfo): Col[] {
       { key: 'category', label: '主题', kind: 'category', minW: 110 },
       { key: 'title', label: '标题', kind: 'title', minW: 360 },
       { key: 'tags', label: '标签', kind: 'tags', minW: 160 },
+      { key: 'remark', label: '备注', kind: 'remark', minW: 200 },
     ];
   }
   // treasures：标题 + 分类 + 按出现率/顺序的附加字段 + 标签
@@ -63,6 +72,7 @@ function buildColumns(info: CollectionInfo): Col[] {
     { key: 'category', label: '分类', kind: 'category', minW: 90 },
     ...extras,
     { key: 'tags', label: '标签', kind: 'tags', minW: 180 },
+    { key: 'remark', label: '备注', kind: 'remark', minW: 200 },
   ];
 }
 
@@ -80,6 +90,8 @@ function cellValue(note: NoteSummary, col: Col): string | number | null {
     }
     case 'tags':
       return note.tags.join('、');
+    case 'remark':
+      return note.annotation.remark;
     case 'extra': {
       const v = note.extra?.[col.extraKey!];
       return v === undefined || v === null || v === '' ? null : v;
@@ -89,7 +101,19 @@ function cellValue(note: NoteSummary, col: Col): string | number | null {
   }
 }
 
-export function DataTable({ notes, info, resultTotal = null, categoryName, onOpen, registerEl }: Props) {
+export function DataTable({
+  notes,
+  info,
+  resultTotal = null,
+  categoryName,
+  onOpen,
+  onToggleStar,
+  onToggleArchive,
+  selected,
+  onToggleSelect,
+  onToggleSelectAll,
+  registerEl,
+}: Props) {
   const cols = useMemo(() => buildColumns(info), [info]);
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
 
@@ -141,6 +165,13 @@ export function DataTable({ notes, info, resultTotal = null, categoryName, onOpe
       const name = note.categoryId ? (categoryName(note.categoryId) ?? note.categoryId) : null;
       return name ? <span className="cell-cat">{name}</span> : <span className="cell-null">未分类</span>;
     }
+    if (col.kind === 'remark') {
+      return (
+        <span className="cell-remark" title={String(v)}>
+          {String(v)}
+        </span>
+      );
+    }
     if (col.kind === 'extra' && typeof v === 'number') {
       return <span className="cell-num">{v.toLocaleString('zh-CN')}</span>;
     }
@@ -152,6 +183,17 @@ export function DataTable({ notes, info, resultTotal = null, categoryName, onOpe
       <table className="data-table">
         <thead>
           <tr>
+            <th className="th-sel">
+              <input
+                type="checkbox"
+                aria-label="全选当前加载的行"
+                checked={notes.length > 0 && notes.every((n) => selected.has(n.id))}
+                onChange={(e) => onToggleSelectAll(e.target.checked)}
+              />
+            </th>
+            <th className="th-act" title="标星 / 归档（点一下即可，不用进详情）">
+              <span>标注</span>
+            </th>
             {cols.map((c) => (
               <th
                 key={c.key}
@@ -188,6 +230,36 @@ export function DataTable({ notes, info, resultTotal = null, categoryName, onOpe
                 }
               }}
             >
+              <td className="td-sel" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  aria-label={`选择「${note.title}」`}
+                  checked={selected.has(note.id)}
+                  onChange={(e) => onToggleSelect(note.id, e.target.checked)}
+                />
+              </td>
+              <td className="td-act" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className={`row-star${note.annotation.starred ? ' starred' : ''}`}
+                  aria-pressed={note.annotation.starred}
+                  title={note.annotation.starred ? '取消标星' : '标星'}
+                  aria-label={note.annotation.starred ? '取消标星' : '标星'}
+                  onClick={() => onToggleStar(note)}
+                >
+                  <IconStar size={13} filled={note.annotation.starred} />
+                </button>
+                <button
+                  type="button"
+                  className={`row-archive${note.annotation.status === 'archived' ? ' archived' : ''}`}
+                  aria-pressed={note.annotation.status === 'archived'}
+                  title={note.annotation.status === 'archived' ? '取回（放回默认列表）' : '归档'}
+                  aria-label={note.annotation.status === 'archived' ? '取回' : '归档'}
+                  onClick={() => onToggleArchive(note)}
+                >
+                  <IconArchive size={13} />
+                </button>
+              </td>
               {cols.map((c) => (
                 <td key={c.key}>{renderCell(note, c)}</td>
               ))}

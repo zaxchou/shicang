@@ -65,6 +65,13 @@ const noteQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE_TABLE).default(DEFAULT_PAGE_SIZE),
 });
 
+/** 批量标注补丁：一次归档 / 取回多条（表格里勾选后用）。上限 1000 与表格一次取全量一致 */
+const patchAnnotationsBatchSchema = z.object({
+  ids: z.array(z.string().min(1).max(200)).min(1).max(1000),
+  star: z.boolean().optional(),
+  status: z.literal('archived').nullable().optional(),
+});
+
 const patchCategorySchema = z.object({
   categoryId: z.string().max(64).nullable(),
   expectedRevision: z.number().int().nonnegative(),
@@ -236,6 +243,30 @@ export function apiRouter(deps: ApiDeps): express.Router {
         if (e instanceof AnnotationConflictError) {
           throw new HttpError(409, 'REVISION_CONFLICT', e.message);
         }
+        if (e instanceof AnnotationValidationError) {
+          throw new HttpError(400, 'INVALID_ANNOTATION', e.message);
+        }
+        throw e;
+      }
+    })
+  );
+
+  router.patch(
+    '/annotations',
+    wrap(async (req, res) => {
+      const body = patchAnnotationsBatchSchema.safeParse(req.body);
+      if (!body.success) {
+        throw new HttpError(400, 'INVALID_BODY', '请求体无效', body.error.flatten());
+      }
+      if (body.data.star === undefined && body.data.status === undefined) {
+        throw new HttpError(400, 'EMPTY_PATCH', '请求体至少要带一个待修改字段');
+      }
+      try {
+        const out = await deps
+          .library()
+          .setAnnotationMany(body.data.ids, { star: body.data.star, status: body.data.status });
+        res.json(out);
+      } catch (e) {
         if (e instanceof AnnotationValidationError) {
           throw new HttpError(400, 'INVALID_ANNOTATION', e.message);
         }

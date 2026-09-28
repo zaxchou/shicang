@@ -255,6 +255,34 @@ export class AnnotationsService {
     return next.revision;
   }
 
+  /**
+   * 批量改同一组字段（一次写盘、只递增一次 revision）。
+   * **不带 expectedRevision**：字段级合并意味着批量只动它自己那个字段，
+   * 不会覆盖别人正在编辑的另一个字段，因此不需要让"选了 20 条"去跟 revision 较劲。
+   */
+  async patchMany(ids: string[], patch: AnnotationPatch): Promise<{ revision: number; updated: number }> {
+    if (patch.status !== undefined && patch.status !== null && !STATUS_VALUES.has(patch.status)) {
+      throw new AnnotationValidationError(`未知的状态: ${String(patch.status)}`);
+    }
+    const now = new Date().toISOString();
+    const entries = { ...this.doc.entries };
+    let updated = 0;
+    for (const id of ids) {
+      const prev = entries[id];
+      const next = applyAnnotationPatch(prev, patch, now);
+      if ((prev ?? null) === next) continue; // 已经是这个状态：不算改动
+      if (next) entries[id] = next;
+      else delete entries[id];
+      updated++;
+    }
+    if (updated === 0) return { revision: this.doc.revision, updated: 0 };
+
+    const next: AnnotationDoc = { schemaVersion: 1, revision: this.doc.revision + 1, entries };
+    await this.store.save(next);
+    this.doc = next;
+    return { revision: next.revision, updated };
+  }
+
   /** 给定 id 集合里有多少条标了星（侧栏按收藏库计数用） */
   countStarred(ids: Iterable<string>): number {
     let n = 0;

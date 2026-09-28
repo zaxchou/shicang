@@ -405,6 +405,43 @@ describe('HTTP 路由', () => {
       expect(gone.total).toBe(0);
     });
 
+    it('批量归档 /api/annotations：一次多条、幂等、参数校验', async () => {
+      const batch = (body: unknown) =>
+        fetch(`${base}/api/annotations`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Origin: ALLOWED_ORIGIN },
+          body: JSON.stringify(body),
+        });
+
+      // 参数校验：空数组 / 没有待改字段 / 超过上限
+      expect((await batch({ ids: [], status: 'archived' })).status).toBe(400);
+      expect((await batch({ ids: ['id-0001'] })).status).toBe(400);
+      expect(
+        (await batch({ ids: Array.from({ length: 1001 }, (_, i) => `x${i}`), status: 'archived' })).status
+      ).toBe(400);
+
+      // id-0001 此刻在默认列表里；把它和另一个不存在的 id 一起归档 → 只有 1 条真的改了
+      const active0 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(active0.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+
+      const ok = await batch({ ids: ['id-0001', 'id-9999'], status: 'archived' });
+      expect(ok.status).toBe(200);
+      expect(await ok.json()).toMatchObject({ updated: 1 });
+
+      const active1 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(active1.items.map((n: { id: string }) => n.id)).not.toContain('id-0001');
+      const arch = await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json();
+      expect(arch.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+
+      // 幂等：再来一次 updated=0
+      expect(await (await batch({ ids: ['id-0001'], status: 'archived' })).json()).toMatchObject({ updated: 0 });
+
+      // 批量取回
+      expect(await (await batch({ ids: ['id-0001'], status: null })).json()).toMatchObject({ updated: 1 });
+      const active2 = await (await fetch(`${base}/api/notes?limit=100`)).json();
+      expect(active2.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+    });
+
     it('非法请求体与非 JSON 请求体都是 400', async () => {
       const bad = await fetch(`${base}/api/notes/id-0001/category`, {
         method: 'PATCH',

@@ -118,6 +118,12 @@ export const api = {
       `/api/notes/${encodeURIComponent(id)}/annotation`,
       { method: 'PATCH', body: JSON.stringify({ remark, expectedRevision }) }
     ),
+  /** 批量归档/取回（表格里勾选多条后用）；返回实际改动条数 */
+  setAnnotationMany: (ids: string[], patch: { star?: boolean; status?: 'archived' | null }) =>
+    request<{ revision: number; updated: number }>('/api/annotations', {
+      method: 'PATCH',
+      body: JSON.stringify({ ids, ...patch }),
+    }),
   startRefresh: () => request<{ job: RefreshJobInfo }>('/api/refresh', { method: 'POST' }),
   refreshJob: (jobId: string) => request<{ job: RefreshJobInfo }>(`/api/refresh/${encodeURIComponent(jobId)}`),
 };

@@ -208,6 +208,62 @@ HEIC/HEIF/TIFF 浏览器无法显示，不再选作封面（改用正文首图�
 - 意翠 封面从 HEIC 改为可显示的 image.png。
 - 自动化测试 45/45（新增：空格路径必须真正渲染、子目录 MOC 归类与 H1 标题、索引页/空笔记跳过）。
 
+## 刷新自动分类 + AI 兜底（2026-09-28，v0.5.2）
+
+触发：用户在 Obsidian 新增 8 篇小红书笔记，要求**不借助外部 Agent**，只点网页上的
+「刷新收藏库」就完成导入与分类（"以后再加笔记前端就能直接做到"）。
+
+### 基线测试（先证实缺口）
+
+启动 v0.5.1，调用前端按钮同款接口 `POST /api/refresh`：
+
+- 导入侧完好：`scanned=8 added=8 skipped=1206 errors=0`（增量只解析新文件，约 5 秒），总数 598 → 606。
+- **但 8 篇全部落「未分类」**——v0.3.0 的分类器只是离线脚本（生成 seed），seed 又只在
+  分类库未初始化时导入一次，服务端刷新管道从未对新笔记套用规则。用户的预期正是缺失的一环。
+
+### 实现
+
+1. **规则移植进服务端**（`server/services/classify.ts`，单一事实来源）：
+   v0.3.0 的三层规则（人工复核表 > 标题关键词 > 标签关键词，六类固定顺序）原样移植；
+   `scripts/classify.mjs` 改写为 `scripts/classify.ts`，引用服务端模块生成 seed，避免两份规则漂移。
+   人工复核表新增一条：`6aacad1a AI 让古画活起来 → 设计与创作`（同 `6aa5062d 名画变电影` 先例）。
+2. **刷新管道接入**（`LibraryService.autoClassify`，扫描提交后调用）：
+   对「既无 seed/初始分类、也无人工覆盖」的小红书笔记执行规则；**只新增 initialAssignments，
+   永不修改 overrides.json**（人工分类永远优先）；串行执行防止打爆 AI 配额；幂等（已分类不重跑）。
+3. **AI 兜底**（`server/services/ai-classify.ts`，规则未命中才调用）：
+   接口形态照搬 molin-wiki（OpenAI 兼容 `/chat/completions`；MiMo 系推理模型必须带
+   `thinking:{type:'disabled'}`，否则 max_tokens 被思考吃光——该经验来自 molin-wiki 的 providers.py）。
+   输入 标题+标签+正文摘要，输出 JSON 类别；解析宽松（容忍围栏/说明文字）、非法类别丢弃。
+   配置走环境变量 `AI_CLASSIFY_API_KEY / AI_CLASSIFY_BASE_URL / AI_CLASSIFY_MODEL`，
+   **未配置时静默跳过**（行为同 v0.5.1）；.mcp.json 里的旧 MiMo key 已失效（401），
+   实际启用的是 molin-wiki backend/.env 的现行配置（mimo-v2.6-flash）。
+   密钥只写入 gitignored 的 `deploy/production/.env`（compose 透传进容器），**未进 git**。
+
+### 验收（真实管道）
+
+- 8 篇全部自动分类，刷新诊断：`自动分类 8 篇（规则 7 / AI 1），未分类 0 篇`：
+
+| 笔记 | 分类 | 依据 |
+| --- | --- | --- |
+| 中年男人下班后，深夜独自喝茶的快乐。 | 生活 | 规则：标题含「茶」 |
+| 分享我最近手搓的两个内容管理的小工具💪 | AI 工具 | 规则：标签含「ai」 |
+| 《心经》居然可以这样被看见！ | 设计与创作 | **AI**：「佛学视觉化设计，信息可视化」（正文讲书籍信息可视化） |
+| 笔墨迭代与重构（4） | 书画 | 规则：标签含「写意」 |
+| 最近又开始流行的清透质感 UI | 设计与创作 | 规则：标题含「UI」 |
+| 数据一目了然｜高颜值Dashboard界面灵感 | 设计与创作 | 规则：标签含「设计」 |
+| 🌲【干货｜松树核心结构画法全解析】 | 书画 | 规则：标题含「画法」 |
+| AI驯化｜古画活起来教程 | 设计与创作 | 规则：人工表（AIGC 视频教程，同名画变电影先例） |
+
+- 未分类计数 8 → 0；老笔记 categorySource 不变（抽查仍为 initial）；人工覆盖路径未被触碰（测试覆盖）。
+- AI 兜底单测：真实调用一次 `《心经》` 4.9s 返回合法 JSON；解析器对围栏/夹带/非法类别均有测试。
+- 自动化测试 52/52（新增 classify.test.ts：8 篇期望、AI 解析、ensureClassified 只补缺/不动覆盖/幂等/持久化）。
+
+### 说明
+
+- 《心经》一文规则未命中是**有意留给 AI 的**：其正文明确是"书籍的信息可视化设计"，
+  简单加「心经→书画」关键词反而会误伤真正的书法内容；AI 读了摘要后判为设计与创作，与人工判断一致。
+- 若未配置 AI key，规则未命中的新笔记会进未分类（与既往行为一致），网页上仍可手动改分类。
+
 ## NAS 实际部署（2026-09-27 已完成，此前为未验证项）
 
 - 环境（现场核实）：DSM 7.3.1、x86_64、docker 位于 `/usr/local/bin`（需 sudo + 显式 PATH）、Compose v2.20.1；项目与源库路径 `/volume2/Media/BaiduNetdiskWorkspace/...`；端口 4317 空闲；共享目录属主 uid=1026/gid=100。
@@ -238,7 +294,7 @@ HEIC/HEIF/TIFF 浏览器无法显示，不再选作封面（改用正文首图�
 ## 证据清单
 
 - 截图：`docs/screenshots/`（softglass-light-masonry / softglass-dark-masonry / softglass-light-table / softglass-dark-detail 为 v0.5.0；早期 home-1280 / home-1440 / home-1920 / shuhua-1440 / detail-1440 为 v0.1.0）。
-- 测试：`npm test` 45/45 通过（vitest；日志见会话记录）。
+- 测试：`npm test` 52/52 通过（vitest；日志见会话记录）。
 - 源哈希清单：`.local/source-hash.json`（基线与复查一致）。
 - 发布包：`releases/0.1.0/`（59 个文件，含 manifest.json 与逐文件 SHA-256）。
 - 分类 seed：`data-seed/categories-seed.json`；人工覆盖：`<DATA_DIR>/overrides.json`。

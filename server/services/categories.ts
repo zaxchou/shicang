@@ -28,6 +28,14 @@ export interface OverrideDoc {
   overrides: Record<string, OverrideEntry>;
 }
 
+/** 待自动分类的一条笔记（刷新后仍无分类的小红书笔记） */
+export interface ClassifyInput {
+  id: string;
+  title: string;
+  tags: string[];
+  excerpt: string;
+}
+
 export interface EffectiveCategory {
   categoryId: string | null;
   source: 'override' | 'initial' | 'none';
@@ -169,6 +177,48 @@ export class CategoriesService {
     await this.ovrStore.save(next);
     this.ovrDoc = next;
     return next.revision;
+  }
+
+  /**
+   * 为「既无 seed/初始分类、也无人工覆盖」的笔记补初始分类（刷新管道调用）。
+   * classify 返回 null 表示分不出（记录原因，保持未分类）。
+   * 只新增 initialAssignments，永不修改 overrides —— 人工分类永远优先。
+   */
+  async ensureClassified(
+    items: ClassifyInput[],
+    classify: (item: ClassifyInput) => Promise<{ categoryId: string; rationale: string } | null>
+  ): Promise<{ assigned: number; unclassified: string[] }> {
+    const pending = items.filter((it) => {
+      const ovr = this.ovrDoc.overrides[it.id];
+      if (ovr) return false;
+      return !this.catDoc.initialAssignments[it.id];
+    });
+    const unclassified: string[] = [];
+    const additions: Array<[string, InitialAssignment]> = [];
+    for (const it of pending) {
+      const r = await classify(it); // 串行：AI 兜底时控制并发，避免一次刷新打爆配额
+      if (r && this.categoryIds.has(r.categoryId)) {
+        additions.push([
+          it.id,
+          { categoryId: r.categoryId, rationale: r.rationale, classifiedAt: new Date().toISOString() },
+        ]);
+      } else {
+        unclassified.push(it.id);
+      }
+    }
+    if (additions.length > 0) {
+      const next: CategoryDoc = {
+        ...this.catDoc,
+        initialAssignments: {
+          ...this.catDoc.initialAssignments,
+          ...Object.fromEntries(additions),
+        },
+      };
+      await this.catStore.save(next);
+      this.catDoc = next;
+      this.rebuildIndex();
+    }
+    return { assigned: additions.length, unclassified };
   }
 
   /** 每个分类的有效计数（含未分类） */

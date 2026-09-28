@@ -1,7 +1,28 @@
-// 首批分类：按内容重新整理（用户 2026-09-28 要求）。
+// 分类规则（单一事实来源）：从 v0.3.0 的 scripts/classify.mjs 移植进服务端。
 // 规则优先级：人工表 > 标题命中（类目顺序）> 标签命中（类目顺序）。
 // 类目顺序：书画 → 数码硬件 → 学习语言 → 设计与创作 → AI 工具 → 生活。
-import fs from 'node:fs';
+// 用途：网页端「刷新收藏库」时对**新增**笔记自动分类（seed 只覆盖首批 598 篇，
+// 此前新笔记全部落未分类——2026-09-28 基线测试确认）。规则未命中时走 AI 兜底
+// （见 ai-classify.ts）。规则调整只改这里，scripts/classify.ts 生成 seed 也引用本文件。
+
+export interface RednoteCategory {
+  id: string;
+  name: string;
+}
+
+export const REDNOTE_CATEGORIES: RednoteCategory[] = [
+  { id: 'shuhua', name: '书画' },
+  { id: 'maker-digital', name: '数码硬件' },
+  { id: 'language-learning', name: '学习语言' },
+  { id: 'design-aigc', name: '设计与创作' },
+  { id: 'ai-programming', name: 'AI 工具' },
+  { id: 'life', name: '生活' },
+];
+
+export interface ClassifyResult {
+  categoryId: string;
+  rationale: string;
+}
 
 const CATS = [
   { id: 'shuhua', name: '书画' },
@@ -12,8 +33,8 @@ const CATS = [
   { id: 'life', name: '生活' },
 ];
 
-// 人工复核表（resourceId 前 8 位）
-const MANUAL = {
+// 人工复核表（resourceId 前 8 位）：标题判断不了的体裁在这里定，自动应用并记入 rationale
+const MANUAL: Record<string, { cat: string; why: string }> = {
   '67450df1': { cat: 'language-learning', why: '人工：古诗人文' },
   '64899cbe': { cat: 'life', why: '人工：西藏森林摄影游记' },
   '669b9b92': { cat: 'shuhua', why: '人工：破凤眼为兰花画法术语' },
@@ -26,6 +47,7 @@ const MANUAL = {
   '6746cb62': { cat: 'life', why: '人工：日常随拍' },
   '6629d977': { cat: 'shuhua', why: '人工：大鱼堂书法创作' },
   '6aa5062d': { cat: 'design-aigc', why: '人工：AI 把名画变电影' },
+  '6aacad1a': { cat: 'design-aigc', why: '人工：AI 让古画活起来（AIGC 视频教程，同 6aa5062d 先例）' },
   '666f6e2e': { cat: 'language-learning', why: '人工：美术生艺考写生神器' },
   '687900cf': { cat: 'life', why: '人工：思维认知随笔' },
   '6a8fa30e': { cat: 'life', why: '人工：YouTube 内容推荐' },
@@ -180,7 +202,7 @@ const TAG_RULES = [
 // 大小写敏感的短拉丁词，避免误伤（UI 出现在 tail/main 等）
 const CS_TOKENS = new Set(['UI', 'UX', 'Figma', 'iPhone', 'MIT', 'GPA', 'PPT', 'Vlog', 'Bambu', 'TPU', 'PCB', 'ESP32', 'NAS', 'Jellyfin', 'OOTD', 'STEAM', 'OpenClaw', 'TRAE', 'MCP', 'LLM', 'GLM', 'Skill', 'Codex', 'Claude', 'DeepSeek', 'Kimi', 'Obsidian', 'Notion', 'GitHub']);
 
-function matchTitle(title, kws) {
+function matchTitle(title: string, kws: string[]): string | null {
   for (const kw of kws) {
     if (CS_TOKENS.has(kw)) {
       if (title.includes(kw)) return kw;
@@ -188,7 +210,7 @@ function matchTitle(title, kws) {
   }
   return null;
 }
-function matchTags(tagStr, kws) {
+function matchTags(tagStr: string, kws: string[]): string | null {
   const hay = tagStr.toLowerCase();
   for (const kw of kws) {
     if (hay.includes(kw.toLowerCase())) return kw;
@@ -196,84 +218,20 @@ function matchTags(tagStr, kws) {
   return null;
 }
 
-const idx = JSON.parse(fs.readFileSync('.local/data/library-index.json', 'utf8'));
-const results = [];
-const fallback = [];
-
-for (const n of idx.notes) {
-  const shortId = n.id.slice(0, 8);
-  const manual = MANUAL[shortId];
-  if (manual) {
-    results.push({ id: n.id, title: n.title, cat: manual.cat, rule: manual.why });
-    continue;
+/** 对一篇小红书笔记做规则分类；未命中返回 null（调用方可走 AI 兜底）。
+ *  id 用于人工复核表（resourceId 前 8 位，体裁标题判断不了的内容在这里定）。 */
+export function classifyRednote(id: string, title: string, tags: string[]): ClassifyResult | null {
+  const manual = MANUAL[id.slice(0, 8)];
+  if (manual) return { categoryId: manual.cat, rationale: manual.why };
+  const t = String(title ?? '');
+  const tagStr = (tags ?? []).join(' ');
+  for (const [cat, kws] of TITLE_RULES as Array<[string, string[]]>) {
+    const kw = matchTitle(t, kws);
+    if (kw) return { categoryId: cat, rationale: `标题含「${kw}」` };
   }
-  const title = String(n.title ?? '');
-  const tagStr = (n.tags || []).join(' ');
-  let hit = null;
-  for (const [cat, kws] of TITLE_RULES) {
-    const kw = matchTitle(title, kws);
-    if (kw) { hit = { cat, rule: `标题含「${kw}」` }; break; }
+  for (const [cat, kws] of TAG_RULES as Array<[string, string[]]>) {
+    const kw = matchTags(tagStr, kws);
+    if (kw) return { categoryId: cat, rationale: `标签含「${kw}」` };
   }
-  if (!hit) {
-    for (const [cat, kws] of TAG_RULES) {
-      const kw = matchTags(tagStr, kws);
-      if (kw) { hit = { cat, rule: `标签含「${kw}」` }; break; }
-    }
-  }
-  if (hit) results.push({ id: n.id, title: n.title, cat: hit.cat, rule: hit.rule });
-  else fallback.push({ id: n.id, title: n.title, tags: (n.tags || []).join(',') });
+  return null;
 }
-
-// ---- 输出 ----
-const counts = {};
-for (const c of CATS) counts[c.id] = 0;
-for (const r of results) counts[r.cat]++;
-let out = '';
-for (const c of CATS) {
-  out += `\n===== ${c.name} (${c.id}) — ${counts[c.id]} =====\n`;
-  for (const r of results.filter((x) => x.cat === c.id)) {
-    out += `${r.id.slice(0, 8)} | ${r.title.slice(0, 40)} | ${r.rule}\n`;
-  }
-}
-fs.writeFileSync('.local/classify-review.txt', out, 'utf8');
-console.log('分布:', JSON.stringify(Object.fromEntries(CATS.map((c) => [c.name, counts[c.id]]))));
-console.log('已分类:', results.length, '/ 598');
-console.log('未命中:', fallback.length);
-for (const f of fallback) console.log(`  ${f.id.slice(0, 8)} | ${f.title.slice(0, 42)} | ${f.tags.slice(0, 50)}`);
-
-// ---- 生成 data-seed/categories-seed.json ----
-const CAT_META = {
-  shuhua: { name: '书画', description: '国画、书法与篆刻：作品欣赏、技法教程、临摹创作、文房装裱；兼收水彩、速写等绘画内容' },
-  'maker-digital': { name: '数码硬件', description: '3D 打印与拓竹、开源硬件（ESP32 等）、数码好物评测、桌搭理线与家电' },
-  'language-learning': { name: '学习语言', description: '英语日语、考研考试、数学科普、学术论文、留学教育' },
-  'design-aigc': { name: '设计与创作', description: 'UI/UX 与视觉设计、字体壁纸、摄影剪辑；AI 生图、AI 视频、数字 3D 等创作玩法' },
-  'ai-programming': { name: 'AI 工具', description: 'AI 工具与大模型、编程与 Agent、知识管理（Obsidian/Notion）、效率软件与开源项目' },
-  life: { name: '生活', description: '茶器文玩、养宠园艺、旅行见闻、穿搭健康、认知成长、音乐与日常好物' },
-};
-
-const known = new Set(CATS.map((c) => c.id));
-for (const r of results) if (!known.has(r.cat)) throw new Error(`非法分类 ${r.cat}`);
-const seen = new Set();
-for (const r of results) {
-  if (seen.has(r.id)) throw new Error(`重复分配 ${r.id}`);
-  seen.add(r.id);
-}
-if (seen.size !== idx.notes.length) throw new Error(`覆盖不全 ${idx.notes.length - seen.size}`);
-
-const classifiedAt = new Date().toISOString();
-const seed = {
-  schemaVersion: 1,
-  generatedAt: classifiedAt,
-  categories: CATS.map((c, i) => ({
-    id: c.id,
-    name: CAT_META[c.id].name,
-    description: CAT_META[c.id].description,
-    order: i + 1,
-  })),
-  initialAssignments: Object.fromEntries(
-    results.map((r) => [r.id, { categoryId: r.cat, rationale: r.rule, classifiedAt }])
-  ),
-};
-fs.mkdirSync('data-seed', { recursive: true });
-fs.writeFileSync('data-seed/categories-seed.json', JSON.stringify(seed, null, 2), 'utf8');
-console.log('seed 已生成:', results.length, '条');

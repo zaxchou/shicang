@@ -1,7 +1,7 @@
 {
   "name": "myinfobase",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.5.2",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -15,7 +15,8 @@
     "dev:server": "tsx watch server/index.ts",
     "dev:web": "vite",
     "test": "vitest run",
-    "scan": "tsx scripts/scan-cli.ts"
+    "scan": "tsx scripts/scan-cli.ts",
+    "classify": "tsx scripts/classify.ts"
   },
   "dependencies": {
     "express": "^4.21.2",

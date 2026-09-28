@@ -606,3 +606,18 @@ start.cmd / start.ps1 只负责开发环境：从脚本目录定位项目，支�
 对后续接手者：改 `server/reader/parse.ts` 的解析逻辑时，**必须同步 +1 `PARSE_VERSION`**，
 并用 `scripts/` 之外的临时脚本对真实 vault 全量跑一遍 parse（`.local/diag*.ts` 的做法可参考），
 确认无「正文残留 markdown」「有媒体但正文 0 图」再发布。
+
+## 13. 刷新自动分类 + AI 兜底（2026-09-28 用户提出，v0.5.2 已实现）
+
+用户要求：新增笔记后**不借助外部 Agent**，网页点「刷新收藏库」即可导入并按既有分类经验自动归类。
+基线测试证实缺口：导入正常（增量 5 秒），但新笔记全部落未分类——分类器从未接入服务端管道。
+
+- 规则移植为 `server/services/classify.ts`（单一事实来源），刷新后对无分类依据的新笔记自动归类；
+  人工覆盖（overrides.json）永不触碰；`scripts/classify.ts` 改为引用服务端规则生成 seed。
+- AI 兜底 `server/services/ai-classify.ts`：规则未命中才调用，接口照搬 molin-wiki
+  （OpenAI 兼容 + MiMo 需 `thinking:{type:'disabled'}`）；配置走环境变量，未配置则静默跳过；
+  密钥只在 gitignored 的 `deploy/production/.env`，不进 git。
+- 首次实战：用户新增 8 篇 → 8 篇全部自动归类（规则 7 / AI 1），详见 docs/verification.md v0.5.2 节。
+
+对后续接手者：调整分类规则改 `server/services/classify.ts`（标题/标签关键词、人工复核表），
+测试在 `tests/classify.test.ts`；不要绕过规则直接改 categories.json。

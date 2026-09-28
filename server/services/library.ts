@@ -20,6 +20,8 @@ import { projectRoot, type AppConfig } from '../config.js';
 import { log } from '../log.js';
 import { scanVault } from '../reader/scan.js';
 import { PARSE_VERSION, type NoteRecord } from '../reader/parse.js';
+import { classifyRednote } from './classify.js';
+import { aiClassifyConfigFromEnv, classifyByAi } from './ai-classify.js';
 import { JsonStore } from '../storage/json-store.js';
 import {
   CategoriesService,
@@ -454,6 +456,42 @@ export class LibraryService {
     return p;
   }
 
+  /**
+   * 刷新后的自动分类：只补「无任何分类依据」的小红书笔记。
+   * 规则（classify.ts，v0.3.0 人工沉淀的三层规则）优先，未命中且配置了 AI 时走 AI 兜底；
+   * 都不行就保持未分类。全程只写 initialAssignments，人工覆盖（overrides.json）永不触碰。
+   */
+  private async autoClassify(notes: NoteRecord[], job?: InternalRefreshJob): Promise<void> {
+    const rednote = notes.filter((n) => n.collection === 'rednote' && n.sourceStatus === 'available');
+    if (rednote.length === 0) return;
+    const aiCfg = aiClassifyConfigFromEnv();
+    const validIds = new Set(this.categories.categories.map((c) => c.id));
+    let byRule = 0;
+    let byAi = 0;
+    const result = await this.categories.ensureClassified(
+      rednote.map((n) => ({ id: n.id, title: n.title, tags: n.tags, excerpt: n.excerpt })),
+      async (item) => {
+        const rule = classifyRednote(item.id, item.title, item.tags);
+        if (rule) {
+          byRule++;
+          return rule;
+        }
+        if (!aiCfg) return null;
+        const hit = await classifyByAi(aiCfg, item, validIds);
+        if (hit) {
+          byAi++;
+          return hit;
+        }
+        return null;
+      }
+    );
+    if (result.assigned > 0) {
+      const msg = `自动分类 ${result.assigned} 篇（规则 ${byRule}${aiCfg ? ` / AI ${byAi}` : ''}），未分类 ${result.unclassified.length} 篇`;
+      log.info(msg);
+      if (job) job.diagnostics.push(msg);
+    }
+  }
+
   private async doScan(mode: 'initial' | 'refresh', job?: InternalRefreshJob): Promise<void> {
     const startedAt = new Date();
     if (mode === 'refresh') log.info(`刷新开始: ${startedAt.toISOString()}`);
@@ -510,6 +548,8 @@ export class LibraryService {
     // 提交成功后才切换内存
     this.doc = nextDoc;
     this.rebuildMaps();
+
+    await this.autoClassify(nextDoc.notes, job);
 
     if (job) {
       job.state = outcome.counts.errors > 0 ? 'partial' : 'completed';

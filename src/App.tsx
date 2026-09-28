@@ -329,7 +329,7 @@ export default function App() {
   }, []);
 
   /**
-   * 侧栏「归档」：已过期 + 已取消收藏。打开时清掉分类与标星筛选（计数是全库口径），
+   * 侧栏「归档」：现在没用了的笔记都收在这里。打开时清掉分类与标星筛选（计数是全库口径），
    * 并且会把源文件已消失的记录一并列出——"取消收藏已完成"这条链路要看得见。
    */
   const selectArchive = useCallback(() => {
@@ -486,12 +486,7 @@ export default function App() {
     [loadLibrary, showToast]
   );
 
-  const statusLabel = (s: NoteStatus): string =>
-    s === 'expired'
-      ? '已标为过期，移入归档'
-      : s === 'uncollected'
-        ? '已取消收藏（本站在此为止，不用去别处操作）'
-        : '已恢复为在用';
+  const statusLabel = (s: NoteStatus): string => (s === 'archived' ? '已归档' : '已取回，回到在用');
 
   /**
    * 改状态后的本地同步：不再符合当前视图的立刻移出（否则列表与筛选条件自相矛盾），
@@ -609,11 +604,7 @@ export default function App() {
     : inTagResult
       ? `#${activeTag}`
       : query.status !== 'active'
-        ? query.status === 'expired'
-          ? '归档 · 已过期'
-          : query.status === 'uncollected'
-            ? '归档 · 已取消收藏'
-            : '归档'
+        ? '归档'
         : query.starred
           ? '标星'
           : query.categoryId === 'uncategorized'
@@ -626,9 +617,7 @@ export default function App() {
     : inTagResult
       ? (tags?.find((t) => t.tag === activeTag)?.count ?? null)
       : query.status !== 'active'
-        ? query.status === 'archived'
-          ? (curInfo?.archived ?? null)
-          : null // 细分视图没有现成计数，工具栏的「当前结果 N 篇」已经说明问题，不假装知道
+        ? (curInfo?.archived ?? null)
         : query.starred
           ? (curInfo?.starred ?? null)
           : query.categoryId === 'uncategorized'
@@ -747,14 +736,12 @@ export default function App() {
                   </div>
                   <div>
                     {allArchived ? (
-                      <>
-                        归档里有 {curInfo?.archived} 篇（已过期 / 已取消收藏）。在详情面板里把状态改回「在用」就能取回。
-                      </>
+                      <>归档里有 {curInfo?.archived} 篇。在详情面板里点「取回」就能放回默认列表。</>
                     ) : emptyArchive ? (
                       <>
-                        在详情面板里把一条笔记标成「已过期」或「已取消收藏」，它就会出现在这里。
+                        在详情面板里点「归档」，笔记就会收进这里。
                         <br />
-                        取消只作用于拾藏，不会改动 Obsidian，也不用去小红书那边再点一次。
+                        归档只影响拾藏，不删源文件，随时可以取回。
                       </>
                     ) : emptyStarred ? (
                       <>在卡片左上角（没有封面的卡片在作者行右端）点一下星标，就会出现在这里。</>

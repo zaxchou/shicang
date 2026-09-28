@@ -40,7 +40,13 @@ export interface AnnotationPatch {
 
 export const MAX_REMARK = 2000;
 
-const STATUS_VALUES: ReadonlySet<string> = new Set(['expired', 'uncollected']);
+const STATUS_VALUES: ReadonlySet<string> = new Set(['archived']);
+
+/**
+ * v0.7.1 曾把归档拆成 `expired` / `uncollected` 两个理由，v0.7.3 合并成 `archived`。
+ * 读盘时把旧值映射过来，用户之前标过的不会被丢掉。
+ */
+const LEGACY_STATUS: Record<string, 'archived'> = { expired: 'archived', uncollected: 'archived' };
 
 export class AnnotationConflictError extends Error {
   constructor(message: string) {
@@ -76,10 +82,13 @@ export function normalizeEntry(raw: unknown): AnnotationEntry | null {
   const starredAt = isoOrNull(raw.starredAt);
   if (starredAt) next.starredAt = starredAt;
 
-  if (typeof raw.status === 'string' && STATUS_VALUES.has(raw.status)) {
-    next.status = raw.status as AnnotationEntry['status'];
-    const statusAt = isoOrNull(raw.statusAt);
-    if (statusAt) next.statusAt = statusAt;
+  if (typeof raw.status === 'string') {
+    const mapped = STATUS_VALUES.has(raw.status) ? raw.status : LEGACY_STATUS[raw.status];
+    if (mapped) {
+      next.status = mapped as AnnotationEntry['status'];
+      const statusAt = isoOrNull(raw.statusAt);
+      if (statusAt) next.statusAt = statusAt;
+    }
   }
 
   const remark = typeof raw.remark === 'string' ? raw.remark.trim().slice(0, MAX_REMARK) : '';

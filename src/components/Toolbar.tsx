@@ -11,8 +11,8 @@ export interface QueryState {
   order: 'desc' | 'asc';
   /** 只看已标星 */
   starred: boolean;
-  /** 状态视图：active=工作集（默认），archived=过期+已取消，expired/uncollected 是细分 */
-  status: 'active' | 'archived' | 'expired' | 'uncollected';
+  /** 状态视图：active=在用（默认），archived=归档 */
+  status: 'active' | 'archived';
 }
 
 interface Props {
@@ -164,21 +164,6 @@ export function Toolbar({
               <IconStar size={12} filled={query.starred} />
               标星
             </button>
-            {/* 归档视图下的细分：只在这个视图里出现，默认视图不占地方 */}
-            {query.status !== 'active' && (
-              <label className="pill-select">
-                <select
-                  value={query.status}
-                  onChange={(e) => onChange({ status: e.target.value as QueryState['status'] })}
-                  aria-label="归档范围"
-                >
-                  <option value="archived">全部归档</option>
-                  <option value="expired">已过期</option>
-                  <option value="uncollected">已取消收藏</option>
-                </select>
-                <IconChevronDown />
-              </label>
-            )}
             <label className="pill-select">
               <select
                 value={query.range}

@@ -23,12 +23,11 @@ export interface MediaItem {
 }
 
 /**
- * 人工标注状态。'active' = 在用（不落字段）；另外两种都表示「不再属于工作集」：
- * 'expired' 内容用过一次不再需要，'uncollected' 在这边直接取消掉。
- * 做成互斥的单字段而不是三个独立开关——两种原因在界面上的行为一致（默认隐藏、进归档、可分别筛），
- * 互斥就不会出现"既过期又已取消"这种没有意义的组合。
+ * 人工标注状态：'active' 在用（默认，不落字段）/ 'archived' 已归档。
+ * 「归档」只有一个含义——**现在对我来说没用了**（2026-09-28 用户澄清：不要把"过期""取消收藏"
+ * 拆成两个理由，那只是同一个意思的两种说法，多一个概念就多一层困惑）。
  */
-export type NoteStatus = 'active' | 'expired' | 'uncollected';
+export type NoteStatus = 'active' | 'archived';
 
 /** 人工标注层：星标 / 状态 / 备注。存 runtime 数据目录，绝不写回源笔记。 */
 export interface NoteAnnotation {
@@ -124,12 +123,9 @@ export interface NoteQuery {
   tag?: string | null;
   /** 只看已标星（与其它条件叠加） */
   starred?: boolean;
-  /**
-   * 状态视图。默认 'active'（只用在工作集里）；
-   * 'archived' = 已过期与已取消收藏的合集，'expired'/'uncollected' 是它下面的细分。
-   */
-  status?: 'active' | 'archived' | 'expired' | 'uncollected';
-  /** 归档视图要带上源文件已消失的记录，否则"取消收藏已完成"这条链路看不见 */
+  /** 状态视图：默认 'active'（在用）；'archived' 是归档 */
+  status?: 'active' | 'archived';
+  /** 归档视图要带上源文件已消失的记录，否则标注会随文件一起"消失" */
   includeMissing?: boolean;
   timeField: 'published' | 'synced';
   range: 'all' | '7d' | '30d' | 'custom';
@@ -180,7 +176,7 @@ export interface CollectionInfo {
   total: number;
   /** 工作集：源文件可用且状态为"在用"——侧栏计数与默认列表都用这个口径 */
   active: number;
-  /** 归档篇数：状态为已过期或已取消收藏（含源文件已消失的） */
+  /** 归档篇数：状态为已归档（含源文件已消失的） */
   archived: number;
   uncategorized: number;
   /** 已标星篇数（同样只算工作集） */

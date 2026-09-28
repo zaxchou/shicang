@@ -947,8 +947,8 @@ img {
   box-shadow: var(--trough);
   color: var(--text-secondary);
 }
-/* 已取消收藏：本站的终态（不是"待去小红书处理"），用暖色轻提示区别于已过期 */
-.card-status.uncollected {
+/* 已归档：本站的终态（可随时取回），用暖色轻提示区别于"源文件已移除"这种事实说明 */
+.card-status.archived {
   color: var(--star);
 }
 /* 源文件已移除：这条只是历史记录，弱化 */
@@ -1312,7 +1312,7 @@ img {
   padding-bottom: 16px;
   margin-bottom: 20px;
 }
-/* 人工标注行：状态是三选一，用分段控件。与筛选行的 view-toggle 同语法（凹陷槽 + 浮起选中项） */
+/* 人工标注行：只有一个「归档」开关，所以不做多状态控件 */
 .detail-annotation {
   display: flex;
   align-items: center;
@@ -1322,49 +1322,38 @@ img {
 .detail-annotation.saving {
   opacity: 0.6;
 }
-.ann-label {
+/* 归档开关：和分类选择器同一套"浮起胶囊"语法。已归档时换成暖色文字 + 按下态，
+   让人一眼知道当前是归档状态、再点一下是取回。 */
+.btn-archive {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 31px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1), var(--inset-top);
+  color: var(--text-secondary);
   font-size: 12.5px;
-  color: var(--text-weak);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition),
+    transform 130ms var(--ease-out);
+}
+.btn-archive:hover {
+  background: var(--surface-raised-hover);
+  color: var(--text-primary);
+  box-shadow: var(--elev-2), var(--inset-top);
+}
+.btn-archive:active {
+  transform: scale(0.96);
+}
+.btn-archive.archived {
+  color: var(--star);
+  box-shadow: var(--elev-2), var(--inset-top), 0 0 0 3px var(--star-soft);
 }
 .ann-hint {
   font-size: 12px;
   color: var(--text-weak);
   line-height: 1.5;
-}
-.status-picker {
-  display: inline-flex;
-  gap: 3px;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--surface-sunken);
-  box-shadow: var(--trough);
-}
-.status-picker button {
-  height: 27px;
-  padding: 0 13px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-weak);
-  font-size: 12.5px;
-  transition: background var(--transition), color var(--transition), box-shadow var(--transition),
-    transform 130ms var(--ease-out);
-}
-.status-picker button:hover {
-  color: var(--text-secondary);
-}
-.status-picker button:active {
-  transform: scale(0.95);
-}
-.status-picker button.active {
-  background: var(--surface-raised);
-  color: var(--text-primary);
-  box-shadow: var(--elev-1), var(--inset-top);
-}
-/* 已过期/已取消选中时用暖色文字点一下，和"在用"区分开 */
-.status-picker button.active:not(:first-child) {
-  color: var(--star);
 }
 .cat-picker {
   position: relative;

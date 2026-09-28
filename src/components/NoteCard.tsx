@@ -106,11 +106,10 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
         </div>
       )}
       <div className="card-info">
-        {(note.annotation.status !== 'active' || note.sourceStatus === 'missing') && (
+        {(note.annotation.status === 'archived' || note.sourceStatus === 'missing') && (
           <div className="card-status-row">
-            {note.annotation.status === 'expired' && <span className="card-status">已过期</span>}
-            {note.annotation.status === 'uncollected' && (
-              <span className="card-status uncollected">已取消收藏</span>
+            {note.annotation.status === 'archived' && (
+              <span className="card-status archived">已归档</span>
             )}
             {note.sourceStatus === 'missing' && <span className="card-status missing">源文件已移除</span>}
           </div>

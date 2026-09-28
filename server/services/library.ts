@@ -283,12 +283,10 @@ export class LibraryService {
     return this.byId.has(id);
   }
 
-  /** 状态视图匹配：'archived' 是"已过期 + 已取消收藏"的合集 */
+  /** 状态视图匹配：'archived' 就是归档（只有一个含义，没有细分） */
   private matchesStatus(noteId: string, view: NonNullable<NoteQuery['status']>): boolean {
     const s = this.annotations.statusOf(noteId);
-    if (view === 'active') return s === 'active';
-    if (view === 'archived') return s !== 'active';
-    return s === view;
+    return view === 'active' ? s === 'active' : s === 'archived';
   }
 
   /**

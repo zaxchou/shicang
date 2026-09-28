@@ -54,8 +54,8 @@ export interface QueryParams {
   tag?: string | null; // 精确标签过滤
   /** 只看已标星 */
   starred?: boolean;
-  /** 状态视图：active=工作集（默认）；archived=过期+已取消；expired/uncollected 是细分 */
-  status?: 'active' | 'archived' | 'expired' | 'uncollected';
+  /** 状态视图：active=在用（默认）；archived=归档 */
+  status?: 'active' | 'archived';
   /** 归档视图带上源文件已消失的记录 */
   includeMissing?: boolean;
   timeField: 'published' | 'synced';
@@ -106,8 +106,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ star }),
     }),
-  /** 改状态：在用（null）/ 已过期 / 已取消收藏。状态是"看一眼再改"的编辑，必须带 revision */
-  setStatus: (id: string, status: 'expired' | 'uncollected' | null, expectedRevision: number) =>
+  /** 归档 / 取回（null）。带 revision：这是"看一眼再改"的编辑 */
+  setStatus: (id: string, status: 'archived' | null, expectedRevision: number) =>
     request<{ revision: number; status: NoteStatus }>(`/api/notes/${encodeURIComponent(id)}/annotation`, {
       method: 'PATCH',
       body: JSON.stringify({ status, expectedRevision }),

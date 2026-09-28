@@ -9,7 +9,7 @@ interface Props {
   activeCategoryId: string | null; // null=该库全部
   tagsView: boolean; // 当前是否处于标签视图
   starredOnly: boolean; // 当前是否只看标星
-  archiveView: boolean; // 当前是否处于归档视图（已过期 / 已取消收藏）
+  archiveView: boolean; // 当前是否处于归档视图
   onSelectCollection(id: string): void;
   onSelectCategory(id: string | null): void;
   onSelectTags(): void;
@@ -112,12 +112,12 @@ export function Sidebar({
           <span className="nav-label">标星</span>
           <span className="nav-count">{cur?.starred ?? 0}</span>
         </button>
-        {/* 归档：已过期 + 已取消收藏。点进去会带上源文件已消失的记录（"取消收藏已完成"那条链路） */}
+        {/* 归档：只表示"现在对我来说没用了"。点进去会带上源文件已消失的记录（标注不随文件消失） */}
         <button
           className={`nav-item${archiveView ? ' active' : ''}`}
           onClick={onSelectArchive}
           aria-current={archiveView ? 'page' : undefined}
-          title="已过期与已取消收藏的笔记"
+          title="已归档的笔记（随时可以取回）"
         >
           <IconArchive size={15} />
           <span className="nav-label">归档</span>

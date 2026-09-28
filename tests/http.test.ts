@@ -335,7 +335,7 @@ describe('HTTP 路由', () => {
       expect((await (await fetch(`${base}/api/notes?starred=true`)).json()).total).toBe(0);
     });
 
-    it('PATCH 状态：归档后默认列表看不到、归档视图能看到，revision 冲突 409', async () => {
+    it('PATCH 归档：归档后默认列表看不到、归档视图能看到，取回后回到列表，revision 冲突 409', async () => {
       const patch = (id: string, body: unknown) =>
         fetch(`${base}/api/notes/${id}/annotation`, {
           method: 'PATCH',
@@ -347,13 +347,14 @@ describe('HTTP 路由', () => {
       const rev = lib.annotationRevision;
       expect(typeof rev).toBe('number');
 
-      // zod 拦非法状态值；expectedRevision 过期 → 409
+      // zod 拦非法状态值（v0.7.3 起只有 archived 合法，旧的 expired / uncollected 应被拒）
       expect((await patch('id-0001', { status: 'bogus' })).status).toBe(400);
-      expect((await patch('id-0001', { status: 'expired', expectedRevision: rev + 5 })).status).toBe(409);
+      expect((await patch('id-0001', { status: 'expired' })).status).toBe(400);
+      expect((await patch('id-0001', { status: 'archived', expectedRevision: rev + 5 })).status).toBe(409);
 
-      const ok = await patch('id-0001', { status: 'expired', expectedRevision: rev });
+      const ok = await patch('id-0001', { status: 'archived', expectedRevision: rev });
       expect(ok.status).toBe(200);
-      expect(await ok.json()).toMatchObject({ status: 'expired', revision: rev + 1 });
+      expect(await ok.json()).toMatchObject({ status: 'archived', revision: rev + 1 });
 
       // status 缺省即 active：归档掉的就该从默认视图消失
       const active = await (await fetch(`${base}/api/notes?limit=100`)).json();
@@ -361,11 +362,7 @@ describe('HTTP 路由', () => {
 
       const arch = await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json();
       expect(arch.items.map((n: { id: string }) => n.id)).toContain('id-0001');
-      expect(arch.items[0].annotation.status).toBe('expired');
-
-      expect((await (await fetch(`${base}/api/notes?status=expired`)).json()).total).toBe(1);
-      expect((await fetch(`${base}/api/notes?status=uncollected`)).status).toBe(200);
-      expect((await fetch(`${base}/api/notes?status=bogus`)).status).toBe(400);
+      expect(arch.items[0].annotation.status).toBe('archived');
 
       // 侧栏计数与列表同口径
       const lib2 = await (await fetch(`${base}/api/library`)).json();
@@ -373,11 +370,12 @@ describe('HTTP 路由', () => {
       expect(rn.archived).toBe(1);
       expect(rn.active).toBe(rn.total - 1);
 
-      // 恢复在用 → 回到默认列表
+      // 取回 → 回到默认列表
       const back = await patch('id-0001', { status: null, expectedRevision: rev + 1 });
       expect(await back.json()).toMatchObject({ status: 'active' });
       const active2 = await (await fetch(`${base}/api/notes?limit=100`)).json();
       expect(active2.items.map((n: { id: string }) => n.id)).toContain('id-0001');
+      expect((await (await fetch(`${base}/api/notes?status=archived&includeMissing=true`)).json()).total).toBe(0);
     });
 
     it('非法请求体与非 JSON 请求体都是 400', async () => {

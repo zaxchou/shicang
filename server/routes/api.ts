@@ -47,8 +47,8 @@ const noteQuerySchema = z.object({
   tag: z.string().trim().min(1).max(40).optional(),
   // 用字面量而不是 z.coerce.boolean()：后者把字符串 "false" 也当 true（非空即真）
   starred: z.enum(['true', 'false']).optional(),
-  // 默认只用工作集（在用）；归档视图才去看已过期/已取消收藏
-  status: z.enum(['active', 'archived', 'expired', 'uncollected']).default('active'),
+  // 默认只用工作集（在用）；归档视图才去看已归档的
+  status: z.enum(['active', 'archived']).default('active'),
   includeMissing: z.enum(['true', 'false']).optional(),
   timeField: z.enum(['published', 'synced']).default('published'),
   range: z.enum(['all', '7d', '30d', 'custom']).default('all'),
@@ -73,7 +73,8 @@ const patchCategorySchema = z.object({
 /** 人工标注补丁：至少要带一个待改字段；expectedRevision 可选（星标是单字段幂等动作） */
 const patchAnnotationSchema = z.object({
   star: z.boolean().optional(),
-  status: z.enum(['expired', 'uncollected']).nullable().optional(),
+  /** null = 取回（回到在用） */
+  status: z.literal('archived').nullable().optional(),
   expectedRevision: z.number().int().nonnegative().optional(),
 });
 

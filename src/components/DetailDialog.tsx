@@ -7,7 +7,7 @@ interface CategoryOption {
 }
 import { formatShanghai } from '../../shared/time';
 import { api, ApiError } from '../api/client';
-import { IconChevronDown, IconCheck, IconClose, IconExternal, IconStar } from './Icons';
+import { IconArchive, IconChevronDown, IconCheck, IconClose, IconExternal, IconStar } from './Icons';
 
 /** 详情中附加字段展示顺序（与表格一致） */
 const EXTRA_DISPLAY_ORDER = [
@@ -32,17 +32,7 @@ interface Props {
   onClose(): void;
 }
 
-/** 状态三选一：互斥，所以用分段控件而不是下拉——一眼能看出"现在是什么状态" */
-const STATUS_OPTIONS = [
-  { key: 'active', label: '在用', title: '还在我的工作集里（默认）' },
-  { key: 'expired', label: '已过期', title: '内容用过一次，不再需要 → 从默认视图移入归档' },
-  {
-    key: 'uncollected',
-    label: '已取消收藏',
-    title: '不再需要这条，就在本站取消掉（只影响拾藏，不动 Obsidian，也不需要在别的 App 里再操作）',
-  },
-] as const;
-
+/** 归档只有一个含义（现在没用了），所以就是一个开关按钮，不做多种状态 */
 export function DetailDialog({
   summary,
   categories,
@@ -169,20 +159,19 @@ export function DetailDialog({
 
   const currentStatus = summary.annotation.status;
   const setStatus = useCallback(
-    async (next: Exclude<NoteStatus, 'active'> | null) => {
-      const cur = summary.annotation.status === 'active' ? null : summary.annotation.status;
-      if (next === cur) return; // 点当前状态不做无谓的写盘
+    async (next: 'archived' | null) => {
+      if ((next === null) === (currentStatus === 'active')) return; // 点当前状态不做无谓的写盘
       setStatusSaving(true);
       try {
         const out = await api.setStatus(summary.id, next, annotationRevision);
         onStatusChanged(summary.id, out.status, out.revision);
       } catch (e) {
-        onStatusError(e instanceof ApiError ? e.message : '状态保存失败');
+        onStatusError(e instanceof ApiError ? e.message : '归档操作失败');
       } finally {
         setStatusSaving(false);
       }
     },
-    [summary.id, summary.annotation.status, annotationRevision, onStatusChanged, onStatusError]
+    [summary.id, currentStatus, annotationRevision, onStatusChanged, onStatusError]
   );
 
   return (
@@ -308,27 +297,25 @@ export function DetailDialog({
                 {detail.sourceStatus === 'missing' && <span style={{ color: 'var(--accent)' }}>源文件暂不可用</span>}
               </div>
 
-              {/* 人工标注：状态是互斥的三选一，用分段控件比下拉更容易看出"现在是什么状态" */}
+              {/* 归档只有一个含义（现在没用了），所以就是一个开关按钮 */}
               <div className={`detail-annotation${statusSaving ? ' saving' : ''}`}>
-                <span className="ann-label">状态</span>
-                <div className="status-picker" role="group" aria-label="标注状态">
-                  {STATUS_OPTIONS.map((o) => (
-                    <button
-                      key={o.key}
-                      type="button"
-                      className={currentStatus === o.key ? 'active' : ''}
-                      aria-pressed={currentStatus === o.key}
-                      disabled={statusSaving}
-                      title={o.title}
-                      onClick={() => void setStatus(o.key === 'active' ? null : o.key)}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-                {/* 这句是为了消掉一个真实的误会：有人会以为"取消收藏"得回到小红书再点一次 */}
-                {currentStatus === 'uncollected' && (
-                  <span className="ann-hint">已在本站取消，不会改动 Obsidian，也不用去别处操作</span>
+                <button
+                  type="button"
+                  className={`btn-archive${currentStatus === 'archived' ? ' archived' : ''}`}
+                  aria-pressed={currentStatus === 'archived'}
+                  disabled={statusSaving}
+                  title={
+                    currentStatus === 'archived'
+                      ? '放回默认列表（随时可以再归档）'
+                      : '现在没用了：收进归档，之后在侧栏「归档」里找得到'
+                  }
+                  onClick={() => void setStatus(currentStatus === 'archived' ? null : 'archived')}
+                >
+                  <IconArchive size={14} />
+                  {currentStatus === 'archived' ? '取回' : '归档'}
+                </button>
+                {currentStatus === 'archived' && (
+                  <span className="ann-hint">已归档：只影响拾藏，不删源文件，随时可以取回</span>
                 )}
               </div>
 

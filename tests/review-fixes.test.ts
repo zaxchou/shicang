@@ -619,10 +619,11 @@ describe('release.ps1 -SkipChecks（评审 R4）', () => {
         );
         fs.writeFileSync(
           path.join(tmp, 'package.json'),
-          // pretty 输出：release.ps1 按 '"version": "x.y.z"'（冒号后带空格）计数，紧凑 JSON 匹配不上
+          // pretty 输出：release.ps1 的版本归一按 '"name": "myinfobase", … "version": "x.y.z"'
+          // 的结构匹配（v0.17 起结构感知，防依赖恰为同版本号时被误改），name 必须同真仓库
           JSON.stringify(
             {
-              name: 'release-probe',
+              name: 'myinfobase',
               version: '9.9.9',
               engines: { node: '>=22' },
               scripts: {
@@ -638,10 +639,14 @@ describe('release.ps1 -SkipChecks（评审 R4）', () => {
             2
           )
         );
-        // 版本归一断言依赖这个结构：根 1 次 + packages[""] 1 次
+        // 版本归一断言依赖这个结构：根 1 次 + packages[""] 1 次（都有 name 紧邻 version）
         fs.writeFileSync(
           path.join(tmp, 'package-lock.json'),
-          JSON.stringify({ version: '9.9.9', packages: { '': { version: '9.9.9' } } }, null, 2)
+          JSON.stringify(
+            { name: 'myinfobase', version: '9.9.9', packages: { '': { name: 'myinfobase', version: '9.9.9' } } },
+            null,
+            2
+          )
         );
         fs.writeFileSync(path.join(tmp, 'dist', 'server', 'index.js'), '// OLD_BUILD_SENTINEL');
         fs.writeFileSync(path.join(tmp, 'dist', 'web', 'index.html'), '<p>OLD_BUILD_SENTINEL</p>');
@@ -658,6 +663,65 @@ describe('release.ps1 -SkipChecks（评审 R4）', () => {
         expect(packed).not.toContain('OLD_BUILD_SENTINEL');
         const ver = fs.readFileSync(path.join(tmp, 'releases', '9.9.9', 'VERSION'), 'utf8').trim();
         expect(ver).toBe('9.9.9');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+    180_000
+  );
+
+  // 版本归一必须结构感知：依赖也可能恰好是同一个版本号（v0.17.0 实测撞上 react-refresh 0.17.0，
+  // 裸字符串计数会把依赖版本一起归零、断言拦停发布）。夹具里放一个同版本号的假依赖，
+  // 断言打包后根版本归零而依赖版本原样。
+  it.skipIf(process.platform !== 'win32')(
+    '版本归一不误伤同版本号的依赖（结构感知）',
+    () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rel-probe-dep-'));
+      try {
+        for (const sub of ['scripts', 'deploy', 'dist/server', 'dist/web']) {
+          fs.mkdirSync(path.join(tmp, sub), { recursive: true });
+        }
+        fs.copyFileSync(
+          fileURLToPath(new URL('../scripts/release.ps1', import.meta.url)),
+          path.join(tmp, 'scripts', 'release.ps1')
+        );
+        fs.copyFileSync(
+          fileURLToPath(new URL('../deploy/Dockerfile', import.meta.url)),
+          path.join(tmp, 'deploy', 'Dockerfile')
+        );
+        fs.writeFileSync(
+          path.join(tmp, 'package.json'),
+          JSON.stringify({ name: 'myinfobase', version: '9.9.9', engines: { node: '>=22' }, scripts: { build: 'node -e ""' } }, null, 2)
+        );
+        // 假依赖 react-refresh 恰好也是 9.9.9（真实事故里是 0.17.0 撞 0.17.0）
+        fs.writeFileSync(
+          path.join(tmp, 'package-lock.json'),
+          JSON.stringify(
+            {
+              name: 'myinfobase',
+              version: '9.9.9',
+              packages: {
+                '': { name: 'myinfobase', version: '9.9.9' },
+                'node_modules/react-refresh': { version: '9.9.9', resolved: 'https://example.com/x.tgz' },
+              },
+            },
+            null,
+            2
+          )
+        );
+        fs.writeFileSync(path.join(tmp, 'dist', 'server', 'index.js'), '// OLD');
+        fs.writeFileSync(path.join(tmp, 'dist', 'web', 'index.html'), '<p>OLD</p>');
+
+        const r = spawnSync(
+          'powershell.exe',
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(tmp, 'scripts', 'release.ps1'), '-SkipChecks'],
+          { cwd: tmp, encoding: 'utf8', timeout: 120_000 }
+        );
+        expect(r.status, `发布脚本未成功：${r.stderr ?? ''}`).toBe(0);
+        const packedLock = fs.readFileSync(path.join(tmp, 'releases', '9.9.9', 'package-lock.json'), 'utf8');
+        expect(packedLock.match(/"version": "0\.0\.0"/g) ?? []).toHaveLength(2); // 只有根 + packages[""] 被归零
+        expect(packedLock).toContain('"node_modules/react-refresh"');
+        expect(packedLock).toContain('"version": "9.9.9"'); // 依赖版本原样
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }

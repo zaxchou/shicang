@@ -94,15 +94,27 @@ $dockerIgnore = ($dockerIgnoreLines -join "`n") + "`n"
 # 重跑 npm ci（数百 MB 下载）+ apk add，9 分钟部署里的一大半耗在这里。归一后这层内容逐字节
 # 恒定，缓存永远命中，每次部署只剩「COPY dist」（~1.7MB）。
 # 断言出现次数：package.json 1 次、package-lock 2 次（根 + packages[""]）；对不上就宁可发布失败，
-# 也不能默默把"缓存又废了"带上线（锁文件里每个依赖也有 version 字段，只替换根版本必须精确匹配）。
-$rootVersion = '"version": "' + $Version + '"'
+# 也不能默默把"缓存又废了"带上线。
+# 锁文件**必须结构感知**：每个依赖也有 "version" 键，可能恰好与发布版本同号
+# （v0.17.0 实测撞上 react-refresh 0.17.0，裸字符串计数会把依赖版本一起改坏、断言拦停发布）——
+# 只动 "name": "myinfobase" 紧跟的那两处。package.json 只有一个 "version" 键（依赖是 "包名": "范围"），裸匹配即可。
+$lockPattern = '("name": "myinfobase",\s*"version": )"' + [regex]::Escape($Version) + '"'
 foreach ($name in @('package.json', 'package-lock.json')) {
   $f = Join-Path $staging $name
   $text = [System.IO.File]::ReadAllText($f)
-  $hits = [regex]::Matches($text, [regex]::Escape($rootVersion)).Count
-  $expected = if ($name -eq 'package-lock.json') { 2 } else { 1 }
-  if ($hits -ne $expected) { Write-Error "$name 里 $rootVersion 出现 $hits 次（预期 $expected 次），版本归一失败，已中止" }
-  [System.IO.File]::WriteAllText($f, $text.Replace($rootVersion, '"version": "0.0.0"'), (New-Object System.Text.UTF8Encoding($false)))
+  if ($name -eq 'package.json') {
+    $pattern = '"version": "' + [regex]::Escape($Version) + '"'
+    $expected = 1
+    $replacement = '"version": "0.0.0"'
+  } else {
+    $pattern = $lockPattern
+    $expected = 2
+    $replacement = '$1"0.0.0"'
+  }
+  $hits = [regex]::Matches($text, $pattern).Count
+  if ($hits -ne $expected) { Write-Error "$name 里根版本出现 $hits 次（预期 $expected 次），版本归一失败，已中止" }
+  $text = [regex]::Replace($text, $pattern, $replacement)
+  [System.IO.File]::WriteAllText($f, $text, (New-Object System.Text.UTF8Encoding($false)))
 }
 [System.IO.File]::WriteAllText((Join-Path $staging 'VERSION'), "$Version`n", (New-Object System.Text.UTF8Encoding($false)))
 

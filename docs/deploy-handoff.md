@@ -7,6 +7,10 @@
 
 **Context**: this is the methodology we used to take a NAS deployment from **~9 minutes to ~1 minute** of actual build work, without giving up the "one image tag = one known code version" discipline. It is written to be portable — English Forge can follow the recipe directly.
 
+> **续篇**：真正落地时踩的坑见 [`docs/deploy-pitfalls.md`](deploy-pitfalls.md)（day-2 篇）——
+> 测试跑源码而服务跑编译产物、类型检查与测试是两道门、版本归一的两个毁法、解析器修了但缓存指纹没动、
+> shell/PowerShell/Git Bash 的转义坑、以及"能证伪的断言要先红后绿"。
+
 ---
 
 ## TL;DR — the four levers

@@ -213,7 +213,7 @@ npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）
 npm run export:corpus  # 语料导出 CLI（不经浏览器；NAS 容器内请改用 node dist/scripts/export-corpus.js）
 ```
 
-约定：源库（`Z:\...\mynote\mynote`）只读；所有写入收口在项目 `storage` 模块；分类、索引等数据通过 `DATA_DIR` 定位。分类体系与边界见 `docs/category-taxonomy.md`，设计语言见 `docs/design-language.md`，验收记录见 `docs/verification.md`，部署方法（可移植版，给别的项目复用）见 `docs/deploy-handoff.md`。
+约定：源库（`Z:\...\mynote\mynote`）只读；所有写入收口在项目 `storage` 模块；分类、索引等数据通过 `DATA_DIR` 定位。分类体系与边界见 `docs/category-taxonomy.md`，设计语言见 `docs/design-language.md`，验收记录见 `docs/verification.md`，部署方法（可移植版，给别的项目复用）见 `docs/deploy-handoff.md`，落地后的踩坑篇见 `docs/deploy-pitfalls.md`。
 
 ### 改样式前先量一量
 

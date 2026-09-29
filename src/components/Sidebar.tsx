@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CollectionInfo, LibraryInfo } from '../../shared/types';
 import {
   IconArchive,
   IconBook,
   IconChevronDown,
+  IconExport,
   IconGlobe,
   IconInbox,
   IconLayers,
   IconLibrary,
   IconPen,
+  IconRefresh,
+  IconSettings,
   IconStar,
   IconTag,
   categoryIcon,
@@ -26,6 +29,11 @@ interface Props {
   tagsView: boolean; // 当前是否处于标签视图
   starredOnly: boolean; // 当前是否只看标星
   archiveView: boolean; // 当前是否处于归档视图
+  /** 刷新中（手动刷新或启动自刷）：设置菜单项转圈 + 底部「刷新中…」 */
+  refreshing: boolean;
+  exporting: boolean;
+  onRefresh(): void;
+  onExportCorpus(): void;
   onSelectCollection(id: string): void;
   onSelectCategory(id: string | null): void;
   onSelectSource(id: string | null): void;
@@ -53,6 +61,10 @@ export function Sidebar({
   tagsView,
   starredOnly,
   archiveView,
+  refreshing,
+  exporting,
+  onRefresh,
+  onExportCorpus,
   onSelectCollection,
   onSelectCategory,
   onSelectSource,
@@ -101,6 +113,26 @@ export function Sidebar({
 
   const groupedIds = new Set(groups.flatMap((g) => g.collectionIds));
   const standalone = infos.filter((c) => !groupedIds.has(c.id));
+
+  // ---- 设置菜单（v0.16.1）：低频操作（刷新/导出/主题）的收纳容器，未来新选项也加在这里 ----
+  // 点击外部/Esc 关闭——照抄详情里分类选择器（cat-picker）的成熟模式
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setSettingsOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSettingsOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [settingsOpen]);
 
   const collectionButton = (c: CollectionInfo, sub = false) => {
     const Icon = COLLECTION_ICONS[c.id] ?? IconLibrary;
@@ -258,10 +290,66 @@ export function Sidebar({
         </button>
       </nav>
       <div className="sidebar-foot">
-        <ThemeToggle />
-        {library?.lastScan?.finishedAt
-          ? `最近刷新：${new Date(library.lastScan.finishedAt).toLocaleString('zh-CN', { hour12: false })}，新增 ${library.lastScan.added} 篇`
-          : '尚未刷新过收藏库'}
+        <div className="settings-wrap" ref={settingsRef}>
+          {settingsOpen && (
+            <div className="settings-menu" role="menu" aria-label="设置">
+              <div className="settings-theme-row">
+                <span className="settings-label">界面主题</span>
+                <ThemeToggle />
+              </div>
+              <button
+                role="menuitem"
+                className={`settings-menu-item${refreshing ? ' spinning' : ''}`}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  onRefresh();
+                }}
+                disabled={refreshing}
+                title={refreshing ? '刷新中…' : '读取 Obsidian 中新增的收藏'}
+              >
+                <IconRefresh size={14} />
+                {refreshing ? '刷新中…' : '刷新收藏库'}
+              </button>
+              <button
+                role="menuitem"
+                className={`settings-menu-item${exporting ? ' pulsing' : ''}`}
+                onClick={() => {
+                  setSettingsOpen(false);
+                  onExportCorpus();
+                }}
+                disabled={exporting}
+                title={
+                  exporting
+                    ? '正在导出…'
+                    : '把全部笔记导成可检索的语料（corpus.jsonl / catalog.md / manifest.json）；刷新收藏库后会自动更新'
+                }
+              >
+                <IconExport size={14} />
+                {exporting ? '导出中…' : '导出语料'}
+              </button>
+            </div>
+          )}
+          <button
+            className="settings-btn"
+            aria-haspopup="menu"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((v) => !v)}
+          >
+            <IconSettings size={15} />
+            <span className="nav-label">设置</span>
+          </button>
+        </div>
+        {/* 版本与最近刷新留在菜单外面（用户要求）：一眼判断数据是不是最新的 */}
+        <div className="foot-meta">
+          {library?.version && <span className="foot-version">v{library.version}</span>}
+          <span className="foot-scan">
+            {refreshing
+              ? '刷新中…'
+              : library?.lastScan?.finishedAt
+                ? `最近刷新：${new Date(library.lastScan.finishedAt).toLocaleString('zh-CN', { hour12: false })}，新增 ${library.lastScan.added} 篇`
+                : '尚未刷新过收藏库'}
+          </span>
+        </div>
       </div>
     </aside>
   );

@@ -236,6 +236,15 @@ export const IconExport = ({ size, className }: IconProps) => (
   </svg>
 );
 
+/** 设置：两行滑杆（SF Symbols "slider.horizontal" 意象）——低频选项的收纳容器 */
+export const IconSettings = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M4 7.5h7.5M15.5 7.5H20M4 16.5h4.5M12.5 16.5H20" />
+    <circle cx="13.5" cy="7.5" r="2" />
+    <circle cx="10.5" cy="16.5" r="2" />
+  </svg>
+);
+
 /** 识别图片文字（OCR）：取景框里的文字行 */
 export const IconScanText = ({ size, className }: IconProps) => (
   <svg {...base(size, className)}>

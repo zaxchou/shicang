@@ -930,6 +930,10 @@ export default function App() {
         tagsView={view === 'tags'}
         starredOnly={query.starred}
         archiveView={query.status !== 'active'}
+        refreshing={refreshing || library?.indexStatus === 'scanning'}
+        exporting={exporting}
+        onRefresh={() => void startRefresh()}
+        onExportCorpus={() => void startExport()}
         onSelectCollection={selectCollection}
         onSelectCategory={selectCategory}
         onSelectSource={selectSource}
@@ -942,10 +946,6 @@ export default function App() {
         <Toolbar
           query={query}
           onChange={patchQuery}
-          onRefresh={() => void startRefresh()}
-          refreshing={refreshing || library?.indexStatus === 'scanning'}
-          onExportCorpus={() => void startExport()}
-          exporting={exporting}
           title={headerTitle}
           scopeCount={scopeCount}
           countUnit="篇"

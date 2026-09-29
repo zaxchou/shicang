@@ -276,6 +276,119 @@ img {
   line-height: 1.65;
 }
 
+/* ===== 侧栏底部：设置菜单（v0.16.1）=====
+   低频操作（刷新收藏库 / 导出语料 / 主题）收进设置，外面只留版本号与最近刷新。
+   relative 容器 + 向上弹出的 absolute 菜单：.sidebar 是 overflow:hidden，
+   菜单必须留在侧栏盒内，左右贴边、z-index 10 盖过 header(3) 又低于详情(50)/toast(60)。 */
+.settings-wrap {
+  position: relative;
+  margin-bottom: 9px;
+}
+.settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  box-shadow: var(--trough);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+}
+.settings-btn:hover {
+  color: var(--text-primary);
+  background: var(--surface);
+}
+.settings-btn[aria-expanded='true'] {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--elev-1), var(--inset-top);
+}
+.settings-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--surface-solid);
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  padding: 7px;
+  z-index: 10;
+  box-shadow: var(--elev-3);
+  animation: menuUp 150ms var(--ease-out);
+}
+/* 向上开的菜单从下方浮起（menuIn 是向下的位移方向，方向相反） */
+@keyframes menuUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.settings-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 9px;
+}
+.settings-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+/* 菜单里的主题切换不再当"整行控件"：收回 inline-flex、去掉下边距，按钮定宽排齐 */
+.settings-theme-row .theme-toggle {
+  display: inline-flex;
+  margin-bottom: 0;
+}
+.settings-theme-row .theme-toggle button {
+  flex: none;
+  width: 32px;
+}
+.settings-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition);
+}
+.settings-menu-item:hover:not(:disabled) {
+  background: var(--hover-soft);
+  color: var(--text-primary);
+}
+.settings-menu-item:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+.settings-menu-item.spinning svg {
+  animation: spin 0.9s linear infinite;
+}
+.settings-menu-item.pulsing svg {
+  animation: export-pulse 1.1s ease-in-out infinite;
+}
+/* 版本与最近刷新：留在菜单外面，一眼判断数据是不是最新 */
+.foot-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.foot-version {
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+}
+.foot-scan {
+  font-size: 11.5px;
+  color: var(--text-weak);
+  word-break: break-word;
+}
+
 /* 分段控件（主题 / 视图）：外层凹槽，选中项浮起 */
 .theme-toggle,
 .view-toggle {
@@ -361,13 +474,8 @@ img {
   gap: 14px;
 }
 
-/* 标题右侧的动作区：两个按钮贴着放，不参与 header-row 的 space-between 分布 */
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-}
+/* 标题右侧动作区（.header-actions）已随「刷新/导出收进设置」移除（v0.16.1）；
+   header-row 单子元素时 space-between 自然左对齐，无需补规则 */
 .main-title {
   font-size: 23px;
   font-weight: 700;

@@ -1510,3 +1510,52 @@ HTTP 路由（200 图片 / 304 / `?meta=1` JSON / 未知笔记 404）+ 摘要三
 - `npm run typecheck` 0 错；`npx vitest run` **264/264 全绿**（前端卡片无组件测试，本次无新增测试）。
 - 浏览器（本地 4399，dark + light 两个主题）：网页库底片齐平；占位瓷片在深色下是深灰渐变、浅色下近白渐变，
   图标与站点名均清晰；hover 星标正常出现在底片左上角。
+
+## 部署提速：预编译发布与版本归一（2026-09-29，v0.13.2）
+
+用户问「有没有办法不用整包 Docker 部署到 NAS，而是只传输更新过的几个文件」。**先纠正前提**：
+传输从来不是瓶颈——发布包写在项目目录里，靠共享盘自动同步，交给 docker daemon 的还有
+`.dockerignore` 挡着；慢的是 NAS 上的 `docker build`。
+
+### 根因（两处，都已用构建日志/代码证实）
+
+1. **版本号打掉了依赖层缓存**：Dockerfile 第一行是 `COPY package.json package-lock.json` → `npm ci`，
+   而每次发版 `npm version` 都会改这两个文件（lock 里 3 处 version）→ 这层必失效 →
+   build 阶段的 dev 全家桶与 runtime 依赖**各重装一遍**（npmmirror 几百 MB），`apk add` 也跟着重跑。
+   09-29 那次 9 分钟部署，日志就是「Docker 缓存从 COPY 起全失效」。
+2. **在 NAS 的 CPU 上编译**：发布包排除 `dist`，Dockerfile 里 `RUN npm run build` 跑 tsc + vite。
+
+### 改法
+
+- **① 版本号归一 + 独立 VERSION**：`release.ps1` 把发布包里的 `package.json` / `package-lock.json`
+  版本替换成常量 `0.0.0`（**带次数断言**：package.json 1 次、lock 2 次——lock 里每个依赖也有 version
+  字段，不能一把梭），真实版本写 `VERSION` 文件；`server/config.ts` 的 `readVersion()` 优先读 `VERSION`
+  （读不到再回退 package.json，仓库里没有 VERSION，已进 .gitignore）。`VERSION` 在 Dockerfile 里
+  **排在依赖层之后** `COPY`，只打掉本来必变的 dist 层。健康检查报的仍是真实版本 → `nas-update.sh` 的
+  版本断言不用改。
+- **② 预编译随包发**：`release.ps1` 预检里加 `npm run build`（否则可能把上一版的旧产物打进去），
+  并把 `dist` 排除名单里删掉（1.8MB、35 个文件）；Dockerfile **删掉整个 build 阶段**——
+  依据是运行时依赖只有 5 个纯 JS 包、无原生模块，`target ES2022` / `engines >=22` / 容器 `node:22`，
+  Windows 上编译的产物架构无关、直接可用。`.dockerignore` 同步瘦身（src/server/shared/public/scripts/
+  tsconfig/vite.config 全部不进上下文）。
+- **顺带**：发布包排除 `docs`（18MB 截图，项目根已有，共享盘会重复同步）与 `.zcode` →
+  **包体 22MB → 4.2MB**。
+
+### 实测
+
+- `release.ps1 -Version 0.13.2` 全预检通过：typecheck 0 错、**264/264**、构建成功、
+  发布包 131 文件 / **4.2MB**（含 dist 35 文件、VERSION、manifest sha256 逐文件）。
+- 包内容核验：`package.json`=0.0.0、lock 根与 `packages[""]`=0.0.0、**无 0.13.2 泄漏**、
+  依赖版本未被误改（express 4.22.3）、`.dockerignore` 首字节 `docs`（**无 BOM**）、无 `.env*`、无 `deploy/production`。
+- **端到端跑通版本链**：直接起 `releases/0.13.2/dist/server/index.js`（4398 端口、临时数据目录）
+  → 启动日志 `启动 myinfobase v0.13.2`、`扫描完成 scanned=1217 errors=0`、
+  `/api/health` = `{"version":"0.13.2","ready":true}` —— 这正是 NAS 上健康门要断言的东西。
+  跑完即停进程、删临时目录（发布包无残留）。
+- **未做（等命令）**：真部署。注意**第一次部署仍会全量重建**（Dockerfile 变了，基础层必然失效），
+  收益从「下一次」开始体现；本机没有 docker，Dockerfile 只做了逐行审阅，真正的构建要在 NAS 上验。
+
+### 交接
+
+`docs/deploy-handoff.md`：把这套方法抽成可移植文档（给同样部署到 NAS 的隔壁项目）——
+四条杠杆（别在目标机编译 / 让首个 COPY 层逐字节恒定 / 版本挪进 VERSION / 健康门带版本断言）+
+诊断清单 + 踩坑表（BOM、lockfile 里每个依赖都有 version、COPY 顺序）。

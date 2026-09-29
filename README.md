@@ -87,7 +87,9 @@ powershell -ExecutionPolicy Bypass -File scripts\start.ps1
    ```
 5. 首次启动自动全量扫描（当前 1205 篇：小红书 606 / 宝贝 331 / 日记 268）并从 `data-seed/categories-seed.json` 导入首批分类（仅未初始化的库导入，之后不再重复）。
 
-### 日常更新（改完代码 → 上线，约 2 分钟）
+### 日常更新（改完代码 → 上线）
+
+本地预检（typecheck + 264 个测试 + 构建 dist + 打包）约 1.5 分钟；NAS 侧构建只搬运不编译，健康门通过即上线。
 
 ```powershell
 # Windows：打包新版本（release.ps1 会先跑 typecheck + 测试，不过就中止；确需跳过用 -SkipChecks）
@@ -97,7 +99,12 @@ $env:NAS_HOST='192.168.31.246'; $env:NAS_USER='zaxchou'; $env:NAS_PASS='<密码>
 node scripts\nas-deploy.mjs sudo-sh "sh /volume2/Media/BaiduNetdiskWorkspace/myagent-work/zcode/MyInfobase/deploy/nas-update.sh <新版本>"
 ```
 `nas-update.sh` 会：构建新镜像 → 更新 `.env` 版本标签 → 重建容器 → 健康检查并校验版本一致。
-镜像在 NAS 上构建（`deploy/Dockerfile` 里跑 `npm run build`），本地不需要先 build。
+镜像仍在 NAS 上构建，但**只搬运不编译**（v0.13.2 起）：`release.ps1` 现场跑 `npm run build`，
+把 `dist/`（纯 JS，1.7MB）打进发布包，Dockerfile 删掉了 build 阶段——TS/vite 不再占用 NAS 的 CPU。
+同时发布包里的 `package.json`/`package-lock.json` 版本被归一成 `0.0.0`（真实版本写进 `VERSION` 文件，
+`readVersion` 优先读它，健康检查报的仍是真实版本）：否则每次发版这两个文件一变，Dockerfile 第一行
+`COPY` 的缓存就失效、NAS 重跑 `npm ci`（几百 MB），那正是以前一次部署要 9 分钟的大头。
+依赖不变时镜像层全命中，一次部署 = 同步 2MB + `COPY dist` 一层 + 重建容器 + 健康检查。
 **镜像内容变化（v0.11.0）**：生产镜像 `apk add ffmpeg`（语音转录的 m4a 转码用），体积约 +100MB；
 启动全量扫描时长不变。
 
@@ -205,7 +212,7 @@ npm run dev:web     # Vite 前端开发服务器（代理 /api 到 4317）
 npm run export:corpus  # 语料导出 CLI（不经浏览器；NAS 容器内请改用 node dist/scripts/export-corpus.js）
 ```
 
-约定：源库（`Z:\...\mynote\mynote`）只读；所有写入收口在项目 `storage` 模块；分类、索引等数据通过 `DATA_DIR` 定位。分类体系与边界见 `docs/category-taxonomy.md`，设计语言见 `docs/design-language.md`，验收记录见 `docs/verification.md`。
+约定：源库（`Z:\...\mynote\mynote`）只读；所有写入收口在项目 `storage` 模块；分类、索引等数据通过 `DATA_DIR` 定位。分类体系与边界见 `docs/category-taxonomy.md`，设计语言见 `docs/design-language.md`，验收记录见 `docs/verification.md`，部署方法（可移植版，给别的项目复用）见 `docs/deploy-handoff.md`。
 
 ### 改样式前先量一量
 

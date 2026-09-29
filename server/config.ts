@@ -164,7 +164,22 @@ export function validateGroups(collections: CollectionDef[], groups: CollectionG
   }
 }
 
+/** 版本号优先读项目根的 VERSION 文件。
+ *  发布包里 package.json / package-lock.json 的 version 会被 release.ps1 归一成 0.0.0——
+ *  只要这两个文件每次发版都变，Dockerfile 第一行 `COPY package.json package-lock.json`
+ *  那层缓存就必然失效，NAS 上会连带重跑 npm ci（部署 9 分钟里的一大半就这么来的）。
+ *  VERSION 文件在 `COPY dist` 那一步之后才进镜像，不影响任何依赖层缓存。
+ *  仓库里没有 VERSION（已进 .gitignore），开发/本地照常读 package.json。 */
 function readVersion(): string {
+  try {
+    const versionFile = path.join(projectRoot(), 'VERSION');
+    if (fs.existsSync(versionFile)) {
+      const v = fs.readFileSync(versionFile, 'utf8').trim();
+      if (v) return v;
+    }
+  } catch {
+    // VERSION 读失败就退回 package.json，别让版本号把启动搞崩
+  }
   try {
     const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot(), 'package.json'), 'utf8')) as {
       version?: string;

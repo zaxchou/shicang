@@ -1079,6 +1079,31 @@ start.cmd / start.ps1 只负责开发环境：从脚本目录定位项目，支�
   `LibraryService`，零扰动。compose 白名单两份都补了该变量（仅为可关闭性，默认行为不依赖它）。
 - **明确不做**：文件监听/实时同步（用户选定启动自刷）。
 
+### 18.12 编辑写回 vault（2026-09-29，v0.17.0）
+
+> **实施状态**：已完成并验收（293 测试、本地真数据写回 + 冲突流实测）。
+> 用户拍板原话："**我觉得可以做编辑写回 obsidian了……我也同意写回 vault。**"
+> （在"本地层编辑 vs 写回 vault"之间选了后者——前者 Obsidian 永远看不到，满足不了
+> "编辑完 Obsidian 实时得到"的目标。）
+
+- **范围**：只改**标题与正文**；文件改名永不做（4/5 个库身份=文件路径）。标题按方言落点：
+  小红书=正文第一个 H1 行（无则补）；网页/微信=fm `title:`；宝贝=fm `CSV标题:`（缺失则插入，
+  YAML 双引号转义）；**日记本期排除**（标题=日期+正文首行，语义拧巴）。正文=frontmatter 之后
+  的 Markdown 源码。**手术式重组**——只动目标行，绝不用 gray-matter stringify 整块重排用户手写
+  frontmatter；未编辑字段 round-trip 字节不变（有测试钉住）。
+- **不变量变更**：`/source` 去掉 `:ro`（唯一例外，显式授权）。四条防线：`VAULT_WRITE_ENABLED`
+  总开关（默认开）；只写索引内 available 记录的路径 + `isInsideDir` 复核；乐观并发（`baseHash`
+  =文件 SHA-256，对不上 409 `SOURCE_CHANGED` 且盘上不动）；原子写（tmp+回读校验+rename）+
+  写前原文备份 `dataDir/edit-backups/`（每篇 5 份）。数据/备份/导出/日志在 vault 外的约束**不变**。
+- **单篇重解析**：导出 `readAndParseStable` 复用（stat→parse→stat 双检）；整个"写文件+重解析+
+  索引提交"排进 `scanChain`（与刷新扫描互斥）；索引**先落盘再换内存**（doScan 同款）；
+  尾部轻量收尾：`pruneRefs`（编辑可能增删图片嵌入）+ 未分类才补规则分类（保存不触发 AI）+
+  语料重导。不 bump `PARSE_VERSION`（解析器没变；记录带新 mtime/size → 二刷快路径 skip）。
+- **前端**：详情头部「编辑」按钮（`sourceEditable` 判定，日记不显示）→ 编辑态（标题输入 +
+  Markdown textarea，Esc 只退焦点不关详情，⌘/Ctrl+Enter 保存）→ 409 时**草稿保留、内联报错、
+  不自动覆盖基准**；成功后整条替换列表项 + 详情重拉 + toast「已写回 Obsidian」。
+- **全局 JSON 上限 64KB→1MB**（长文写回需要；413 测试同步改体积钉新上限）。
+
 ### 对后续接手者
 
 18.2 里那几条接口形态（ASR 不能带文字部分、视觉直吃 webp、TTS 要 assistant 角色）是**实测**出来的，

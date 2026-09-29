@@ -30,6 +30,7 @@ collections: [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks
     exportDir: fx.exportDir,
     exportAfterRefresh: false,
     autoRefreshOnBoot: false,
+    vaultWriteEnabled: false,
     logDir: path.join(fx.root, 'logs'),
     isProduction: false,
     version: 'test',
@@ -464,9 +465,10 @@ describe('HTTP 路由', () => {
       expect((await broken.json() as any).error.code).toBe('BAD_JSON');
     });
 
-    it('超过 64KB 的请求体返回 413，而不是兜底 500', async () => {
-      // 实测：不单独处理 entity.too.large 会落到 500「服务器内部错误」，日志里还留一条 ERROR
-      const big = '[' + '1,'.repeat(40000) + '1]';
+    it('超过 1MB 的请求体返回 413，而不是兜底 500', async () => {
+      // 实测：不单独处理 entity.too.large 会落到 500「服务器内部错误」，日志里还留一条 ERROR。
+      // 上限 64KB→1MB（v0.17）：编辑写回的长正文需要余量；本测试同步改用 >1MB 的体积钉住新上限
+      const big = '[' + '1,'.repeat(600000) + '1]';
       const res = await fetch(`${base}/api/notes/id-0001/category`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Origin: ALLOWED_ORIGIN },

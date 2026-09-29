@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   MAX_REMARK,
   type NoteDetail,
+  type NoteSourceInfo,
   type NoteStatus,
   type NoteSummary,
   type RecognizedText,
@@ -18,6 +19,7 @@ import {
   IconChevronDown,
   IconCheck,
   IconClose,
+  IconEdit,
   IconExternal,
   IconGlobe,
   IconPen,
@@ -145,6 +147,8 @@ interface Props {
   onStatusChanged(noteId: string, status: NoteStatus, revision: number): void;
   /** 备注保存成功（App 更新列表卡片与详情） */
   onRemarkChanged(noteId: string, remark: string | null, revision: number): void;
+  /** 编辑写回成功（v0.17）：App 用最新 summary 补列表与详情头（标题/摘要可能变了） */
+  onContentChanged(note: NoteSummary): void;
   /** 标注类操作（归档 / 备注）出错时的统一提示 */
   onAnnotationError(message: string): void;
   /** 普通提示（识别开始/完成这类"过程通知"）——详情里跑长任务时必须让用户看见 */
@@ -165,6 +169,7 @@ export function DetailDialog({
   annotationRevision,
   onStatusChanged,
   onRemarkChanged,
+  onContentChanged,
   onAnnotationError,
   onNotice,
   onClose,
@@ -178,6 +183,14 @@ export function DetailDialog({
   const [remarkSaving, setRemarkSaving] = useState(false);
   /** 备注面板默认收起：常驻一个输入框太占地方（用户反馈「有点显眼」） */
   const [remarkOpen, setRemarkOpen] = useState(false);
+  // ---- 编辑写回（v0.17）：标题+正文（Markdown 源码）→ PUT 写回 vault ----
+  const [editing, setEditing] = useState(false);
+  const [src, setSrc] = useState<NoteSourceInfo | null>(null);
+  const [srcLoading, setSrcLoading] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftBody, setDraftBody] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   /** 识别文本（OCR）：进详情就拉一次已有的，不必再点 */
   const [mediaText, setMediaText] = useState<RecognizedText[]>([]);
   const [expandedOcr, setExpandedOcr] = useState<Set<string>>(new Set());
@@ -517,6 +530,57 @@ export function DetailDialog({
     }
   }, [remarkDraft, savedRemark, summary.id, annotationRevision, onRemarkChanged, onAnnotationError]);
 
+  // ---- 编辑写回（v0.17）----
+  const enterEdit = useCallback(async () => {
+    setEditing(true);
+    setEditError(null);
+    setSrcLoading(true);
+    try {
+      const s = await api.noteSource(summary.id);
+      setSrc(s);
+      setDraftTitle(s.title);
+      setDraftBody(s.body);
+    } catch (e) {
+      setEditing(false);
+      setEditError(e instanceof ApiError ? e.message : '读取原文失败');
+    } finally {
+      setSrcLoading(false);
+    }
+  }, [summary.id]);
+
+  const cancelEdit = useCallback(() => {
+    setEditing(false);
+    setSrc(null);
+    setEditError(null);
+  }, []);
+
+  const saveEdit = useCallback(async () => {
+    if (!src || editSaving) return;
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const out = await api.saveNoteContent(summary.id, {
+        title: draftTitle,
+        body: draftBody,
+        baseHash: src.baseHash,
+      });
+      onContentChanged(out.note);
+      // 重拉渲染后的详情（bodyHtml/媒体可能变了），退出编辑态
+      const d = await api.note(summary.id);
+      setDetail(d);
+      setEditing(false);
+      setSrc(null);
+    } catch (e) {
+      // 409（文件在拾藏之外被改过）时草稿保留：绝不静默拿新基准覆盖外部改动；
+      // 用户取消后重进编辑即拿到新 baseHash，自行决定怎么合
+      setEditError(e instanceof ApiError ? e.message : '保存失败');
+    } finally {
+      setEditSaving(false);
+    }
+  }, [src, editSaving, summary.id, draftTitle, draftBody, onContentChanged]);
+
+  const editDirty = !!src && (draftTitle !== src.title || draftBody !== src.body);
+
   return (
     <div
       className={`detail-overlay${closing ? ' closing' : ''}`}
@@ -556,6 +620,19 @@ export function DetailDialog({
             >
               <IconPen size={15} />
             </button>
+            {/* 编辑写回（v0.17）：只对服务端判定可编辑的笔记显示（日记/源缺失/开关关 = 不显示） */}
+            {detail?.sourceEditable && (
+              <button
+                type="button"
+                className={`btn-icon btn-edit${editing ? ' active' : ''}`}
+                aria-pressed={editing}
+                aria-label={editing ? '退出编辑' : '编辑并写回 Obsidian'}
+                title={editing ? '退出编辑' : '编辑标题与正文，保存后写回 Obsidian'}
+                onClick={() => (editing ? cancelEdit() : void enterEdit())}
+              >
+                <IconEdit size={15} />
+              </button>
+            )}
             <button
               type="button"
               className={`btn-star detail-star${summary.annotation.starred ? ' starred' : ''}`}
@@ -666,7 +743,7 @@ export function DetailDialog({
             </div>
           )}
           {!error && !detail && <div className="detail-state">加载中…</div>}
-          {detail && (
+          {detail && !editing && (
             <div className="detail-inner">
               <h2 className="detail-title">{detail.title}</h2>
               {detail.extra && Object.keys(detail.extra).length > 0 && (
@@ -925,6 +1002,62 @@ export function DetailDialog({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+          {detail && editing && (
+            <div className="detail-inner">
+              <div className="detail-editor">
+                {srcLoading && <div className="detail-state">读取原文中…</div>}
+                {!srcLoading && src && (
+                  <>
+                    <input
+                      className="edit-title-input"
+                      value={draftTitle}
+                      onChange={(e) => setDraftTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          cancelEdit();
+                        }
+                      }}
+                      placeholder="标题"
+                      aria-label="标题"
+                    />
+                    <textarea
+                      className="edit-body-input"
+                      value={draftBody}
+                      onChange={(e) => setDraftBody(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                          e.preventDefault();
+                          void saveEdit();
+                        }
+                        // Esc 只收起编辑焦点，不顺带把整个详情关掉（与备注面板同一约定）
+                        if (e.key === 'Escape') e.stopPropagation();
+                      }}
+                      rows={16}
+                      spellCheck={false}
+                      aria-label="正文（Markdown 源码）"
+                    />
+                    {editError && <div className="edit-error">{editError}</div>}
+                    <div className="edit-actions">
+                      <button
+                        className="btn-edit-save"
+                        disabled={!editDirty || editSaving}
+                        onClick={() => void saveEdit()}
+                      >
+                        {editSaving ? '保存中…' : '保存并写回'}
+                      </button>
+                      <button className="btn-edit-cancel" onClick={cancelEdit} disabled={editSaving}>
+                        取消
+                      </button>
+                      <span className="ann-hint">
+                        ⌘/Ctrl + Enter 保存 · 保存后写回 Obsidian，FastNote 同步到所有端
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -43,6 +43,14 @@ describe('loadConfig', () => {
     expect(loadConfig({ AUTO_REFRESH_ON_BOOT: 'true' } as NodeJS.ProcessEnv).autoRefreshOnBoot).toBe(true);
   });
 
+  it('VAULT_WRITE_ENABLED 默认开，认 false/0/no/off（v0.17 编辑写回的总开关，紧急止血用）', () => {
+    expect(loadConfig({} as NodeJS.ProcessEnv).vaultWriteEnabled).toBe(true);
+    for (const v of ['false', '0', 'no', 'OFF', ' off ']) {
+      expect(loadConfig({ VAULT_WRITE_ENABLED: v } as NodeJS.ProcessEnv).vaultWriteEnabled).toBe(false);
+    }
+    expect(loadConfig({ VAULT_WRITE_ENABLED: 'true' } as NodeJS.ProcessEnv).vaultWriteEnabled).toBe(true);
+  });
+
   it('生产环境两个变量都给全时正常加载', () => {
     const cfg = loadConfig({
       NODE_ENV: 'production',

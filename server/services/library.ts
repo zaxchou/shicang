@@ -1,5 +1,6 @@
 // 收藏库核心服务：内存索引、查询、详情、刷新任务、分类入口。
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import type {
   Category,
@@ -15,6 +16,7 @@ import type {
   NoteDetail,
   NoteListResult,
   NoteQuery,
+  NoteSourceInfo,
   NoteStatus,
   NoteSummary,
   OcrRunResult,
@@ -25,7 +27,9 @@ import type {
 import { lastNDaysRangeMs, customRangeMs } from '../../shared/time.js';
 import { projectRoot, type AppConfig } from '../config.js';
 import { log } from '../log.js';
-import { scanVault } from '../reader/scan.js';
+import { scanVault, readAndParseStable, type FileMeta } from '../reader/scan.js';
+import { isInsideDir } from '../storage/vault-guard.js';
+import { writeTextFileAtomic } from '../storage/atomic-file.js';
 import { sniffImageMime } from '../reader/image-size.js';
 import { PARSE_VERSION, type NoteRecord } from '../reader/parse.js';
 import { classifyByRules } from './classify.js';
@@ -111,6 +115,20 @@ export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ValidationError';
+  }
+}
+/** 编辑写回总开关关闭（VAULT_WRITE_ENABLED=false）→ 403 */
+export class VaultWriteDisabledError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VaultWriteDisabledError';
+  }
+}
+/** 乐观并发冲突：文件在拾藏之外（Obsidian/同步工具）被改过 → 409 */
+export class SourceChangedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SourceChangedError';
   }
 }
 
@@ -404,12 +422,19 @@ export class LibraryService {
     return r.sourceStatus === 'available' && this.annotations.statusOf(r.id) === 'active';
   }
 
-  private detailFields(r: NoteRecord): Pick<NoteDetail, 'bodyHtml' | 'media' | 'originalUrl' | 'sourceRelativePath'> {
+  private detailFields(r: NoteRecord): Pick<NoteDetail, 'bodyHtml' | 'media' | 'originalUrl' | 'sourceRelativePath' | 'sourceEditable'> {
     return {
       bodyHtml: r.bodyHtml,
       media: r.media,
       originalUrl: r.originalUrl,
       sourceRelativePath: r.sourceRelativePath,
+      // 编辑写回（v0.17）：日记无独立标题字段本期不开放；源缺失/开关关闭同样隐藏编辑按钮
+      sourceEditable:
+        this.cfg.vaultWriteEnabled &&
+        r.sourceStatus === 'available' &&
+        (r.collection === 'rednote' ||
+          r.collection === 'treasures' ||
+          this.colMap.get(r.collection)?.type === 'web'),
     };
   }
 
@@ -1104,6 +1129,208 @@ export class LibraryService {
     return { durationSec: e.durationSec };
   }
 
+  // ---------- 编辑写回 vault（v0.17）----------
+  // 这是全系统**唯一**往内容源写数据的通道。四条防线：
+  //   ① 总开关 VAULT_WRITE_ENABLED（默认开，可紧急关闭）；
+  //   ② 只接受索引内 available 记录的 sourceRelativePath，写前 isInsideDir 复核（无任意路径写）；
+  //   ③ 乐观并发：baseHash（文件 SHA-256）对不上即 409，盘上一个字都不动；
+  //   ④ 原子写（tmp+回读校验+rename）+ 写前备份到数据目录（vault 外）。
+  // 标题按方言落点手术式改写（小红书=正文 H1 行；网页/微信=fm title；宝贝=fm CSV标题），
+  // 绝不用 gray-matter 的 stringify 整块重排用户手写的 frontmatter。
+
+  /** 编辑器的初值：raw 从盘上现读（索引里没有原文），baseHash 取索引进记录时的文件指纹 */
+  noteSource(id: string): NoteSourceInfo {
+    const rec = this.requireAvailableRecord(id);
+    const def = this.colMap.get(rec.collection)!;
+    const type = def.type;
+    if (type === 'diary') {
+      throw new ValidationError('日记暂不支持在拾藏里编辑（标题来自日期+正文首行，语义以 Obsidian/flomo 为准）');
+    }
+    const raw = this.readVaultNoteRaw(rec);
+    const parts = splitMarkdown(raw);
+    const titleMode: NoteSourceInfo['titleMode'] = type === 'rednote' ? 'h1' : 'fm';
+    const fmKey = type === 'treasures' ? 'CSV标题' : 'title';
+
+    let title: string;
+    let bodyLines: string[];
+    if (titleMode === 'h1') {
+      const h1Idx = parts.contentLines.findIndex((l) => /^#\s+\S/.test(l));
+      // 与解析同口径：有 H1 用 H1，没有回落记录标题（=文件名），编辑保存时会把 H1 补上
+      title = h1Idx >= 0 ? parts.contentLines[h1Idx]!.replace(/^#\s+/, '').trim() : rec.title;
+      bodyLines = dropLeadingBlank(h1Idx >= 0 ? parts.contentLines.slice(h1Idx + 1) : parts.contentLines);
+    } else {
+      const line = parts.fmLines?.find((l) => fmKeyLineRe(fmKey).test(l));
+      const rawVal = line ? (fmKeyLineRe(fmKey).exec(line)![1] ?? '').trim() : '';
+      title = rawVal ? unquoteYaml(rawVal) : rec.title;
+      bodyLines = parts.contentLines;
+    }
+    return {
+      editable: true,
+      titleMode,
+      ...(titleMode === 'fm' ? { fmKey } : {}),
+      title,
+      body: bodyLines.join(parts.eol),
+      baseHash: rec.sourceHash ?? '',
+    };
+  }
+
+  /** 保存编辑：校验 → 并发比对 → 备份 → 手术式重组 → 原子写 → 单篇重解析 → 索引提交。
+   *  整段排进 scanChain（与刷新扫描互斥），索引侧与 doScan 同款"先落盘再换内存"。 */
+  async saveNoteContent(
+    id: string,
+    input: { title: string; body: string; baseHash: string }
+  ): Promise<{ note: NoteSummary; revision: number }> {
+    if (!this.cfg.vaultWriteEnabled) {
+      throw new VaultWriteDisabledError('编辑写回已关闭（VAULT_WRITE_ENABLED=false）');
+    }
+    const title = (input.title ?? '').replace(/\r?\n/g, ' ').trim();
+    if (!title) throw new ValidationError('标题不能为空');
+    if (typeof input.body !== 'string') throw new ValidationError('正文格式错误');
+    if (!input.baseHash) throw new ValidationError('缺少并发基准（baseHash），请重新打开编辑器');
+
+    return this.enqueueExclusive(async () => {
+      const rec = this.requireAvailableRecord(id);
+      const def = this.colMap.get(rec.collection)!;
+      if (def.type === 'diary') {
+        throw new ValidationError('日记暂不支持在拾藏里编辑（标题来自日期+正文首行，语义以 Obsidian/flomo 为准）');
+      }
+      const abs = this.vaultNoteAbs(rec);
+      const raw = fs.readFileSync(abs, 'utf8');
+      const currentHash = crypto.createHash('sha256').update(raw).digest('hex');
+      if (currentHash !== input.baseHash.trim().toLowerCase()) {
+        throw new SourceChangedError(
+          '文件在拾藏之外被修改过（Obsidian 或同步工具），为避免吃掉那边的改动已拒绝保存；请取消编辑后重新打开'
+        );
+      }
+
+      const parts = splitMarkdown(raw);
+      const titleMode: NoteSourceInfo['titleMode'] = def.type === 'rednote' ? 'h1' : 'fm';
+      const fmKey = def.type === 'treasures' ? 'CSV标题' : 'title';
+      let fmLines = parts.fmLines ?? [];
+      let contentLines: string[];
+
+      if (titleMode === 'h1') {
+        // H1 从标题字段重建，正文=用户编辑内容（去掉开头空行后接在 H1 下）
+        const bodyLines = dropLeadingBlank(input.body.split(parts.eol));
+        contentLines = ['', `# ${title}`, '', ...bodyLines];
+      } else {
+        const keyRe = fmKeyLineRe(fmKey);
+        const hasKey = fmLines.some((l) => keyRe.test(l));
+        const rawVal = hasKey ? (keyRe.exec(fmLines.find((l) => keyRe.test(l))!)![1] ?? '').trim() : '';
+        const originalTitle = rawVal ? unquoteYaml(rawVal) : rec.title;
+        // 标题没变且键本来就不存在 → 不往用户手写的 frontmatter 里插行
+        if (hasKey || title !== originalTitle) {
+          const quoted = `"${title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+          fmLines = hasKey
+            ? fmLines.map((l) => l.replace(keyRe, `${fmKey}: ${quoted}`))
+            : [`${fmKey}: ${quoted}`, ...fmLines];
+        }
+        contentLines = input.body.split(parts.eol);
+      }
+      const nextRaw = joinMarkdown({ eol: parts.eol, fmLines, contentLines, endedWithNewline: true });
+
+      await this.backupNoteRaw(id, rec, raw);
+      await writeTextFileAtomic(abs, nextRaw);
+      log.info(`编辑写回: ${rec.sourceRelativePath}（${titleMode === 'h1' ? 'H1' : fmKey}+正文）`);
+
+      // 单篇重解析（stat→parse→stat 稳定双检与扫描同一条路）；文件名/resourceId 都没动，身份不变
+      const st = await fs.promises.stat(abs);
+      const meta: FileMeta = {
+        relPath: rec.sourceRelativePath,
+        relInCollection: rec.sourceRelativePath.slice(def.root.length + 1),
+        collection: rec.collection,
+        mtimeMs: st.mtimeMs,
+        size: st.size,
+      };
+      const outcome = await readAndParseStable(abs, meta, this.cfg.vaultRoot, def);
+      if (!outcome.record) {
+        // 文件已写成功但解析失败：保持旧记录，下次刷新会再试；把错误如实抛给用户
+        throw new Error(`已写回文件但重新解析失败（下次刷新会再试）: ${outcome.error ?? outcome.skippedReason}`);
+      }
+      const next = outcome.record;
+      if (next.id !== id) throw new Error('写回后笔记身份发生变化，已拒绝入库（不该发生，请反馈）');
+
+      const notes = this.doc.notes.map((r) => (r.id === id ? next : r));
+      const nextDoc = { ...this.doc, notes, revision: this.doc.revision + 1 };
+      try {
+        await this.indexStore.save(nextDoc);
+      } catch (e) {
+        throw new Error(`索引落盘失败（文件已写回，重启或刷新后会一致）: ${(e as Error).message}`);
+      }
+      this.doc = nextDoc;
+      this.rebuildMaps();
+
+      // 与 doScan 尾部同款的轻量收尾：正文编辑可能增删图片嵌入 → 修剪识别文本孤儿引用
+      try {
+        const dropped = await this.mediaText.pruneRefs((noteId, mediaId) => {
+          const r = this.byId.get(noteId);
+          return !!r && r.media.some((m) => m.id === mediaId);
+        });
+        if (dropped > 0) log.info(`编辑写回后清理识别文本: 摘掉 ${dropped} 条失效引用`);
+      } catch (e) {
+        log.warn(`识别文本清理失败（不影响写回）: ${(e as Error).message}`);
+      }
+      // 未分类的才补规则分类（已有 initial/override 的一律不动；保存动作不触发 AI）
+      if (this.isManagedCategory(next.collection)) {
+        await this.categories.ensureClassified(
+          [{ id: next.id, title: next.title, tags: next.tags, excerpt: next.excerpt }],
+          async (item) => classifyByRules(item.id, item.title, item.tags)
+        );
+      }
+      if (this.cfg.exportAfterRefresh) {
+        try {
+          await this.exportCorpus();
+        } catch (e) {
+          log.warn(`语料重导失败（不影响写回）: ${(e as Error).message}`);
+        }
+      }
+      return { note: this.toSummary(next), revision: nextDoc.revision };
+    });
+  }
+
+  private requireAvailableRecord(id: string): NoteRecord {
+    const rec = this.byId.get(id);
+    if (!rec) throw new NotFoundError(`未找到笔记 ${id}`);
+    if (rec.sourceStatus !== 'available') throw new ValidationError('源文件已不在内容源里，无法编辑');
+    return rec;
+  }
+
+  private vaultNoteAbs(rec: NoteRecord): string {
+    const abs = path.join(this.cfg.vaultRoot, ...rec.sourceRelativePath.split('/'));
+    // 防线②：路径必须仍在 vault 内（id 来自自家索引，这里是对"索引被污染"的最后复核）
+    if (!isInsideDir(abs, this.cfg.vaultRoot)) throw new ValidationError('笔记路径越界，拒绝写入');
+    return abs;
+  }
+
+  private readVaultNoteRaw(rec: NoteRecord): string {
+    return fs.readFileSync(this.vaultNoteAbs(rec), 'utf8');
+  }
+
+  /** 写前备份：原文存数据目录 edit-backups/（vault 外），每篇留最近 5 份 */
+  private async backupNoteRaw(noteId: string, rec: NoteRecord, raw: string): Promise<void> {
+    const dir = path.join(this.cfg.dataDir, 'edit-backups');
+    await fs.promises.mkdir(dir, { recursive: true });
+    const prefix = crypto.createHash('sha1').update(noteId).digest('hex').slice(0, 8);
+    const safeName = path.basename(rec.sourceRelativePath).replace(/[\\/:*?"<>|]+/g, '_');
+    await fs.promises.writeFile(path.join(dir, `${prefix}-${Date.now()}-${safeName}`), raw, 'utf8');
+    const mine = (await fs.promises.readdir(dir))
+      .filter((f) => f.startsWith(`${prefix}-`))
+      .sort();
+    for (const old of mine.slice(0, Math.max(0, mine.length - 5))) {
+      await fs.promises.rm(path.join(dir, old), { force: true }).catch(() => undefined);
+    }
+  }
+
+  /** 与刷新扫描共用同一条串行链：写文件+索引提交绝不与一次扫描交错 */
+  private enqueueExclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const p = this.scanChain.then(fn);
+    this.scanChain = p.then(
+      () => undefined,
+      () => undefined
+    );
+    return p;
+  }
+
   libraryInfo(): LibraryInfo {
     // 顶层字段保持 rednote 口径（兼容）；前端以 collections 为准。
     // **口径必须与 collectionInfo 一致（工作集）**：否则归档一篇之后，顶层的分类计数不动、
@@ -1487,3 +1714,58 @@ function mediaUrl(noteId: string, mediaId: string): string {
 }
 
 export { CategoryConflictError, CategoryValidationError, AnnotationConflictError, AnnotationValidationError };
+
+// ---------- 编辑写回的 markdown 手术助手（v0.17）----------
+// 原则：按行拆、按行装，只动目标行；EOL 取文件主导行尾，未编辑的字段 round-trip 字节不变。
+
+interface MarkdownParts {
+  eol: string;
+  /** frontmatter 行（不含 --- 围栏）；文件没有 frontmatter 时为 null */
+  fmLines: string[] | null;
+  /** frontmatter 之后的全部行 */
+  contentLines: string[];
+  endedWithNewline: boolean;
+}
+
+function splitMarkdown(raw: string): MarkdownParts {
+  const eol = raw.includes('\r\n') ? '\r\n' : '\n';
+  const lines = raw.split(/\r?\n/);
+  const endedWithNewline = raw.endsWith('\n');
+  if (endedWithNewline) lines.pop();
+  let fmLines: string[] | null = null;
+  let contentLines = lines;
+  if (lines[0]?.trim() === '---') {
+    const close = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+    if (close > 0) {
+      fmLines = lines.slice(1, close);
+      contentLines = lines.slice(close + 1);
+    }
+  }
+  return { eol, fmLines, contentLines, endedWithNewline };
+}
+
+function joinMarkdown(p: { eol: string; fmLines: string[] | null; contentLines: string[]; endedWithNewline: boolean }): string {
+  const all = p.fmLines ? ['---', ...p.fmLines, '---', ...p.contentLines] : p.contentLines;
+  let out = all.join(p.eol);
+  if (p.endedWithNewline) out += p.eol;
+  return out;
+}
+
+function dropLeadingBlank(lines: string[]): string[] {
+  let i = 0;
+  while (i < lines.length && lines[i]!.trim() === '') i++;
+  return lines.slice(i);
+}
+
+/** 匹配 fm 里「键: 值」整行（键必须在行首，避免误伤别的键的值里出现同名子串） */
+function fmKeyLineRe(key: string): RegExp {
+  return new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:[ \\t]*(.*)$`);
+}
+
+/** 还原 YAML 双引号标量的字面值（只处理我们写回时的两种转义）；裸值原样返回 */
+function unquoteYaml(v: string): string {
+  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
+    return v.slice(1, -1).replace(/\\(["\\])/g, '$1');
+  }
+  return v;
+}

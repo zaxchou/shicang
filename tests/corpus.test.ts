@@ -536,6 +536,7 @@ describe('与 LibraryService 的接线', () => {
       exportDir: fx.exportDir,
       exportAfterRefresh,
       autoRefreshOnBoot: false,
+      vaultWriteEnabled: false,
       logDir: path.join(fx.root, 'logs'),
       isProduction: false,
       version: 'test',

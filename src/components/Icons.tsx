@@ -245,6 +245,14 @@ export const IconSettings = ({ size, className }: IconProps) => (
   </svg>
 );
 
+/** 编辑写回：方框里的笔（区别于备注 IconPen 的斜杆笔） */
+export const IconEdit = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M11 5H6A1.5 1.5 0 0 0 4.5 6.5v11A1.5 1.5 0 0 0 6 19h11a1.5 1.5 0 0 0 1.5-1.5V13" />
+    <path d="M17.8 4.2a1.9 1.9 0 0 1 2.7 2.7L13 14.4l-3.6.9.9-3.6z" />
+  </svg>
+);
+
 /** 识别图片文字（OCR）：取景框里的文字行 */
 export const IconScanText = ({ size, className }: IconProps) => (
   <svg {...base(size, className)}>

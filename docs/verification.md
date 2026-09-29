@@ -1810,3 +1810,55 @@ ChatGPT 按 `review-handoff.md` 对 v0.15.1（`15746b8`）做了第二轮审查�
 - 导出：菜单项点击 → 服务端日志「语料导出: 内容未变，跳过写入」（16:18:41，链路通）。
 - 底部常驻 `v0.16.1` + `最近刷新：2026/9/30 00:15:40，新增 0 篇`；线上同款。
 - 线上：health 0.16.1、启动自刷日志三连、console 0 错误（双主题各过一遍）。
+
+## 编辑写回 vault（2026-09-29，v0.17.0）
+
+用户拍板："**我觉得可以做编辑写回 obsidian了……我也同意写回 vault。**"（此前问清了
+"本地层编辑 vs 写回"的本质区别：前者 Obsidian 永远看不到；后者经 FastNote 同步全端。）
+计划模式出方案、批准后实施。284 → **293 测试全绿**（typecheck 三配置过）。
+
+### 服务端
+
+- **范围与方言**：只改标题+正文，不改文件名。小红书标题=正文第一个 H1 行（无则补）；
+  网页/微信=fm `title:`；宝贝=fm `CSV标题:`（缺失插入、双引号转义）；**日记排除**。
+  手术式重组（只动目标行，frontmatter 其余逐字保留），**未编辑保存 = 字节级还原**（测试钉住）。
+- **四条防线**：`VAULT_WRITE_ENABLED`（默认开，false/0/no/off 关）；只写索引内 available 记录的
+  路径 + `isInsideDir` 复核；乐观并发（`baseHash`=文件 SHA-256，不一致 → 409 `SOURCE_CHANGED`
+  且盘上不动）；原子写（`server/storage/atomic-file.ts`：tmp+回读校验+rename，rename 失败退化
+  copy+replace）+ 写前原文备份 `dataDir/edit-backups/`（每篇留 5 份，vault 外）。
+- **单篇重解析进索引**：导出 `readAndParseStable` 复用；"写文件+重解析+索引提交"排进
+  `scanChain` 与扫描互斥；先落盘再换内存（revision+1）；尾部 `pruneRefs` + 未分类补规则分类
+ （保存不触发 AI）+ 语料重导。不 bump `PARSE_VERSION`。
+- **API**：`GET /api/notes/:id/source`（raw 现读+baseHash）与 `PUT /api/notes/:id/content`；
+  错误码 403 `VAULT_WRITE_DISABLED` / 409 `SOURCE_CHANGED` / 400；全局 JSON 上限 64KB→1MB
+ （长文写回；413 测试同步改用 >1MB 体积钉新上限）。
+- **测试（284 → 293）**：新 `tests/vault-write.test.ts` 8 条——小红书改标题+正文（盘上+索引+搜索
+  三侧验证）、网页只改 title 行 + **未改动保存字节还原**、无 fm title 插入、宝贝 CSV标题、
+  冲突（盘上未动+索引未变）、日记/开关/未知 id、备份+vault 无 tmp+二刷快路径；路由层 1 条
+ （形状 400 / 409 语义）。
+
+### 前端
+
+- 详情头部新增「编辑」按钮（`NoteDetail.sourceEditable` 判定——日记/源缺失/开关关不显示）；
+  编辑态 = 标题输入 + Markdown textarea（凹槽语法，Esc 只退焦点不关详情，⌘/Ctrl+Enter 保存，
+  「未保存」脏标）；保存成功整条替换列表项 + 详情重拉 + toast；**409 草稿保留 + 内联报错，
+  绝不自动拿新基准覆盖外部改动**。
+
+### 实测（本地 4399，真实 vault）
+
+- **真数据闭环**：打开宝贝「海南黄花梨2.0对眼X纹」详情 → 编辑 → 把正文里的
+  `海黄2.0对眼X纹HK06280001`（今早遗留的旧称，用户已改标题未改正文）改为
+  `海南黄花梨2.0对眼X纹HK06280001` → 保存 → **源文件第 31 行确认已改、图片路径未动、
+  frontmatter 逐字未动**；搜索「海南黄花梨」立即命中（今早为 0）；备份
+  `.local/data/edit-backups/0413d597-…-海南黄花梨2.0对眼X纹+.md` 内容=写前原文。
+- **冲突流**：GET 后用脚本模拟 Obsidian 外部追加一行 → 拾藏保存 → 内联报错
+ 「文件在拾藏之外被修改过…已拒绝保存」+ 草稿保留 + **盘上外部改动原封、拾藏草稿未写入**；
+  收尾清掉了模拟行。
+- **按钮判定**：日记详情 `sourceEditable:false`（不显示编辑钮）、小红书/宝贝 `true`。
+- 编辑器初值：未改动时保存钮禁用（脏检查）；console 除预期 409 网络日志外 0 错误。
+
+### 部署注意（本次）
+
+- `deploy/compose.yaml` + `deploy/production/compose.yaml`：`/source` **去掉 `:ro`** +
+  `VAULT_WRITE_ENABLED` 进白名单。回滚：还原这两行重新部署，或仅 `VAULT_WRITE_ENABLED=false` 重启。
+- 上线后建议用户在任意 Obsidian 端确认编辑同步到达（FastNote 链路的人工确认点）。

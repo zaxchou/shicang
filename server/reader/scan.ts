@@ -200,7 +200,8 @@ export async function scanVault(
   return { records, diagnostics, counts, enumerated: true };
 }
 
-async function readAndParseStable(
+/** 稳定解析单个文件（stat→parse→stat 双检）。scanVault 增量路径与编辑写回的单篇重解析（v0.17）共用。 */
+export async function readAndParseStable(
   abs: string,
   meta: FileMeta,
   vaultRoot: string,

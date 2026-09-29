@@ -1,6 +1,6 @@
 # 拾藏 Shícáng — 个人收藏库（Soft Glass 风格）
 
-[GitHub 仓库](https://github.com/zaxchou/shicang)（版本管理）。把 Obsidian 库中的小红书收藏（Markdown + 本地图片 + 远程视频）变成一个可以 24 小时常驻访问的深色网页收藏库：浏览、搜索、按分类与时间筛选、阅读详情、播放视频、手动刷新新增内容、调整分类。**Obsidian 库只读**；所有展示端数据保存在本项目目录内。
+[GitHub 仓库](https://github.com/zaxchou/shicang)（版本管理）。把 Obsidian 库中的小红书收藏（Markdown + 本地图片 + 远程视频）变成一个可以 24 小时常驻访问的深色网页收藏库：浏览、搜索、按分类与时间筛选、阅读详情、播放视频、自动/手动刷新、调整分类、**编辑标题与正文并写回 Obsidian**（v0.17，乐观并发 + 原子写 + 写前备份）。内容源默认只读，编辑写回是唯一的一条受控写通道；所有展示端数据保存在本项目目录内。
 
 ![首页（亮色）](docs/screenshots/softglass-light-masonry.png)
 
@@ -121,7 +121,7 @@ sudo sh deploy/nas-rollback.sh <旧版本号>   # 镜像仍在本地，秒级切
 - 生产数据：`runtime/data/`（`overrides.json` 是人工分类、`annotations.json` 是标星/归档/备注，两者**不可重建**，请纳入 NAS 定期备份；`library-index.json` 可随时重建）。服务自动保留最近 5 份备份于 `runtime/backups/`。
 - 语料导出：`runtime/export/` 是**派生产物**，随时可由索引+标注重建，所以不做备份轮换——重建比恢复便宜。`runtime/` 整体不进 git、不进发布包。
 - 识别文本：`runtime/data/media-text.json` 在 `runtime/data/` 里，**和标注一样是资产**（重跑要花钱），请一并纳入备份。
-- 源目录以只读方式挂载（`:ro`），应用无写入路径；导出目录若被误配到源目录内，`assertOutsideVault()` 会**拒绝写入**而不是照写。
+- 源目录 v0.16 及以前以只读挂载（`:ro`）；**v0.17 起去掉了 `:ro`**——"编辑写回 Obsidian"是唯一往内容源写数据的通道，带四条防线：`VAULT_WRITE_ENABLED` 总开关（默认开，可紧急关闭）、只写索引内笔记的路径（写前复核越界）、乐观并发（文件指纹对不上即 409 拒绝且盘上不动）、原子写 + 写前原文备份到 `dataDir/edit-backups/`（每篇留 5 份）。数据/备份/导出/日志目录仍**必须**在内容源之外，`assertOutsideVault()` 启动即校验。
 - 更新仅重建容器，`runtime/` 不受影响；清理旧版本只允许作用于 `releases/` 与 `runtime/backups/`。
 
 ## 刷新规则

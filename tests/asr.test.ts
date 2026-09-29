@@ -67,6 +67,7 @@ collections: [{ id: 'rednote', name: '小红书收藏', root: 'RedNote/Bookmarks
     exportDir: fx.exportDir,
     exportAfterRefresh: false,
     autoRefreshOnBoot: false,
+    vaultWriteEnabled: false,
     logDir: path.join(fx.root, 'logs'),
     isProduction: false,
     version: 'test',

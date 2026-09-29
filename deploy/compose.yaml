@@ -41,9 +41,13 @@ services:
       EXPORT_AFTER_REFRESH: "${EXPORT_AFTER_REFRESH:-true}"
       # 启动自动刷一次（默认开；列进白名单是为了能在 .env 里关掉——不列的话默认行为也生效）
       AUTO_REFRESH_ON_BOOT: "${AUTO_REFRESH_ON_BOOT:-true}"
+      # 编辑写回 vault（v0.17，默认开）：列出白名单是为了能在 .env 里关掉——不列的话默认行为也生效
+      VAULT_WRITE_ENABLED: "${VAULT_WRITE_ENABLED:-true}"
     volumes:
-      # Obsidian vault 根（含 RedNote / 我的收藏品 / flomo）：只读挂载（NAS 本机真实路径，写在 .env）
-      - ${SOURCE_ROOT}:/source:ro
+      # Obsidian vault 根（含 RedNote / 我的收藏品 / flomo）：v0.17 起去掉 :ro——
+      # 编辑写回是唯一往内容源写数据的通道（服务端四条防线：总开关/索引内路径/乐观并发/原子写+备份），
+      # 紧急止血优先 VAULT_WRITE_ENABLED=false，其次恢复 :ro 并重新部署
+      - ${SOURCE_ROOT}:/source
       # 生产数据与备份：固定在项目 runtime 目录，不随版本切换
       - ../../runtime/data:/app/data
       - ../../runtime/backups:/app/backups

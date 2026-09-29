@@ -812,6 +812,17 @@ export default function App() {
     [showToast, reload]
   );
 
+  /** 编辑写回成功（v0.17）：标题/摘要/正文都可能变，整条替换 + 列表重取（卡片显示的是标题与摘要） */
+  const onContentChanged = useCallback(
+    (note: NoteSummary) => {
+      setItems((prev) => prev.map((n) => (n.id === note.id ? note : n)));
+      setDetailSummary((prev) => (prev && prev.id === note.id ? note : prev));
+      showToast('已写回 Obsidian');
+      void reload();
+    },
+    [showToast, reload]
+  );
+
   const categoryName = useCallback(
     (id: string | null) => {
       if (!id) return null;
@@ -1162,8 +1173,9 @@ export default function App() {
           onStatusChanged={(id, status, revision) =>
             onStatusChanged(id, status, revision, detailSummary.annotation.status)
           }
-          onRemarkChanged={onRemarkChanged}
-          onAnnotationError={onAnnotationError}
+    onRemarkChanged={onRemarkChanged}
+    onContentChanged={onContentChanged}
+    onAnnotationError={onAnnotationError}
           onNotice={(msg) => showToast(msg)}
           onClose={closeDetail}
         />

@@ -80,6 +80,25 @@ export interface NoteDetail extends NoteSummary {
   media: MediaItem[];
   originalUrl: string;
   sourceRelativePath: string;
+  /** 是否可在拾藏里编辑并写回 vault（v0.17：日记/源缺失/开关关闭时为 false，前端据此隐藏编辑按钮） */
+  sourceEditable?: boolean;
+}
+
+/** 编辑写回（v0.17）：GET /notes/:id/source 的返回——raw 现读现拆，索引里没有原文 */
+export interface NoteSourceInfo {
+  editable: boolean;
+  /** 不可编辑的原因（editable=false 时给，前端可提示） */
+  reason?: string;
+  /** 标题写回落点：h1=正文第一个 H1 行（小红书）；fm=frontmatter 键（网页/微信/宝贝） */
+  titleMode: 'h1' | 'fm';
+  /** titleMode==='fm' 时的键名：'title' | 'CSV标题' */
+  fmKey?: string;
+  /** 当前生效标题（编辑框初值） */
+  title: string;
+  /** 当前正文（编辑框初值；小红书=去掉 H1 行，其余=frontmatter 之后全部） */
+  body: string;
+  /** 乐观并发基准 = 当前文件的 SHA-256；保存时回传，对不上即 409 */
+  baseHash: string;
 }
 
 export interface Category {

@@ -20,7 +20,9 @@ import {
   CategoryConflictError,
   CategoryValidationError,
   NotFoundError,
+  SourceChangedError,
   ValidationError,
+  VaultWriteDisabledError,
 } from '../services/library.js';
 
 export class HttpError extends Error {
@@ -124,7 +126,9 @@ function requireParam(req: express.Request, name: string): string {
 
 export function apiRouter(deps: ApiDeps): express.Router {
   const router = express.Router();
-  router.use(express.json({ limit: '64kb' }));
+  // 1mb：编辑写回（v0.17）的正文可能很长（微信公众号全文进索引的那种）；
+  // 其余 JSON 端点的请求体都很小，放宽上限不构成新的暴露面
+  router.use(express.json({ limit: '1mb' }));
 
   // 统一异常 → JSON envelope
   const wrap =
@@ -233,6 +237,37 @@ export function apiRouter(deps: ApiDeps): express.Router {
     wrap((req, res) => {
       const detail: NoteDetail = deps.library().detail(requireParam(req, "id"));
       res.json(detail);
+    })
+  );
+
+  // 编辑写回（v0.17）：先拿初值（raw 现读 + 并发基准），保存时 PUT 回来
+  router.get(
+    '/notes/:id/source',
+    wrap((req, res) => {
+      res.json(deps.library().noteSource(requireParam(req, 'id')));
+    })
+  );
+
+  router.put(
+    '/notes/:id/content',
+    wrap(async (req, res) => {
+      const id = requireParam(req, 'id');
+      const body = req.body as { title?: unknown; body?: unknown; baseHash?: unknown };
+      if (typeof body?.title !== 'string' || typeof body?.body !== 'string' || typeof body?.baseHash !== 'string') {
+        throw new HttpError(400, 'VALIDATION', '需要 title / body / baseHash 三个字符串字段');
+      }
+      try {
+        const out = await deps.library().saveNoteContent(id, {
+          title: body.title,
+          body: body.body,
+          baseHash: body.baseHash,
+        });
+        res.json(out);
+      } catch (e) {
+        if (e instanceof VaultWriteDisabledError) throw new HttpError(403, 'VAULT_WRITE_DISABLED', e.message);
+        if (e instanceof SourceChangedError) throw new HttpError(409, 'SOURCE_CHANGED', e.message);
+        throw e;
+      }
     })
   );
 

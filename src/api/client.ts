@@ -5,7 +5,9 @@ import type {
   LibraryInfo,
   NoteDetail,
   NoteListResult,
+  NoteSourceInfo,
   NoteStatus,
+  NoteSummary,
   OcrRunResult,
   RecognizedText,
   RefreshJobInfo,
@@ -101,6 +103,14 @@ export const api = {
     request<{ tags: TagCount[] }>(`/api/tags${collection ? `?collection=${encodeURIComponent(collection)}` : ''}`),
   notes: (p: QueryParams) => request<NoteListResult>(`/api/notes?${buildQuery(p)}`),
   note: (id: string) => request<NoteDetail>(`/api/notes/${encodeURIComponent(id)}`),
+  /** 编辑写回（v0.17）：编辑器初值（raw 现读 + 并发基准 baseHash） */
+  noteSource: (id: string) => request<NoteSourceInfo>(`/api/notes/${encodeURIComponent(id)}/source`),
+  /** 保存编辑并写回 vault；baseHash 对不上时服务端 409 SOURCE_CHANGED（草稿不丢，重进编辑即拿新基准） */
+  saveNoteContent: (id: string, input: { title: string; body: string; baseHash: string }) =>
+    request<{ note: NoteSummary; revision: number }>(`/api/notes/${encodeURIComponent(id)}/content`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   setCategory: (id: string, categoryId: string | null, expectedRevision: number) =>
     request<{ revision: number; categoryId: string | null }>(
       `/api/notes/${encodeURIComponent(id)}/category`,

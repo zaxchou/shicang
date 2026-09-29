@@ -1,5 +1,10 @@
 // 从一张源图生成全套应用图标（public/icon-1024.png、apple-touch-icon.png、icon-32.png、icon-96.png）。
 //
+// 支持两种源图：
+//   A. 白底 RGB（旧稿，颜色类型 2）：靠"彩度/暗度"猜形状，边界带按离白多远换算 alpha；
+//   B. **带真透明的 RGBA（现用，颜色类型 6）**：alpha 通道就是形状，直接透传（含边缘抗锯齿），
+//      不再猜颜色——淡奶油底色这类"低彩度形状"在 A 的判据下会被误判成背景。
+//
 // 用法：node scripts/build-icons.mjs <源图.png>
 //
 // 为什么要这个脚本：图标源是"白底 + 圆角方块"的位图（RGB，无 alpha）。
@@ -49,8 +54,10 @@ function decodePng(file) {
   }
   if (depth !== 8) throw new Error(`只支持 8 位 PNG（当前 ${depth}）`);
   if (interlace !== 0) throw new Error('不支持隔行 PNG');
-  if (color !== 2) throw new Error(`源图需为 RGB（颜色类型 2），当前 ${color}`);
-  const bpp = 3;
+  if (color !== 2 && color !== 6) {
+    throw new Error(`源图需为 RGB(2) 或 RGBA(6)，当前 ${color}（调色板/灰阶请先另存为 PNG-24/32）`);
+  }
+  const bpp = color === 6 ? 4 : 3;
   const raw = zlib.inflateSync(Buffer.concat(idat));
   const stride = w * bpp;
   const out = Buffer.alloc(h * stride);
@@ -79,7 +86,7 @@ function decodePng(file) {
       cur[x] = v & 0xff;
     }
   }
-  return { w, h, stride, data: out };
+  return { w, h, stride, ch: bpp, data: out };
 }
 
 /**
@@ -102,12 +109,13 @@ function shapeBounds(img) {
     let left = -1;
     let right = -1;
     for (let x = 0; x < img.w; x++) {
-      const i = y * img.stride + x * 3;
+      const i = y * img.stride + x * img.ch;
       const r = img.data[i];
       const g = img.data[i + 1];
       const b = img.data[i + 2];
       const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-      const inside = chroma > 30 || Math.min(r, g, b) < 200;
+      // 带 alpha 的源图：alpha >= 16 即形状（淡色形状也能认出来）；否则用彩度/暗度猜
+      const inside = img.ch === 4 ? img.data[i + 3] >= 16 : chroma > 30 || Math.min(r, g, b) < 200;
       if (inside) mask[y * img.w + x] = 1;
       if (chroma > 6 || Math.min(r, g, b) < WHITE_MIN) {
         // 阴影/内容（比形状宽一圈）
@@ -167,12 +175,35 @@ function extract(img, bounds, { alpha }) {
   const out = Buffer.alloc(w * h * 4);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const si = (minY + y) * img.stride + (minX + x) * 3;
+      const si = (minY + y) * img.stride + (minX + x) * img.ch;
       const di = (y * w + x) * 4;
-      // "是否属于图标内容"用行区间判定（中间的白色书签同样是内容）；
+      if (img.ch === 4) {
+        const a4 = img.data[si + 3];
+        if (alpha) {
+          // 透明版（favicon / 侧栏）：源稿自带抗锯齿，RGB + alpha 原样透传。
+          // 唯一例外：AI 出图的源稿内部 alpha 常见 252/253 而不是 255（实测 99% 像素如此），
+          // 原样透传会让图标在深色玻璃面板上整体蒙一层约 1% 的灰——>=250 一律拉满，
+          // 真正的边缘过渡（<250）保持不动
+          out[di] = img.data[si];
+          out[di + 1] = img.data[si + 1];
+          out[di + 2] = img.data[si + 2];
+          out[di + 3] = a4 >= 250 ? 255 : a4;
+          continue;
+        }
+        if (a4 >= 128) {
+          // 不透明版（iOS）：实心像素拷贝，alpha 拉满
+          out[di] = img.data[si];
+          out[di + 1] = img.data[si + 1];
+          out[di + 2] = img.data[si + 2];
+          out[di + 3] = 255;
+          continue;
+        }
+        // 半透明/透明（边缘过渡与外侧微光）：落到下面的补色逻辑——iOS 的圆角遮罩下不能露透明
+      }
+      // 白底源图："是否属于图标内容"用行区间判定（中间的白色书签同样是内容）；
       // 补色射线的参考像素才要求彩色（见下），两个判据不能混
       const inside = x >= lefts[y] && x <= rights[y];
-      if (inside) {
+      if (inside && img.ch === 3) {
         out[di] = img.data[si];
         out[di + 1] = img.data[si + 1];
         out[di + 2] = img.data[si + 2];
@@ -202,7 +233,7 @@ function extract(img, bounds, { alpha }) {
             break;
           }
         }
-        const ri = (minY + refY) * img.stride + (minX + refX) * 3;
+        const ri = (minY + refY) * img.stride + (minX + refX) * img.ch;
         out[di] = img.data[ri];
         out[di + 1] = img.data[ri + 1];
         out[di + 2] = img.data[ri + 2];
@@ -215,7 +246,7 @@ function extract(img, bounds, { alpha }) {
         continue;
       }
       const refX = x <= lefts[y] ? Math.min(w - 1, lefts[y] + 3) : Math.max(0, rights[y] - 3);
-      const refI = (minY + y) * img.stride + (minX + refX) * 3;
+      const refI = (minY + y) * img.stride + (minX + refX) * img.ch;
       const refMin = Math.min(img.data[refI], img.data[refI + 1], img.data[refI + 2]);
       const selfMin = Math.min(img.data[si], img.data[si + 1], img.data[si + 2]);
       const denom = 255 - Math.min(refMin, 254);

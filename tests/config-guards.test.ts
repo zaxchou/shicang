@@ -35,6 +35,14 @@ describe('loadConfig', () => {
     expect(loadConfig({} as NodeJS.ProcessEnv).exportAfterRefresh).toBe(true);
   });
 
+  it('AUTO_REFRESH_ON_BOOT 默认开，认 false/0/no/off（v0.16 启动自动刷一次的开关）', () => {
+    expect(loadConfig({} as NodeJS.ProcessEnv).autoRefreshOnBoot).toBe(true);
+    for (const v of ['false', '0', 'no', 'OFF', ' off ']) {
+      expect(loadConfig({ AUTO_REFRESH_ON_BOOT: v } as NodeJS.ProcessEnv).autoRefreshOnBoot).toBe(false);
+    }
+    expect(loadConfig({ AUTO_REFRESH_ON_BOOT: 'true' } as NodeJS.ProcessEnv).autoRefreshOnBoot).toBe(true);
+  });
+
   it('生产环境两个变量都给全时正常加载', () => {
     const cfg = loadConfig({
       NODE_ENV: 'production',

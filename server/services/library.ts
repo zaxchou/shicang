@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import type {
   Category,
+  CategoryCount,
   CollectionDef,
   CollectionGroupInfo,
   CollectionInfo,
@@ -546,11 +547,23 @@ export class LibraryService {
       .filter((x): x is CollectionInfo => x !== null);
   }
 
-  /** 分组的聚合信息（成员各计数之和；**分类不聚合**——分类是各子库自己的概念，组视图下侧栏不显示分类区） */
+  /** 分组的聚合信息：标量与两维计数都从成员 collectionInfo **按 id 求和**——
+   *  组数字必须等于成员数字之和（另起一套算法就会出现"同一页两套数字"）。
+   *  v0.16 起分类/来源也聚合：三个成员库共用类目表后组级主题在语义上成立，
+   *  v0.12 的"组视图不显示分类/来源"决策随之撤销（用户批准）。 */
   groupInfo(gid: string): CollectionGroupInfo | null {
     const g = this.cfg.groups.find((x) => x.id === gid);
     if (!g) return null;
     const agg = { total: 0, active: 0, archived: 0, starred: 0, uncategorized: 0 };
+    const catMap = new Map<string, CategoryCount>();
+    const srcMap = new Map<string, CategoryCount>();
+    const bump = (map: Map<string, CategoryCount>, rows: CategoryCount[]): void => {
+      for (const row of rows) {
+        const hit = map.get(row.id);
+        if (hit) hit.count += row.count;
+        else map.set(row.id, { ...row });
+      }
+    };
     for (const cid of g.collections) {
       const info = this.collectionInfo(cid);
       if (!info) continue;
@@ -559,8 +572,20 @@ export class LibraryService {
       agg.archived += info.archived;
       agg.starred += info.starred;
       agg.uncategorized += info.uncategorized;
+      bump(catMap, info.categories);
+      bump(srcMap, info.sources);
     }
-    return { id: g.id, name: g.name, collectionIds: [...g.collections], ...agg };
+    // 分类顺序对齐类目表 order（派生型动态行排最后）；来源按数量降序——两处都与单库口径一致
+    const orderOf = new Map(this.categories.categories.map((c) => [c.id, c.order]));
+    const categories = [...catMap.values()].sort(
+      (a, b) =>
+        (orderOf.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (orderOf.get(b.id) ?? Number.MAX_SAFE_INTEGER) ||
+        a.name.localeCompare(b.name, 'zh-Hans-CN')
+    );
+    const sources = [...srcMap.values()].sort(
+      (a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN')
+    );
+    return { id: g.id, name: g.name, collectionIds: [...g.collections], ...agg, categories, sources };
   }
 
   /** 全部分组信息（侧栏两级用） */
@@ -1231,6 +1256,13 @@ export class LibraryService {
   }
 
   // ---------- 刷新 ----------
+
+  /** 启动时自动刷一次（AUTO_REFRESH_ON_BOOT，默认开）：与手动刷新共用同一条单飞/任务/落盘链路，
+   *  只是触发者是启动流程——关闭开关返回 null，不建 job。 */
+  startBootRefresh(): RefreshJobInfo | null {
+    if (!this.cfg.autoRefreshOnBoot) return null;
+    return this.startRefresh();
+  }
 
   startRefresh(): RefreshJobInfo {
     if (this.job && this.job.state === 'running') return this.toJobInfo(this.job);

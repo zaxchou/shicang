@@ -24,6 +24,8 @@ export interface AppConfig {
   exportDir: string;
   /** 刷新成功后自动重导语料（内容没变时不会真写盘）；设 EXPORT_AFTER_REFRESH=false 关掉 */
   exportAfterRefresh: boolean;
+  /** 启动时自动刷一次（增量快路径；v0.16 用户选定"启动自刷"而非文件监听）；设 AUTO_REFRESH_ON_BOOT=false 关掉 */
+  autoRefreshOnBoot: boolean;
   logDir: string;
   isProduction: boolean;
   version: string;
@@ -128,6 +130,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     exportDir: env.EXPORT_DIR ? normalizeDir(env.EXPORT_DIR) : path.join(dataDir, '..', 'export'),
     // 关闭开关认 false/0/no/off（只认字面 false 的话，填 0/no 会"配了却不生效"）
     exportAfterRefresh: !['false', '0', 'no', 'off'].includes((env.EXPORT_AFTER_REFRESH ?? 'true').trim().toLowerCase()),
+    // 启动自动刷新：默认开（NAS 不改任何配置即生效），同一套 false/0/no/off 关闭语义
+    autoRefreshOnBoot: !['false', '0', 'no', 'off'].includes((env.AUTO_REFRESH_ON_BOOT ?? 'true').trim().toLowerCase()),
     logDir: env.LOG_DIR ? normalizeDir(env.LOG_DIR) : path.join(projectRoot(), 'logs'),
     isProduction,
     version: readVersion(),

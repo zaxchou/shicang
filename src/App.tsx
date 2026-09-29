@@ -849,7 +849,7 @@ export default function App() {
     else if (query.categoryId) parts.push(categoryName(query.categoryId) ?? '收藏');
     return parts.length > 0 ? parts.join(' · ') : null;
   })();
-  // 组视图没有"当前库"的分类/字段概念，标题与计数全部走组聚合
+  // 组视图的标题/计数走组聚合；v0.16 起组作用域同样支持两维筛选，激活维度时标题与单库一致显示「来源 · 分类」
   const headerTitle = inDirectory
     ? '标签'
     : inTagResult
@@ -858,34 +858,33 @@ export default function App() {
         ? '归档'
         : query.starred
           ? '标星'
-          : curGroup
-            ? curGroup.name
-            : (filterTitle ?? (curInfo?.name ?? '收藏'));
+          : (filterTitle ?? (curGroup?.name ?? curInfo?.name ?? '收藏'));
+  // 计数口径 = 当前作用域（单库 curInfo、组 curGroup——两者字段同形），维度规则两处共用：
+  // 分叉写两套正是"标题与列表数字打架"的温床；组分支顺带补上了此前缺失的标星计数
+  const scopeStats = curGroup ?? curInfo;
   const scopeCount = inDirectory
     ? (tags?.length ?? null)
     : inTagResult
       ? (tags?.find((t) => t.tag === activeTag)?.count ?? null)
-      : curGroup
-        ? (query.status !== 'active' ? curGroup.archived : curGroup.active)
-        : query.status !== 'active'
-          ? (curInfo?.archived ?? null)
-          : query.starred
-            ? (curInfo?.starred ?? null)
-            : // 两维同时激活时，任一维的计数都不等于它们的交集——改用查询返回的 total（数字不许和列表打架）
-              query.source && query.categoryId
-              ? total
-              : query.source
-                ? (curInfo?.sources.find((c) => c.id === query.source)?.count ?? null)
-                : query.categoryId === 'uncategorized'
-                  ? (curInfo?.uncategorized ?? null)
-                  : query.categoryId
-                    ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
-                    : (curInfo?.active ?? null);
+      : query.status !== 'active'
+        ? (scopeStats?.archived ?? null)
+        : query.starred
+          ? (scopeStats?.starred ?? null)
+          : // 两维同时激活时，任一维的计数都不等于它们的交集——改用查询返回的 total（数字不许和列表打架）
+            query.source && query.categoryId
+            ? total
+            : query.source
+              ? (scopeStats?.sources.find((c) => c.id === query.source)?.count ?? null)
+              : query.categoryId === 'uncategorized'
+                ? (scopeStats?.uncategorized ?? null)
+                : query.categoryId
+                  ? (scopeStats?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
+                  : (scopeStats?.active ?? null);
 
   const bootLoading = !library && !libraryError;
   const emptyLibrary =
     (curGroup ? curGroup.total : (curInfo?.total ?? 0)) === 0 && view === 'library' && !libraryError && library !== null;
-  /** 组视图的表格表头信息：Table 需要 CollectionInfo 形状（分组的聚合体——没有分类与动态列） */
+  /** 组视图的表格表头信息：Table 需要 CollectionInfo 形状（分组的聚合体——v0.16 起带上两维聚合计数） */
   const tableInfo: CollectionInfo | null = curGroup
     ? {
         id: curGroup.id,
@@ -895,8 +894,8 @@ export default function App() {
         archived: curGroup.archived,
         uncategorized: curGroup.uncategorized,
         starred: curGroup.starred,
-        categories: [],
-        sources: [],
+        categories: curGroup.categories,
+        sources: curGroup.sources,
         extraFields: [],
       }
     : curInfo;

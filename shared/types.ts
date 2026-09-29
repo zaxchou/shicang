@@ -173,7 +173,8 @@ export interface CollectionGroupDef {
   collections: string[];
 }
 
-/** 分组的聚合信息（成员各计数之和；categories 不聚合——分类是各子库自己的概念） */
+/** 分组的聚合信息（成员各计数之和；v0.16 起分类/来源两维也聚合——三库共用类目表后
+ *  组级主题在语义上成立，v0.12 的"组视图不显示分类"决策随之撤销，用户批准） */
 export interface CollectionGroupInfo {
   id: string;
   name: string;
@@ -183,6 +184,10 @@ export interface CollectionGroupInfo {
   archived: number;
   starred: number;
   uncategorized: number;
+  /** 分类维（按 id 对成员求和；成员全为托管型时 = 全类目表含 0 计数行，与单库同口径） */
+  categories: CategoryCount[];
+  /** 来源维（按 id 对成员求和；只有 web 型成员贡献，无"无来源"行） */
+  sources: CategoryCount[];
 }
 
 /** 附加结构化字段（表格用）：价格、购买时间、器型、朝代… */

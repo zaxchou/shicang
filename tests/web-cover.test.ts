@@ -286,6 +286,7 @@ describe('HTTP：GET /api/web-cover/:id 与摘要合并', () => {
       backupDir: fx2.backupDir,
       exportDir: fx2.exportDir,
       exportAfterRefresh: false,
+      autoRefreshOnBoot: false,
       logDir: path.join(fx2.root, 'logs'),
       isProduction: false,
       version: 'test',

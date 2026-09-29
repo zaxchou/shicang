@@ -23,6 +23,7 @@ function makeCfg(fx: Fixture, collections?: AppConfig['collections']): AppConfig
     backupDir: fx.backupDir,
     exportDir: fx.exportDir,
     exportAfterRefresh: false,
+    autoRefreshOnBoot: false,
     logDir: path.join(fx.root, 'logs'),
     isProduction: false,
     version: 'test',
@@ -417,5 +418,40 @@ describe('AI 分类兜底的上限保护', () => {
     } as NodeJS.ProcessEnv);
     expect(cfg?.timeoutMs).toBe(30000);
     expect(cfg?.maxPerRefresh).toBe(40);
+  });
+});
+
+describe('启动时自动刷一次（startBootRefresh，v0.16）', () => {
+  it('开启：返回 job、单飞复用、快路径跑完 added=0；关闭：返回 null', async () => {
+    const fx = createFixture('myinfobase-scan');
+    fx.writeNote({ id: 'id-0001', title: '一' });
+    const baseCfg = makeCfg(fx);
+
+    const svc = new LibraryService({ ...baseCfg, autoRefreshOnBoot: true });
+    await svc.init();
+    const job = svc.startBootRefresh();
+    expect(job).not.toBeNull();
+    expect(job!.state).toBe('running');
+    // 单飞：running 期间再调返回同一个 job，不会并发起第二轮扫描
+    expect(svc.startBootRefresh()).toEqual(job);
+
+    let done = job!;
+    for (let i = 0; i < 200; i++) {
+      const cur = svc.getRefreshJob(job!.jobId);
+      if (cur && cur.state !== 'running') {
+        done = cur;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(done.state).toBe('completed');
+    expect(done.added).toBe(0); // 首扫已建索引 → 启动自刷是快路径，不重复导入
+    expect(svc.libraryInfo().lastScan?.finishedAt).toBeTruthy(); // 侧栏"最近刷新"有得可看
+
+    // 关闭：不建 job，直接 null
+    const svc2 = new LibraryService({ ...baseCfg, autoRefreshOnBoot: false });
+    await svc2.init();
+    expect(svc2.startBootRefresh()).toBeNull();
+    fs.rmSync(fx.root, { recursive: true, force: true });
   });
 });

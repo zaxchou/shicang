@@ -7,7 +7,7 @@ interface Props {
   notes: NoteSummary[];
   /** 当前收藏库信息（含表格字段 extraFields）；组视图传聚合体 */
   info: CollectionInfo;
-  /** 组视图：多一条"收藏库"列、没有分类列 */
+  /** 组视图：多一条"收藏库"列 + 聚合分类列（v0.16；来源列刻意不加，见 buildColumns 注释） */
   isGroupScope?: boolean;
   /** 组视图下列"收藏库"的名字映射 */
   collectionName?(id: string | null): string | null;
@@ -42,12 +42,15 @@ const EXTRA_ORDER = [
 ];
 
 function buildColumns(info: CollectionInfo, opts: { group: boolean }): Col[] {
-  // 组视图（如剪藏）：混着多个子库的笔记，列是各库的公约数 + "收藏库"列标明归属
+  // 组视图（如剪藏）：混着多个子库的笔记，列是各库的公约数 + "收藏库"列标明归属。
+  // v0.16 起加「分类」列（三库共用类目表，组级主题成立）；「来源」列刻意不加——
+  // 组里九成是小红书（无来源值），整列 97% 空白是视觉噪音；来源维仍走侧栏筛选生效
   if (opts.group) {
     return [
       { key: 'title', label: '标题', kind: 'title', minW: 320 },
       { key: 'author', label: '作者', kind: 'author', minW: 130 },
       { key: 'collection', label: '收藏库', kind: 'collection', minW: 90 },
+      { key: 'category', label: '分类', kind: 'category', minW: 110 },
       { key: 'publishedAt', label: '发布时间', kind: 'date', minW: 110 },
       { key: 'tags', label: '标签', kind: 'tags', minW: 200 },
       { key: 'remark', label: '备注', kind: 'remark', minW: 200 },

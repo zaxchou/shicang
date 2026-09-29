@@ -39,6 +39,8 @@ services:
       # environment 是白名单：EXPORT_* 不列出来的话，.env 里写了也进不了容器（深审发现）。
       EXPORT_DIR: /app/data/export
       EXPORT_AFTER_REFRESH: "${EXPORT_AFTER_REFRESH:-true}"
+      # 启动自动刷一次（默认开；列进白名单是为了能在 .env 里关掉——不列的话默认行为也生效）
+      AUTO_REFRESH_ON_BOOT: "${AUTO_REFRESH_ON_BOOT:-true}"
     volumes:
       # Obsidian vault 根（含 RedNote / 我的收藏品 / flomo）：只读挂载（NAS 本机真实路径，写在 .env）
       - ${SOURCE_ROOT}:/source:ro

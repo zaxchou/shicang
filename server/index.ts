@@ -85,6 +85,10 @@ async function main(): Promise<void> {
     .then(() => {
       ready = true;
       log.info(`索引就绪：${library.libraryInfo().total} 篇`);
+      // 启动自动刷一次（v0.16，AUTO_REFRESH_ON_BOOT 默认开）：ready 不等扫描——健康门/部署门保持快，
+      // 刷新中的呈现走既有链路（indexStatus:'scanning' → 工具栏"刷新中…"、前端轮询回 ready 自动 reload）
+      const bootJob = library.startBootRefresh();
+      if (bootJob) log.info(`启动自动刷新已触发（job ${bootJob.jobId}，单飞：已在刷新则复用）`);
     })
     .catch((e) => {
       log.error(`初始化失败: ${(e as Error).message}`);

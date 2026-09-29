@@ -1729,3 +1729,53 @@ ChatGPT 按 `review-handoff.md` 对 v0.15.1（`15746b8`）做了第二轮审查�
   改名不同步的问题在源数据侧，非本应用）。
 - 部署脚本改动未在 NAS 预演（部署即实测）：`health-wait.sh` 无 BOM、纯 LF，`nas-update.sh` 语法
   经 sh -n 校验。
+
+## 组视图聚合分类/来源 + 启动时自动刷一次（2026-09-29，v0.16.0）
+
+用户拍板："**先做 2。3 的话选择启动时自动刷一次。**"（2 = v0.15.0 留的"组视图聚合主题"扩展；
+3 = 自动同步讨论——文件监听与启动自刷二选一。）计划模式出方案、批准后实施。280 → **284 测试全绿**。
+
+### 组视图聚合（撤销 v0.12 的"组视图不显示分类/来源"）
+
+- **服务端**：`CollectionGroupInfo` 增加 `categories`/`sources`；`groupInfo()` **从成员
+  `collectionInfo` 的数组按 id 求和**——不另起逐笔记算法，保证「组数字 = 成员数字之和」
+ （同一页两套数字是深审点名过的反模式）；分类按类目表 order 排序、含 0 计数行（与单库同口径），
+  来源按 count 降序。查询侧本来就支持 `collection=组id + category + source`（按 type 逐笔记判定），
+  本期补的红测试把组合过滤钉住（此前零覆盖）。
+- **前端**：侧栏两段的门由 `curGroup === null` 改为按作用域取数（`scopeInfo = curGroup ?? cur`）；
+  `headerTitle`/`scopeCount` 的维度逻辑**组与单库合并成一条 `scopeStats` 路径**——原先组分支
+  在维度判断之前短路，组+标星时计数还会错报 active（顺带修正）；组表格新增**「分类」列**，
+  **「来源」列刻意不加**（组里 605/620 是小红书无来源值，整列 97% 空白是视觉噪音；
+  来源维仍走侧栏筛选生效）。
+- **测试（280 → 282）**：`groups[].categories/sources` 聚合 = 成员之和且含 0 计数行、来源只来自
+  web 成员；组查询 `+category` 命中、`+source` 只命中 web 成员、组合 = AND（分类对不上归零）。
+- **本地浏览器实测**：剪藏作用域侧栏两段出现——分类 书画 271 / 数码硬件 43 / 学习语言 51 /
+  设计与创作 70 / AI 工具 113 / 生活 72，**合计 620 = 组总数**，未分类 0 不显示行；
+  来源 哔哩哔哩 7 / 微信公众号 6（网页 2 + 微信 4）/ 新浪博客 1。点「AI 工具」→ 标题
+  「AI 工具 113 篇」、当前结果 113、侧栏 113 三处一致；再叠来源 → 标题「**哔哩哔哩 · AI 工具
+  5 篇**」、计数与列表同为 5；切回网页单库，标题与两段计数照旧（作用域切换清筛选）；
+  组表格列头 标题/作者/收藏库/**分类**/发布时间/标签/备注；console 0 错误。
+
+### 启动时自动刷一次（`AUTO_REFRESH_ON_BOOT`，默认开）
+
+- **接线位置**：`server/index.ts` 的 `init().then()`——`ready = true` **之后**调
+  `library.startBootRefresh()`。ready 不等扫描（健康门/部署门保持快）；刷新中走既有链路呈现
+ （`indexStatus:'scanning'` → 工具栏「刷新中…」、前端 2s 轮询回 ready 自动 reload、侧栏
+  「最近刷新」随 libraryInfo 更新）。放 index.ts 而不是 `init()` 内部：约 10 个测试文件直接构造
+  `LibraryService`，零扰动。`startBootRefresh` 与手动刷新共用同一条单飞/任务/落盘链路
+ （开关关 → 返回 null 不建 job；running 中再调返回同一 job）。
+- **开关**：`AUTO_REFRESH_ON_BOOT` 认 false/0/no/off、默认 true（NAS 不改配置即生效）；
+  compose 白名单两份（`deploy/compose.yaml` + `deploy/production/compose.yaml`）都补了该变量——
+  不加默认行为也生效，加它只为能在 `.env` 里关掉。
+- **测试（282 → 284）**：config-guards（默认开、五种关闭字面量、true 显式开）；
+  `startBootRefresh`（开 → job running、单飞复用同一 job、跑完 completed 且 **added=0** 快路径、
+  `lastScan.finishedAt` 落上时间；关 → null）。
+- **本地实测（重启 4399 实例，全程不点刷新按钮）**：日志
+  「索引就绪：1221 篇」→「**启动自动刷新已触发**（job …）」→「刷新开始」→ 4 秒后
+  「扫描完成: scanned=1 added=0 updated=1 errors=0」+ 语料导出；health `indexRevision 2 → 3`、
+  `lastScan.finishedAt` 更新为重启时刻、`indexStatus` 回 `ready`——侧栏「最近刷新」无需手动操作即自我更新。
+
+### 明确不做（本期）
+
+文件监听/实时同步（用户选定启动自刷）；组表格「来源」列（验收时可否决）；
+宝贝/日记不参与组聚合（它们不在任何组里，代码天然兼容）。

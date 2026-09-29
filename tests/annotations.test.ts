@@ -204,6 +204,7 @@ function makeCfg(fx: Fixture, collections: AppConfig['collections'] = [{ id: 're
     backupDir: fx.backupDir,
     exportDir: fx.exportDir,
     exportAfterRefresh: false,
+    autoRefreshOnBoot: false,
     logDir: path.join(fx.root, 'logs'),
     isProduction: false,
     version: 'test',

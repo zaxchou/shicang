@@ -67,11 +67,15 @@ export function Sidebar({
   // 标星/归档的计数口径 = 当前作用域（组 = 成员聚合，点进去看到的条数必须和这里一致）
   const scopeStarred = curGroup ? curGroup.starred : (cur?.starred ?? 0);
   const scopeArchived = curGroup ? curGroup.archived : (cur?.archived ?? 0);
-  // 分类区与来源区都只对"单个库"显示：分类/来源是各子库自己的概念，组视图下混着展示只会困惑
-  // （v0.12 的既有决策：组 = 全部笔记，子分类靠点子库进去看）
-  const showCategories = curGroup === null && (cur?.categories.length ?? 0) > 0;
+  // 分类/来源两段按作用域取数：单库取 collectionInfo，组取 v0.16 起聚合的 groupInfo
+  //（v0.12 的"组视图不显示分类/来源"决策已撤销——三个成员库共用类目表后组级主题成立，用户批准）
+  const scopeInfo = curGroup ?? cur;
+  const cats = scopeInfo?.categories ?? [];
+  const srcs = scopeInfo?.sources ?? [];
+  const uncat = scopeInfo?.uncategorized ?? 0;
+  const showCategories = cats.length > 0;
   /** 来源段只有 web 型（网页/微信公众号）有值，且没有"无来源"行——手写笔记本来就没有来源 */
-  const showSources = curGroup === null && (cur?.sources.length ?? 0) > 0;
+  const showSources = srcs.length > 0;
 
   // 分组的展开/收起：默认全展开（子库要一眼能看见）；收起状态记到 localStorage
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -163,9 +167,11 @@ export function Sidebar({
         {showCategories && (
           <>
             <div className="nav-section">分类</div>
-            {cur!.categories.map((c) => {
-              // 类目图标按 id 映射（rednote/web 共用同一份类目表）；映射不到的库回落标签图标
-              const Icon = managedCategoryTypes.has(cur!.type ?? '') ? categoryIcon(c.id) : IconTag;
+            {cats.map((c) => {
+              // 类目图标按 id 映射（rednote/web 共用同一份类目表）；组作用域没有单一 type，
+              // 但组的成员全是托管型（否则聚合口径早就混了）→ 直接走类目图标；其余回落标签图标
+              const managed = curGroup !== null || managedCategoryTypes.has(cur?.type ?? '');
+              const Icon = managed ? categoryIcon(c.id) : IconTag;
               const active = !tagsView && activeCategoryId === c.id;
               return (
                 <button
@@ -182,7 +188,7 @@ export function Sidebar({
             })}
             {/* 未分类固定排在分类列表末尾，不参与上面的类目排序；
                 计数为 0 时整条隐藏（用户要求：没有未分类就别显示这一项） */}
-            {cur!.uncategorized > 0 && (
+            {uncat > 0 && (
               <button
                 className={`nav-item nav-item-last${!tagsView && activeCategoryId === 'uncategorized' ? ' active' : ''}`}
                 onClick={() => onSelectCategory('uncategorized')}
@@ -190,7 +196,7 @@ export function Sidebar({
               >
                 <IconInbox size={15} />
                 <span className="nav-label">未分类</span>
-                <span className="nav-count">{cur!.uncategorized}</span>
+                <span className="nav-count">{uncat}</span>
               </button>
             )}
 
@@ -198,7 +204,7 @@ export function Sidebar({
             {showSources && (
               <>
                 <div className="nav-section">来源</div>
-                {cur!.sources.map((c) => {
+                {srcs.map((c) => {
                   const active = !tagsView && activeSource === c.id;
                   return (
                     <button

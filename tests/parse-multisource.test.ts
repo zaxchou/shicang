@@ -259,6 +259,7 @@ describe('多库集成（LibraryService）', () => {
       backupDir: path.join(root, 'backups'),
       exportDir: path.join(root, '..', path.basename(root) + '-export'),
       exportAfterRefresh: false,
+      autoRefreshOnBoot: false,
       logDir: path.join(root, 'logs'),
       isProduction: false,
       version: 'test',
@@ -418,6 +419,59 @@ describe('剪藏分组（CollectionGroup）', () => {
     // 只有 rednote/web 能改：同一次会话里换宝贝仍旧被拒（它们的分类以 Obsidian 笔记为准）
     const tr = svc.query({ ...base, collection: 'treasures' } as never);
     await expect(svc.setCategory(tr.items[0]!.id, 'life', 0)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  // v0.16：三库共用类目表后，v0.12 的"组不聚合分类/来源"决策撤销——组级聚合计数必须与成员之和逐项相等
+  it('组 categories/sources 聚合 = 成员之和（含 0 计数行；来源只来自 web 成员）', async () => {
+    const svc = await boot();
+    const info = svc.libraryInfo();
+    const g = info.groups.find((x) => x.id === 'clippings')!;
+    const rn = info.collections.find((c) => c.id === 'rednote')!;
+    const web = info.collections.find((c) => c.id === 'web')!;
+
+    // 分类：按 id 求和；成员都是托管型 → 组也是 curated 全表（0 计数行保留）
+    const sum = new Map<string, number>();
+    for (const c of [...rn.categories, ...web.categories]) sum.set(c.id, (sum.get(c.id) ?? 0) + c.count);
+    expect(new Map(g.categories.map((c) => [c.id, c.count]))).toEqual(sum);
+    expect(g.categories.length).toBe(rn.categories.length);
+    expect(g.categories.some((c) => c.count === 0)).toBe(true);
+
+    // 来源：只来自 web 成员（小红书没有来源维，不贡献"无来源"行）
+    expect(rn.sources).toEqual([]);
+    expect(new Map(g.sources.map((s) => [s.id, s.count]))).toEqual(
+      new Map(web.sources.map((s) => [s.id, s.count]))
+    );
+
+    // 既有标量口径不回归
+    expect(g.uncategorized).toBe(rn.uncategorized + web.uncategorized);
+    expect(g.total).toBe(rn.total + web.total);
+  });
+
+  it('组查询 + 两维过滤：category/source 正交 AND，来源只命中 web 成员', async () => {
+    const svc = await boot();
+    const group = svc.query({ ...base, collection: 'clippings' } as never);
+    const rnNote = group.items.find((i) => i.collection === 'rednote')!;
+    const webNote = group.items.find((i) => i.collection === 'web' && i.sourceCategory)!;
+    const r1 = await svc.setCategory(rnNote.id, 'life', 0);
+    await svc.setCategory(webNote.id, 'shuhua', r1.revision);
+
+    // 分类维在组作用域生效
+    const byCat = svc.query({ ...base, collection: 'clippings', categoryId: 'life' } as never);
+    expect(byCat.items.map((i) => i.id)).toEqual([rnNote.id]);
+
+    // 来源维：小红书 sourceCategory 恒 null，天然不中；命中的必须全是 web 成员
+    const src = webNote.sourceCategory!;
+    expect(src).toBeTruthy();
+    const bySrc = svc.query({ ...base, collection: 'clippings', source: src } as never);
+    expect(bySrc.total).toBeGreaterThan(0);
+    expect(bySrc.items.every((i) => i.collection === 'web')).toBe(true);
+    expect(bySrc.items.every((i) => i.sourceCategory === src)).toBe(true);
+
+    // 两维同时给 = AND；分类对不上时归零
+    const both = svc.query({ ...base, collection: 'clippings', source: src, categoryId: 'shuhua' } as never);
+    expect(both.items.map((i) => i.id)).toEqual([webNote.id]);
+    const cross = svc.query({ ...base, collection: 'clippings', source: src, categoryId: 'life' } as never);
+    expect(cross.total).toBe(0);
   });
 });
 });

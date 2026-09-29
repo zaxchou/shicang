@@ -495,6 +495,9 @@ export class LibraryService {
     return {
       id: def.id,
       name: def.name,
+      // 前端按 type 而不是 id 决定解析相关的展示（网页列 / 卡片底片与封面探测）——
+      // 微信公众号库与网页库同为 web 类型，硬编码 id 会让它整块失效
+      type: def.type,
       total: recs.length,
       active: work.length,
       archived,

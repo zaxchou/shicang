@@ -200,6 +200,8 @@ export interface ExtraFieldInfo {
 export interface CollectionInfo {
   id: string;
   name: string;
+  /** 库类型（决定解析与表格列）；组视图的聚合体没有单一类型，故可选 */
+  type?: CollectionDef['type'];
   /** 源文件可用的全部篇数（含归档） */
   total: number;
   /** 工作集：源文件可用且状态为"在用"——侧栏计数与默认列表都用这个口径 */

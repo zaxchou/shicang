@@ -1559,3 +1559,59 @@ HTTP 路由（200 图片 / 304 / `?meta=1` JSON / 未知笔记 404）+ 摘要三
 `docs/deploy-handoff.md`：把这套方法抽成可移植文档（给同样部署到 NAS 的隔壁项目）——
 四条杠杆（别在目标机编译 / 让首个 COPY 层逐字节恒定 / 版本挪进 VERSION / 健康门带版本断言）+
 诊断清单 + 踩坑表（BOM、lockfile 里每个依赖都有 version、COPY 顺序）。
+
+## 微信公众号接入（2026-09-29，v0.14.0）
+
+用户给了目录：`笔记同步助手`（"新加的微信公众号的分类、小红书收藏，还有网页，这些是在同一级的…
+今天刚测试下来挺好用的，你这边现在就一篇文章，也把这个做进去吧"——实际目录里进了 4 篇，放在日期子目录 `2026-09-29/` 下）。
+v0.12 的预案是"同格式零新代码、格式不同再单独加解析分支"——**实测是第二种方言**，于是加了分支。
+
+### 格式查实（与 Obsidian Web Clipper 逐项对比）
+
+| | 网页库（Web Clipper） | 微信公众号（笔记同步助手） |
+|---|---|---|
+| frontmatter | `title/source/author/published/created/description/tags` | `author/source/url/saved/tags/id` |
+| 原文链接 | 在 `source`（本身是 URL） | **在 `url`**；`source` 只是展示名「微信公众号」 |
+| 剪藏时间 | `created` | `saved` |
+| 发布时间 | `published` | frontmatter 里没有，**只在正文**「发布时间：2026-09-14 19:18」 |
+| 图片 | 远程图原样放行 | **vault 绝对路径嵌入** `![[笔记同步助手/images/xxx.png]]` |
+| 位置 | `Clippings/*.md` | `笔记同步助手/<日期>/*.md`（扫描本来就递归，天然支持） |
+| 样板标签 | `clippings` | `笔记同步助手` |
+
+### 改动
+
+- **解析**：`parseWeb` 顶部按 **frontmatter 形状**派发（`fm.url` 是 http 链接 → `parseSyncClip`），
+  不看目录/收藏库——将来别的目录导出同款格式也能解析。`parseSyncClip`：`url`→originalUrl、
+  `saved`→syncedAt、发布时间从正文正则取、作者同款剥 `[[ ]]`、样板标签滤掉、
+  派生分类按 **url 域名**（mp.weixin.qq.com→微信公众号）；正文的 `![[…]]` 走小红书同款 `resolveEmbed`；
+  摘要从正文开头那四行元信息（公众号名称/作者名称/发布时间/原文链接）**之后**开始，否则摘录只剩一条长链接；
+  **全文进搜索索引**（单篇 6~10KB，截断会让文章后半段搜不到；Web Clipper 那边保持 2000 字不动）。
+- **踩坑（浏览器详情页发现的真缺陷）**：`saved: 2026-09-29 11:26:17` 被 **js-yaml 当 UTC** 解析
+ （YAML 时间戳规则：不带时区 = UTC），而全站时间展示按上海固定 +8 → 详情里剪藏时间显示成 **19:26**，
+  比文件里晚 8 小时。修法：时间字段取 frontmatter **原文行**再解析（`rawFmValue`），不走 yaml 的类型推断。
+  **回归钉子**：测试用 `formatShanghai` 断言钟点（`2026-09-29 11:23`），旧代码上是红的（19:23）。
+  只有这一处踩到：diary 的 `created_at` 带引号（是字符串，安全）、Web Clipper 只有日期（+8 还是同一天）。
+- **前端按 type 而不是 id 判定**：`CollectionInfo` 新增 `type`；表格 `info.id === 'web'` → `info.type === 'web'`
+ （微信公众号库才会拿到 来源/发布时间/剪藏时间 三列）；卡片底片与封面探测改由
+ `collectionType(note.collection)`（App → Masonry → NoteCard）驱动——同类型可以有多个库，按 id 硬编码会让新库整块失效。
+ 侧栏图标 `wechat: IconBook`（`IconInbox` 已被"未分类"占用，不复用）。
+- **配置**：`config/app.json` 与 `DEFAULT_COLLECTIONS` 加 `{ id: 'wechat', name: '微信公众号', root: '笔记同步助手', type: 'web' }`，
+  剪藏组成员 `['rednote','web','wechat']`（两处同步，config-guards 有断言）；**PARSE_VERSION 6→7**。
+
+### 测试（264 → 266）
+
+`parse-multisource` 新增方言 2 条（字段映射 + 时间钟点/图片嵌入/摘要与搜索）；
+`config-guards` 加 wechat 断言、组成员改三库，并把"成员写错"用例的假 id 换成 `not-a-collection`
+（**原来用 `wechat` 当"不存在的 id"，新库进来后这条断言就失效了**）。
+
+### 实测（本地 4399，真实数据）
+
+- 全量重建（PARSE_VERSION 7）**1221 篇 added=1221 errors=0**；`wechat:4`、组「剪藏」620 = 小红书605 + 网页11 + 微信公众号4。
+- 卡片：4 篇**全部有本地封面**（文章首图，`naturalWidth` 1080/1079/1024，opacity 1），不出网；
+  网页库 11 张底片仍全为 248×186、10 封面 + 1 占位（type 改判后 v0.13.1 的占位没被破坏）。
+- 表格：单库列 = 标题/作者/**来源/发布时间/剪藏时间**/标签/备注（type 分支）；组视图「收藏库」列 605/11/4 分布正确。
+- 详情：17 张正文图按 `/api/media/…` 加载、**查看原文**直达 `mp.weixin.qq.com`、发布时间与剪藏时间和文件里一致
+ （修掉 +8 前分别是 08:18 与 **19:26**，现在 08:18 与 11:26）。
+- 搜索：组内跨库命中（`AIHOT` → 微信公众号 1 条）；**深正文命中**（文章 2400 字处的「解耦的功能文档」）证明全文入索引。
+- console 0 错误；vault 只读核验：4323 个文件、added 102 = 用户既有新增 14 + **笔记同步助手 88 个文件**（4 篇 + 84 张图）、
+ changed 4 = Obsidian 自己的索引文件——应用侧零写入。

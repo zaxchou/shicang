@@ -7,6 +7,8 @@ import { IconGlobe, IconLayers, IconPlay, IconStar } from './Icons';
 interface Props {
   note: NoteSummary;
   categoryName: string | null;
+  /** 笔记所属收藏库的类型；'web' = 网页/微信公众号剪藏（按类型判定，不认 id——同类型可以有多个库） */
+  collectionType: string | null;
   /** 入场动画延迟（毫秒），0 表示不播放入场动画 */
   enterDelay?: number;
   onOpen(note: NoteSummary, el: HTMLElement): void;
@@ -46,14 +48,15 @@ function coverStyle(note: NoteSummary): React.CSSProperties {
   return { aspectRatio: '4 / 3' };
 }
 
-export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleStar, registerEl }: Props) {
+export function NoteCard({ note, categoryName, collectionType, enterDelay = 0, onOpen, onToggleStar, registerEl }: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
   // 网页剪藏封面三态（与 summary.webCover 的语义对应）：
   //   对象 = 服务端已有封面；null = 试过没有；undefined = 还没试过 → 这里按需探测一次
   const [webCoverFailed, setWebCoverFailed] = useState(false);
   const [probedReady, setProbedReady] = useState(false);
   const [probedDuration, setProbedDuration] = useState<number | null>(null);
-  const needProbe = !note.cover && note.collection === 'web' && note.webCover === undefined;
+  const isWebLike = collectionType === 'web';
+  const needProbe = !note.cover && isWebLike && note.webCover === undefined;
   useEffect(() => {
     if (!needProbe) return;
     let alive = true;
@@ -74,7 +77,7 @@ export function NoteCard({ note, categoryName, enterDelay = 0, onOpen, onToggleS
   }, [needProbe, note.id]);
   // 网页剪藏一律给一块固定 4:3 的"底片"：抓到封面就换成图，抓不到就用站点瓷片占位。
   // 不留空位是刻意的——网页库里大半剪藏没有首图，缺图的卡片混在封面卡片中间会让整列看着塌一块。
-  const isWebMedia = !note.cover && note.collection === 'web';
+  const isWebMedia = !note.cover && isWebLike;
   const showWebCover = isWebMedia && !webCoverFailed && (note.webCover ? true : probedReady);
   const webCoverUrl = note.webCover?.url ?? `/api/web-cover/${encodeURIComponent(note.id)}`;
   const webDuration = formatDurationSec(note.webCover?.durationSec ?? probedDuration);

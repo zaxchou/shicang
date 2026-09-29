@@ -35,13 +35,19 @@
       "name": "网页",
       "root": "Clippings",
       "type": "web"
+    },
+    {
+      "id": "wechat",
+      "name": "微信公众号",
+      "root": "笔记同步助手",
+      "type": "web"
     }
   ],
   "groups": [
     {
       "id": "clippings",
       "name": "剪藏",
-      "collections": ["rednote", "web"]
+      "collections": ["rednote", "web", "wechat"]
     }
   ],
   "host": "127.0.0.1",

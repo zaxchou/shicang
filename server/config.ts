@@ -62,10 +62,14 @@ export const DEFAULT_COLLECTIONS: CollectionDef[] = [
     exclude: ['^闪念笔记概览\\.md$', '^flomo-首页\\.md$', '^flomo-.+-首页\\.md$'],
   },
   { id: 'web', name: '网页', root: 'Clippings', type: 'web' },
+  // 微信公众号：笔记同步助手导出（同 type web，解析按 frontmatter 形状识别为第二方言）
+  { id: 'wechat', name: '微信公众号', root: '笔记同步助手', type: 'web' },
 ];
 
-/** 内置默认分组：剪藏 = 小红书 + 网页（微信公众号的目录定了以后加进成员即可） */
-export const DEFAULT_GROUPS: CollectionGroupDef[] = [{ id: 'clippings', name: '剪藏', collections: ['rednote', 'web'] }];
+/** 内置默认分组：剪藏 = 小红书 + 网页 + 微信公众号（新库到位后加进成员即可） */
+export const DEFAULT_GROUPS: CollectionGroupDef[] = [
+  { id: 'clippings', name: '剪藏', collections: ['rednote', 'web', 'wechat'] },
+];
 
 function readConfigFile(): Record<string, unknown> {
   const p = path.join(projectRoot(), 'config', 'app.json');

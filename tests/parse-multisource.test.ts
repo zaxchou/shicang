@@ -6,6 +6,7 @@ import { parseNote } from '../server/reader/parse';
 import { LibraryService, ValidationError } from '../server/services/library';
 import type { AppConfig } from '../server/config';
 import type { CollectionDef } from '../shared/types';
+import { formatShanghai } from '../shared/time';
 import { tinyWebp } from './helpers/fixture';
 
 const COLLECTIONS: CollectionDef[] = [
@@ -25,6 +26,7 @@ const COLLECTIONS: CollectionDef[] = [
     exclude: ['^闪念笔记概览\\.md$', '^flomo-首页\\.md$', '^flomo-.+-首页\\.md$'],
   },
   { id: 'web', name: '网页', root: 'Clippings', type: 'web' },
+  { id: 'wechat', name: '微信公众号', root: '笔记同步助手', type: 'web' },
 ];
 
 /** 构造迷你 vault：三个 collection 的真实布局（含图片与附件） */
@@ -111,6 +113,19 @@ function makeVault() {
     '手写总结正文，含独有词"西西弗斯"。没有 frontmatter。\n',
     'utf8'
   );
+  // wechat：笔记同步助手导出（微信公众号）——另一套 frontmatter（url/saved）、
+  // 文章在日期子目录里、图片是 vault 绝对路径的 wiki 嵌入
+  fs.mkdirSync(path.join(root, '笔记同步助手', 'images'), { recursive: true });
+  fs.writeFileSync(path.join(root, '笔记同步助手', 'images', 'cover1.png'), tinyWebp(8, 6));
+  fs.mkdirSync(path.join(root, '笔记同步助手', '2026-09-29'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '笔记同步助手', '2026-09-29', '测试公众号文章.md'),
+    '---\nauthor: 缩小信息差的\nsource: 微信公众号\nurl: https://mp.weixin.qq.com/s?__biz=MjM5&s=abc\nsaved: 2026-09-29 11:23:46\ntags:\n  - 笔记同步助手\nid: 757a3e2c-7c72-45cc-8c9f-07364dff0ebe\n---\n\n' +
+      '公众号名称：一只梨\n\n作者名称：缩小信息差的\n\n发布时间：2026-09-14 19:18\n\n' +
+      '原文链接：[https://mp.weixin.qq.com/s/xxx#rd](https://mp.weixin.qq.com/s/xxx#rd)\n\n' +
+      '![[笔记同步助手/images/cover1.png]]\n\n正文第一段，含独有词"量子纠缠的茶壶"。\n\n第二段正文。\n',
+    'utf8'
+  );
   return root;
 }
 
@@ -127,7 +142,7 @@ function parseAt(vaultRoot: string, col: CollectionDef, relInCollection: string)
   });
 }
 
-const [RN, TR, DIA, WEB] = COLLECTIONS;
+const [RN, TR, DIA, WEB, WECHAT] = COLLECTIONS;
 
 describe('多源解析', () => {
   it('treasures：派生分类、表格字段、封面与本地/远程图片', () => {
@@ -255,7 +270,7 @@ describe('多库集成（LibraryService）', () => {
 
   const base = { q: '', timeField: 'published', range: 'all', order: 'desc', offset: 0, limit: 100 };
 
-  it('四库分别入库；exclude 规则排除索引/MOC/概览', async () => {
+  it('五库分别入库；exclude 规则排除索引/MOC/概览', async () => {
     const svc = await boot();
     const info = svc.libraryInfo();
     const byId = Object.fromEntries(info.collections.map((c) => [c.id, c]));
@@ -263,7 +278,9 @@ describe('多库集成（LibraryService）', () => {
     expect(byId['treasures'].total).toBe(3); // 茶器1 + 书法2（无辨色/豪翰斋MOC）；索引页与空笔记被跳过
     expect(byId['diary'].total).toBe(1); // 概览被排除
     expect(byId['web'].total).toBe(3); // 两篇剪藏 + 一篇无 frontmatter 的手写（用户要求也收）
-    expect(info.total).toBe(8);
+    expect(byId['wechat'].total).toBe(1); // 笔记同步助手：日期子目录里的一篇
+    expect(info.total).toBe(9);
+    expect(byId['wechat'].type).toBe('web'); // 前端按 type 走网页列与卡片底片
   });
 
   it('按库查询：分类过滤用派生值；treasures 表格字段有计数', async () => {
@@ -381,5 +398,41 @@ describe('web：网页剪藏解析', () => {
     expect(r.originalUrl).toBe('');
     expect(r.derivedCategory).toBeNull(); // 无来源 → 未分类
     expect(r.searchText).toContain('西西弗斯');
+  });
+});
+
+describe('wechat：笔记同步助手方言（微信公众号剪藏）', () => {
+  it('frontmatter 映射：url 当原文链接、saved 当剪藏时间、发布时间从正文取、样板标签滤掉', () => {
+    const root = makeVault();
+    const out = parseAt(root, WECHAT, '2026-09-29/测试公众号文章.md');
+    expect(out.error).toBeNull();
+    const r = out.record!;
+    expect(r.collection).toBe('wechat');
+    expect(r.title).toBe('测试公众号文章'); // 没有 fm.title → 文件名（文章在日期子目录里）
+    expect(r.author).toBe('缩小信息差的');
+    expect(r.originalUrl).toContain('mp.weixin.qq.com/s?'); // url 才是链接；source 是展示名
+    expect(r.publishedAt).toMatch(/^2026-09-14T/); // 工具不写 published → 正文「发布时间：」
+    expect(r.syncedAt).toMatch(/^2026-09-29T/); // saved = 剪藏时间
+    // 展示口径（用户看到的）：文件里写 11:26/19:18，显示就必须是这两个钟点。
+    // js-yaml 会把 `2026-09-29 11:26:17` 当 UTC 解析，直接用 fm 值会晚 8 小时——这条断言在旧代码上是红的
+    expect(formatShanghai(r.publishedAt)).toBe('2026-09-14 19:18');
+    expect(formatShanghai(r.syncedAt)).toBe('2026-09-29 11:23');
+    expect(r.tags).toEqual([]); // 样板标签「笔记同步助手」被滤掉（同 clippings）
+    expect(r.derivedCategory).toBe('微信公众号'); // 按 url 域名派生，不能拿 source 当链接解析
+  });
+
+  it('图片嵌入与摘录：vault 绝对路径嵌入登记成媒体并当封面；摘录跳过开头元信息块', () => {
+    const root = makeVault();
+    const out = parseAt(root, WECHAT, '2026-09-29/测试公众号文章.md');
+    const r = out.record!;
+    expect(r.media).toHaveLength(1);
+    expect(r.media[0]?.available).not.toBe(false);
+    expect(r.coverMediaId).not.toBeNull(); // 首图就是封面——本地图，不需要出网抓封面
+    expect(r.bodyHtml).toContain('/api/media/'); // ![[…]] 改写成媒体路由
+    expect(r.bodyHtml).not.toContain('[[');
+    expect(r.excerpt.startsWith('公众号名称')).toBe(false); // 开头元信息块不进摘录
+    expect(r.excerpt).toContain('量子纠缠的茶壶'); // 摘录从正文开始
+    expect(r.searchText).toContain('一只梨'); // 公众号名称只在正文里，但仍可搜到
+    expect(out.warnings).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { CollectionInfo, LibraryInfo } from '../../shared/types';
 import {
   IconArchive,
+  IconBook,
   IconChevronDown,
   IconGlobe,
   IconInbox,
@@ -35,6 +36,7 @@ const COLLECTION_ICONS: Record<string, typeof IconLibrary> = {
   treasures: IconGem,
   diary: IconPen,
   web: IconGlobe,
+  wechat: IconBook,
 };
 const GROUP_ICON = IconLayers;
 

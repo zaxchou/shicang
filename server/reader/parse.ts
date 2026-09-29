@@ -62,7 +62,7 @@ export interface ParseOutcome {
  * 索引里记录该值，不一致就整体重建——否则解析已修好、用户看到的却还是旧索引，
  * 因为扫描按 mtime/size 跳过未变更的源文件（v0.5.1 修「正文图片不显示」时踩到）。
  */
-export const PARSE_VERSION = 6;
+export const PARSE_VERSION = 7;
 
 const IMAGE_EXTS = new Set(['.webp', '.png', '.jpg', '.jpeg', '.gif', '.avif', '.svg']);
 const VIDEO_EXTS = new Set(['.mp4', '.webm', '.mov', '.m4v']);
@@ -676,6 +676,12 @@ function parseDiary(
  */
 function parseWeb(base: ParseBase, fm: Record<string, unknown>, input: ParseInput, warnings: string[]): ParseOutcome {
   void input;
+  // 第二种剪藏方言：笔记同步助手（微信公众号）。它是 frontmatter 里直接给 url 而不是 Web Clipper 的
+  // source（source 在它这儿是展示名「微信公众号」），另有 saved 表示剪藏时间——按 frontmatter 形状派发，
+  // 不看所属收藏库：将来别的目录导出同款格式也走这里。
+  if (typeof fm.url === 'string' && /^https?:\/\//i.test(fm.url.trim())) {
+    return parseSyncClip(base, fm, input, warnings);
+  }
   const fileName = path.basename(base.sourceRelativePath, '.md');
   const content = matterContent(base.raw);
   const hasFrontmatter = Object.keys(fm).length > 0;
@@ -747,6 +753,111 @@ function parseWeb(base: ParseBase, fm: Record<string, unknown>, input: ParseInpu
       publishedAt,
       syncedAt,
       originalUrl: source,
+      bodyHtml,
+      media,
+      coverMediaId: cover ? cover.id : null,
+      sourceStatus: 'available',
+      warnings,
+      derivedCategory,
+    },
+    warnings,
+    error: null,
+  };
+}
+
+// ======================================================================
+// 剪藏方言 2：笔记同步助手（微信公众号）——fm.url 是真链接、fm.saved 是剪藏时间
+// ======================================================================
+/** 工具写在正文开头的一段元信息（公众号名称/作者名称/发布时间/原文链接）。
+ *  详情页头部已展示作者、发布时间与原文链接，摘录再抄一遍就只剩一条长链接了——
+ *  摘录从这段之后开始；正文本身不删（公众号名称只有在这里有，且要能被搜到）。 */
+function stripSyncMetaBlock(text: string): string {
+  const lines = text.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length) {
+    const line = (lines[i] ?? '').trim();
+    if (line && !/^(公众号名称|作者名称|发布时间|原文链接)\s*[:：]/.test(line)) break;
+    i++;
+  }
+  return lines.slice(i).join('\n');
+}
+
+/** 从 frontmatter **原文**里取某个键的值（不走 js-yaml 的类型推断）。
+ *  时间字段必须这么做：js-yaml 会把 `2026-09-29 11:26:17` 这种不带时区的值当 UTC 解析，
+ *  而全站时间展示按上海固定 +8 —— 直接用 fm 值，剪藏时间会比文件里晚 8 小时（实测 11:26 显示成 19:26）。 */
+function rawFmValue(raw: string, key: string): string | null {
+  const m = new RegExp(`^${key}:\\s*(.+)$`, 'm').exec(raw);
+  if (!m) return null;
+  const v = (m[1] ?? '').trim().replace(/^["']|["']$/g, '');
+  return v || null;
+}
+
+function parseSyncClip(
+  base: ParseBase,
+  fm: Record<string, unknown>,
+  input: ParseInput,
+  warnings: string[]
+): ParseOutcome {
+  void input;
+  const fileName = path.basename(base.sourceRelativePath, '.md');
+  const content = matterContent(base.raw);
+
+  const fmTitle = str(fm.title);
+  const h1 = /^#\s+(.+?)\s*$/m.exec(content)?.[1]?.trim() ?? '';
+  const title = (fmTitle || h1 || fileName).slice(0, 160);
+
+  const rawAuthor = fm.author;
+  const authorNames = (Array.isArray(rawAuthor) ? rawAuthor : typeof rawAuthor === 'string' ? [rawAuthor] : [])
+    .map((a) => String(a).trim().replace(/^\[\[/, '').replace(/\]\]$/, '').trim())
+    .filter(Boolean);
+  const author = authorNames.length > 0 ? [...new Set(authorNames)].slice(0, 5).join('、') : '佚名';
+
+  const originalUrl = str(fm.url);
+  const source = str(fm.source); // 工具写的是展示名（微信公众号），不是链接
+  // 工具不写 published：发布时间只在正文「发布时间：2026-09-14 19:18」那一行里。
+  // 两处时间都优先取 frontmatter 原文（见 rawFmValue 的说明），再退到 yaml 值与正文行
+  const publishedAt =
+    normalizeDate(rawFmValue(base.raw, 'published')) ??
+    normalizeDate(fm.published) ??
+    normalizeDate(
+      /发布时间\s*[:：]\s*([0-9]{4}-[0-9]{2}-[0-9]{2}(?:[ T][0-9]{2}:[0-9]{2}(?::[0-9]{2})?)?)/.exec(content)?.[1]
+    );
+  const syncedAt = normalizeDate(rawFmValue(base.raw, 'saved')) ?? normalizeDate(fm.saved) ?? normalizeDate(fm.created);
+  if (fm.saved !== undefined && syncedAt === null) warnings.push('saved 无法解析为日期');
+  // 样板标签（同 Web Clipper 的 clippings）：每篇都有，留着标签目录就全是它
+  const tags = normalizeTags(fm.tags).filter((t) => t.trim() !== '笔记同步助手');
+  const derivedCategory = categoryFromSource(originalUrl) ?? categoryFromSource(source) ?? (source || null);
+
+  const media: MediaItem[] = [];
+  const mediaIds = new Set<string>();
+  // 正文图片是 vault 绝对路径的 wiki 嵌入（![[笔记同步助手/images/xxx.png]]），与小红书同款解析
+  const body = content.replace(/!\[\[([^\]\n]+)\]\]/g, (_full, targetRaw: string) => {
+    const item = resolveEmbed(base.vaultRoot, String(targetRaw).trim(), base.sourceRelativePath, media, mediaIds, warnings);
+    if (!item) return '';
+    return `![图](media://${mediaToken(item.id)})`;
+  });
+
+  const bodyHtml = renderBody(body, base.sourceRelativePath, media, mediaIds, warnings);
+  const cover = media.find(coverCandidate);
+  const excerpt = buildExcerpt(stripSyncMetaBlock(content));
+
+  return {
+    record: {
+      id: base.sourceRelativePath,
+      collection: base.collection,
+      sourceRelativePath: base.sourceRelativePath,
+      sourceMtimeMs: base.mtimeMs,
+      sourceSize: base.size,
+      sourceHash: null,
+      title,
+      author,
+      tags,
+      excerpt,
+      // 长文（单篇 6~10KB）：截断会让文章后半段搜不到，整篇进搜索索引
+      searchText: buildSearch([title, author, derivedCategory ?? '', tags.join(' '), excerpt, content]),
+      publishedAt,
+      syncedAt,
+      originalUrl,
       bodyHtml,
       media,
       coverMediaId: cover ? cover.id : null,

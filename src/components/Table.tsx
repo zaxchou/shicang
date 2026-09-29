@@ -64,8 +64,8 @@ function buildColumns(info: CollectionInfo, opts: { group: boolean }): Col[] {
       { key: 'remark', label: '备注', kind: 'remark', minW: 200 },
     ];
   }
-  if (info.id === 'web') {
-    // 网页剪藏：来源分类 + 原文发布时间 + 剪藏时间
+  if (info.type === 'web') {
+    // 网页/微信公众号剪藏：来源分类 + 原文发布时间 + 剪藏时间（按类型判定，不认 id）
     return [
       { key: 'title', label: '标题', kind: 'title', minW: 320 },
       { key: 'author', label: '作者', kind: 'author', minW: 130 },

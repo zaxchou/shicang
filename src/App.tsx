@@ -808,6 +808,10 @@ export default function App() {
     [infos]
   );
 
+  /** 笔记所属库的**类型**（web=网页/微信公众号剪藏）：卡片按类型决定底片与封面探测，
+   *  按 id 硬编码会让新加入的同类型库整块失效（微信公众号 v0.14 就踩在这条线上） */
+  const collectionType = useCallback((id: string) => infos.find((c) => c.id === id)?.type ?? null, [infos]);
+
   // ---- 标题与视图状态 ----
   const inTagResult = view === 'tags' && activeTag !== null;
   const inDirectory = view === 'tags' && activeTag === null;
@@ -1081,6 +1085,7 @@ export default function App() {
                   <Masonry
                     items={items}
                     categoryName={categoryName}
+                    collectionType={collectionType}
                     onOpen={openDetail}
                     onToggleStar={toggleStar}
                     registerEl={registerEl}

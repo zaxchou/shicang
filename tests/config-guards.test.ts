@@ -70,13 +70,19 @@ describe('loadConfig', () => {
     expect(byId.get('treasures')?.exclude?.some((re) => new RegExp(re).test('MOC.md'))).toBe(true);
     // 网页剪藏库（v0.12.0）：Clippings 目录，type web
     expect(byId.get('web')).toMatchObject({ root: 'Clippings', type: 'web', name: '网页' });
+    // 微信公众号库（v0.14.0）：笔记同步助手导出，同为 web 类型（解析靠 frontmatter 形状区分方言）
+    expect(byId.get('wechat')).toMatchObject({ root: '笔记同步助手', type: 'web', name: '微信公众号' });
   });
 
-  it('内置默认分组：剪藏 = 小红书 + 网页，且通过校验', () => {
-    expect(DEFAULT_GROUPS).toEqual([{ id: 'clippings', name: '剪藏', collections: ['rednote', 'web'] }]);
+  it('内置默认分组：剪藏 = 小红书 + 网页 + 微信公众号，且通过校验', () => {
+    expect(DEFAULT_GROUPS).toEqual([
+      { id: 'clippings', name: '剪藏', collections: ['rednote', 'web', 'wechat'] },
+    ]);
     expect(() => validateGroups(DEFAULT_COLLECTIONS, DEFAULT_GROUPS)).not.toThrow();
     const cfg = loadConfig({} as NodeJS.ProcessEnv);
     expect(cfg.groups).toEqual(DEFAULT_GROUPS); // 真实 config/app.json 的分组与默认一致
+    // 真实 config/app.json 的收藏库也要含新库（分组成员靠它校验，两边必须同步）
+    expect(cfg.collections.some((c) => c.id === 'wechat' && c.root === '笔记同步助手')).toBe(true);
   });
 
   it('分组配置校验：组 id 撞库 id、成员不存在都在启动时报错', () => {
@@ -84,13 +90,17 @@ describe('loadConfig', () => {
     expect(() =>
       validateGroups(DEFAULT_COLLECTIONS, [{ id: 'web', name: '撞名组', collections: ['rednote'] }])
     ).toThrow(/撞名/);
-    // 成员写错（比如公众号目录还没建就把 id 写进组）
+    // 成员写错（不存在的库 id）
     expect(() =>
-      validateGroups(DEFAULT_COLLECTIONS, [{ id: 'clippings', name: '剪藏', collections: ['rednote', 'wechat'] }])
-    ).toThrow(/wechat/);
+      validateGroups(DEFAULT_COLLECTIONS, [
+        { id: 'clippings', name: '剪藏', collections: ['rednote', 'not-a-collection'] },
+      ])
+    ).toThrow(/not-a-collection/);
     // 正常配置不拦
     expect(() =>
-      validateGroups(DEFAULT_COLLECTIONS, [{ id: 'clippings', name: '剪藏', collections: ['rednote', 'web'] }])
+      validateGroups(DEFAULT_COLLECTIONS, [
+        { id: 'clippings', name: '剪藏', collections: ['rednote', 'web', 'wechat'] },
+      ])
     ).not.toThrow();
   });
 

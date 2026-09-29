@@ -1,7 +1,7 @@
 // 分类规则（单一事实来源）：从 v0.3.0 的 scripts/classify.mjs 移植进服务端。
 // 规则优先级：人工表 > 标题命中（类目顺序）> 标签命中（类目顺序）。
 // 类目顺序：书画 → 数码硬件 → 学习语言 → 设计与创作 → AI 工具 → 生活。
-// 用途：网页端「刷新收藏库」时对**新增**笔记自动分类（seed 只覆盖首批 598 篇，
+// 用途：网页端「刷新收藏库」时对**新增**笔记自动分类（rednote 与 web 型：网页/微信公众号共用）（seed 只覆盖首批 598 篇，
 // 此前新笔记全部落未分类——2026-09-28 基线测试确认）。规则未命中时走 AI 兜底
 // （见 ai-classify.ts）。规则调整只改这里，scripts/classify.ts 生成 seed 也引用本文件。
 
@@ -218,9 +218,10 @@ function matchTags(tagStr: string, kws: string[]): string | null {
   return null;
 }
 
-/** 对一篇小红书笔记做规则分类；未命中返回 null（调用方可走 AI 兜底）。
- *  id 用于人工复核表（resourceId 前 8 位，体裁标题判断不了的内容在这里定）。 */
-export function classifyRednote(id: string, title: string, tags: string[]): ClassifyResult | null {
+/** 对一篇笔记做规则分类（rednote 与 web 型共用——v0.15.0 起网页/微信公众号也走这条管道）；
+ *  未命中返回 null（调用方可走 AI 兜底）。id 用于人工复核表（前 8 位：rednote 是 resourceId、
+ *  web 是路径 id，两套命名空间天然不撞）。 */
+export function classifyByRules(id: string, title: string, tags: string[]): ClassifyResult | null {
   const manual = MANUAL[id.slice(0, 8)];
   if (manual) return { categoryId: manual.cat, rationale: manual.why };
   const t = String(title ?? '');

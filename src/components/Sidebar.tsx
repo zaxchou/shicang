@@ -20,12 +20,15 @@ interface Props {
   library: LibraryInfo | null;
   /** 当前作用域：收藏库 id 或分组 id（如 clippings=剪藏） */
   collection: string;
-  activeCategoryId: string | null; // null=该库全部
+  activeCategoryId: string | null; // null=该库全部（分类维=主题）
+  /** 来源维的激活项（web/微信：哔哩哔哩…；null=不按来源筛） */
+  activeSource: string | null;
   tagsView: boolean; // 当前是否处于标签视图
   starredOnly: boolean; // 当前是否只看标星
   archiveView: boolean; // 当前是否处于归档视图
   onSelectCollection(id: string): void;
   onSelectCategory(id: string | null): void;
+  onSelectSource(id: string | null): void;
   onSelectTags(): void;
   onSelectStarred(): void;
   onSelectArchive(): void;
@@ -39,16 +42,20 @@ const COLLECTION_ICONS: Record<string, typeof IconLibrary> = {
   wechat: IconBook,
 };
 const GROUP_ICON = IconLayers;
+/** 走人工分类层的库类型（与服务端 setCategory / 详情分类选择器同一口径）：rednote 与 web 型 */
+const managedCategoryTypes = new Set(['rednote', 'web']);
 
 export function Sidebar({
   library,
   collection,
   activeCategoryId,
+  activeSource,
   tagsView,
   starredOnly,
   archiveView,
   onSelectCollection,
   onSelectCategory,
+  onSelectSource,
   onSelectTags,
   onSelectStarred,
   onSelectArchive,
@@ -60,9 +67,11 @@ export function Sidebar({
   // 标星/归档的计数口径 = 当前作用域（组 = 成员聚合，点进去看到的条数必须和这里一致）
   const scopeStarred = curGroup ? curGroup.starred : (cur?.starred ?? 0);
   const scopeArchived = curGroup ? curGroup.archived : (cur?.archived ?? 0);
-  // 分类区只对"单个库"显示：分类是各子库自己的概念（小红书的六类、网页的来源站点），
-  // 组视图下混着展示只会困惑——子分类靠点子库进去看
+  // 分类区与来源区都只对"单个库"显示：分类/来源是各子库自己的概念，组视图下混着展示只会困惑
+  // （v0.12 的既有决策：组 = 全部笔记，子分类靠点子库进去看）
   const showCategories = curGroup === null && (cur?.categories.length ?? 0) > 0;
+  /** 来源段只有 web 型（网页/微信公众号）有值，且没有"无来源"行——手写笔记本来就没有来源 */
+  const showSources = curGroup === null && (cur?.sources.length ?? 0) > 0;
 
   // 分组的展开/收起：默认全展开（子库要一眼能看见）；收起状态记到 localStorage
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -155,8 +164,8 @@ export function Sidebar({
           <>
             <div className="nav-section">分类</div>
             {cur!.categories.map((c) => {
-              // 派生分类（收藏分类/日记主题/网页来源）统一用标签图标；rednote 用类目图标
-              const Icon = collection === 'rednote' ? categoryIcon(c.id) : IconTag;
+              // 类目图标按 id 映射（rednote/web 共用同一份类目表）；映射不到的库回落标签图标
+              const Icon = managedCategoryTypes.has(cur!.type ?? '') ? categoryIcon(c.id) : IconTag;
               const active = !tagsView && activeCategoryId === c.id;
               return (
                 <button
@@ -184,11 +193,33 @@ export function Sidebar({
                 <span className="nav-count">{cur!.uncategorized}</span>
               </button>
             )}
+
+            {/* 来源段（仅网页/微信）：与分类维正交，两个可以同时激活（AND） */}
+            {showSources && (
+              <>
+                <div className="nav-section">来源</div>
+                {cur!.sources.map((c) => {
+                  const active = !tagsView && activeSource === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      className={`nav-item${active ? ' active' : ''}`}
+                      onClick={() => onSelectSource(c.id)}
+                      aria-current={active ? 'page' : undefined}
+                    >
+                      <IconGlobe size={15} />
+                      <span className="nav-label">{c.name}</span>
+                      <span className="nav-count">{c.count}</span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </>
         )}
 
         <div className="nav-section">发现</div>
-        {/* 标星是当前作用域（库或组）内的一层筛选（计数与这里一致），选中它会清掉分类筛选 */}
+        {/* 标星是当前作用域（库或组）内的一层筛选（计数与这里一致），选中它会清掉分类与来源筛选 */}
         <button
           className={`nav-item${starredOnly ? ' active' : ''}`}
           onClick={onSelectStarred}

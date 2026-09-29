@@ -868,6 +868,20 @@ img {
   font-size: 12.5px;
 }
 
+/* 来源维只读标签（详情里与可编辑的分类下拉并排）：比分类胶囊浅一档，
+   视觉上就分得出"这个是自己选的、那个是自动判的" */
+.detail-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 29px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-weak);
+  font-size: 12.5px;
+}
+
 /* ===== 标签目录 ===== */
 .tag-chips {
   display: flex;

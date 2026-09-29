@@ -49,9 +49,12 @@ export interface NoteSummary {
   tags: string[];
   publishedAt: string | null;
   syncedAt: string | null;
-  /** 生效主类；null = 未分类（仅 rednote 可人工修改） */
+  /** 生效**分类**（即"主题"：书法/AI 工具…）；null = 未分类。
+   *  rednote/web 走人工分类层（override > initial），treasures/diary 走解析派生值 */
   categoryId: string | null;
   categorySource: 'override' | 'initial' | 'none' | 'derived';
+  /** 生效**来源**（web/微信专属：哔哩哔哩/微信公众号…，解析期按正文链接域名派生、不可人工改）；其它库恒 null */
+  sourceCategory: string | null;
   mediaCount: number;
   hasVideo: boolean;
   cover: {
@@ -125,8 +128,10 @@ export interface NoteQuery {
   /** 收藏库 id 或分组 id（如 clippings=剪藏组：查询覆盖组内全部成员）；缺省 rednote */
   collection?: string;
   q?: string;
-  categoryId?: string | null; // 'uncategorized' 表示未分类
-  /** 精确标签过滤（与 q、分类、时间条件叠加） */
+  categoryId?: string | null; // 'uncategorized' 表示未分类（分类维=主题）
+  /** 来源维过滤（web/微信：哔哩哔哩/微信公众号…）；与 categoryId 正交组合（AND） */
+  source?: string | null;
+  /** 精确标签过滤（与 q、分类、来源、时间条件叠加） */
   tag?: string | null;
   /** 只看已标星（与其它条件叠加） */
   starred?: boolean;
@@ -211,7 +216,10 @@ export interface CollectionInfo {
   uncategorized: number;
   /** 已标星篇数（同样只算工作集） */
   starred: number;
+  /** 分类维（主题）：rednote/web 是全类目表含 0 计数，其余库按派生值动态统计 */
   categories: CategoryCount[];
+  /** 来源维（仅 web/微信有值，其它库空数组）：按来源派生值统计 */
+  sources: CategoryCount[];
   /** 仅 treasures：可作为表格列的附加字段（按出现次数降序） */
   extraFields: ExtraFieldInfo[];
 }
@@ -286,6 +294,8 @@ export interface CorpusRecord {
   categoryId: string | null;
   categoryName: string | null;
   categorySource: NoteSummary['categorySource'];
+  /** 来源维（仅 web/微信有值）；进 contentHash——改来源等价于改语义，需重算嵌入 */
+  sourceCategory: string | null;
   starred: boolean;
   status: NoteStatus;
   remark: string | null;

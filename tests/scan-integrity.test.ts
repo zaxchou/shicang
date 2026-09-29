@@ -171,6 +171,90 @@ describe('扫描完整性', () => {
   });
 });
 
+describe('自动分类覆盖 web 型（v0.15.0 双维度）', () => {
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  function writeWebNote(fx: Fixture, name: string, raw: string): void {
+    const dir = path.join(fx.root, 'Clippings');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, name), raw, 'utf8');
+  }
+  const WEB_CFG: AppConfig['collections'] = [{ id: 'web', name: '网页', root: 'Clippings', type: 'web' }];
+
+  it('首扫即按规则给 web 笔记写 initialAssignments（规则命中，不花 AI）', async () => {
+    const fx = createFixture('myinfobase-scan');
+    writeWebNote(fx, '旅行见闻.md', '这是一篇讲旅行与美食探店的剪藏。');
+    writeWebNote(fx, '无规则命中.md', 'qqq 没有任何规则词。');
+    fs.writeFileSync(
+      path.join(fx.dataDir, 'categories.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        categories: [{ id: 'life', name: '生活', description: '旅行见闻', order: 1 }],
+        initialAssignments: {},
+      }),
+      'utf8'
+    );
+    delete process.env.AI_CLASSIFY_API_KEY; // 没有 AI 也要能靠规则分类
+    const svc = await boot(makeCfg(fx, WEB_CFG));
+    const list = svc.query({
+      q: '', timeField: 'published', range: 'all', order: 'desc', offset: 0, limit: 10, collection: 'web',
+    });
+    const hit = list.items.find((i) => i.title === '旅行见闻');
+    expect(hit!.categoryId).toBe('life');
+    expect(hit!.categorySource).toBe('initial'); // 走的是人工分类层，不是 derived
+    expect(hit!.sourceCategory).toBeNull(); // 无 frontmatter → 无来源，两个维度互不相干
+    // 无 frontmatter 的笔记标题取自文件名（不是正文首词）
+    expect(list.items.find((i) => i.title === '无规则命中')!.categoryId).toBeNull();
+    fs.rmSync(fx.root, { recursive: true, force: true });
+  });
+
+  it('文件一个没变的刷新也会跑自动分类（AI 兜底补上首扫漏下的 web 笔记）', async () => {
+    const fx = createFixture('myinfobase-scan');
+    writeWebNote(fx, '无规则命中.md', 'qqq 没有任何规则词。');
+    fs.writeFileSync(
+      path.join(fx.dataDir, 'categories.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        categories: [{ id: 'life', name: '生活', description: '', order: 1 }],
+        initialAssignments: {},
+      }),
+      'utf8'
+    );
+    const q = { q: '', timeField: 'published' as const, range: 'all' as const, order: 'desc' as const, offset: 0, limit: 10, collection: 'web' };
+    let calls = 0;
+    const realFetch = globalThis.fetch;
+    try {
+      // 第一步：没有 AI key 时首扫（规则也不中）→ 保持未分类
+      delete process.env.AI_CLASSIFY_API_KEY;
+      const svc = await boot(makeCfg(fx, WEB_CFG));
+      expect(svc.query(q).items[0]!.categoryId).toBeNull();
+      // 第二步：配好 AI，刷新——**这次一个文件都没变**（快路径 skipped=1），
+      // 分类仍要跑，否则线上那些"扫完才配好 key / 格式后来才支持"的笔记会永远停在未分类
+      process.env.AI_CLASSIFY_API_KEY = 'test-key';
+      process.env.AI_CLASSIFY_MAX_PER_REFRESH = '10';
+      globalThis.fetch = (async () => {
+        calls++;
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: '{"categoryId":"life","reason":"测试"}' } }] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }) as typeof fetch;
+      const job = await refresh(svc);
+      expect(job.state).toBe('completed');
+      expect(calls).toBe(1);
+      const after = svc.query(q).items[0]!;
+      expect(after.categoryId).toBe('life');
+      expect(after.categorySource).toBe('initial');
+    } finally {
+      globalThis.fetch = realFetch;
+      fs.rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('AI 分类兜底的上限保护', () => {
   const saved = { ...process.env };
   afterEach(() => {

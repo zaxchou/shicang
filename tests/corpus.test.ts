@@ -59,7 +59,7 @@ function mkCtx(over: Partial<CorpusBuildContext> = {}): CorpusBuildContext {
     collections: [
       { id: 'rednote', name: '小红书收藏', categories: [{ id: 'c1', name: '甲类' }, { id: 'c2', name: '乙类' }] },
     ],
-    categoryIdOf: () => ({ id: 'c1', source: 'initial' as const }),
+    categoryIdOf: () => ({ id: 'c1', source: 'initial' as const, sourceCategory: null }),
     annotationOf: () => ANN,
     ...over,
   };
@@ -107,6 +107,7 @@ describe('computeContentHash：语义内容 hash', () => {
     tags: ['标签'],
     categoryId: 'c1',
     categoryName: '甲类',
+    sourceCategory: null,
     remark: null,
     text: '正文',
     extra: null,
@@ -151,10 +152,10 @@ describe('buildCorpusRecords：记录构造', () => {
       mkCtx({
         categoryIdOf: (r) =>
           r.id === 'a'
-            ? { id: 'c1', source: 'initial' }
+            ? { id: 'c1', source: 'initial', sourceCategory: null }
             : r.id === 'b'
-              ? { id: 'unknown', source: 'override' }
-              : { id: null, source: 'none' },
+              ? { id: 'unknown', source: 'override', sourceCategory: null }
+              : { id: null, source: 'none', sourceCategory: null },
       })
     );
     const by = new Map(recs.map((r) => [r.id, r]));
@@ -162,6 +163,19 @@ describe('buildCorpusRecords：记录构造', () => {
     expect(by.get('b')!.categoryName).toBe('unknown');
     expect(by.get('c')!.categoryId).toBeNull();
     expect(by.get('c')!.categoryName).toBeNull();
+  });
+
+  it('sourceCategory 落进记录，且参与 contentHash（来源变了 = 外部嵌入要重算）', () => {
+    const recs = buildCorpusRecords([mkRecord({ id: 'a' })], mkCtx({
+      categoryIdOf: () => ({ id: 'life', source: 'initial' as const, sourceCategory: '哔哩哔哩' }),
+    }));
+    expect(recs[0]!.sourceCategory).toBe('哔哩哔哩');
+    const mkHash = (src: string | null) =>
+      computeContentHash({
+        collection: 'rednote', title: '标题', author: '作者', tags: [], categoryId: 'life', categoryName: '生活',
+        sourceCategory: src, remark: null, text: '正文', extra: null, recognized: [],
+      });
+    expect(new Set([mkHash('哔哩哔哩'), mkHash('微信公众号'), mkHash(null)]).size).toBe(3);
   });
 
   it('recognized 默认空数组；提供 recognizedOf 时填进去', () => {
@@ -181,7 +195,7 @@ describe('buildCorpusRecords：记录构造', () => {
         { id: 'rednote', name: '小红书收藏', categories: [{ id: 'c1', name: '甲类' }] },
         { id: 'treasures', name: '我的宝贝', categories: [] },
       ],
-      categoryIdOf: () => ({ id: null, source: 'none' as const }),
+      categoryIdOf: () => ({ id: null, source: 'none' as const, sourceCategory: null }),
     });
     const recs = buildCorpusRecords(
       [
@@ -249,10 +263,10 @@ describe('buildCatalog：人读目录', () => {
       mkCtx({
         categoryIdOf: (r) =>
           r.id === 'u'
-            ? { id: null, source: 'none' }
+            ? { id: null, source: 'none', sourceCategory: null }
             : r.id === 'y'
-              ? { id: 'c2', source: 'initial' }
-              : { id: 'c1', source: 'initial' },
+              ? { id: 'c2', source: 'initial', sourceCategory: null }
+              : { id: 'c1', source: 'initial', sourceCategory: null },
       })
     );
     const md = buildCatalog(recs, { ...manifestBase, counts: { ...manifestBase.counts, active: 3, archived: 0 } }, ctx.collections);

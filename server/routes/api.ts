@@ -45,6 +45,8 @@ const noteQuerySchema = z.object({
   collection: z.string().max(32).optional(),
   q: z.string().max(200).optional(),
   category: z.string().max(64).optional(),
+  /** 来源维（web/微信：哔哩哔哩/微信公众号…）；与 category 正交组合 */
+  source: z.string().max(64).optional(),
   tag: z.string().trim().min(1).max(40).optional(),
   // 用字面量而不是 z.coerce.boolean()：后者把字符串 "false" 也当 true（非空即真）
   starred: z.enum(['true', 'false']).optional(),
@@ -209,6 +211,7 @@ export function apiRouter(deps: ApiDeps): express.Router {
         collection: p.collection,
         q: p.q,
         categoryId: p.category ?? null,
+        source: p.source ?? null,
         tag: p.tag ?? null,
         starred: p.starred === 'true',
         status: p.status,

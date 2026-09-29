@@ -15,6 +15,7 @@ const TABLE_LIMIT = 1000;
 const INITIAL_QUERY: QueryState = {
   q: '',
   categoryId: null,
+  source: null,
   timeField: 'published',
   range: 'all',
   from: '',
@@ -162,6 +163,7 @@ export default function App() {
         collection: collectionRef.current,
         q: q.q,
         categoryId: viewRef.current === 'library' ? q.categoryId : null,
+        source: viewRef.current === 'library' ? q.source : null,
         tag: viewRef.current === 'tags' ? activeTagRef.current : null,
         starred: q.starred,
         status: q.status,
@@ -220,6 +222,7 @@ export default function App() {
         collection: collectionRef.current,
         q: q.q,
         categoryId: viewRef.current === 'library' ? q.categoryId : null,
+        source: viewRef.current === 'library' ? q.source : null,
         tag: viewRef.current === 'tags' ? activeTagRef.current : null,
         starred: q.starred,
         status: q.status,
@@ -368,7 +371,16 @@ export default function App() {
    * 网格里还挂着上一批卡片（605 篇的 120 张），正好是用户最反感的"数字与列表打架"。
    * 搜索词与排序不清空：它们是"同一批结果里再筛/再排"，保留现有卡片更稳。
    */
-  const SCOPE_FIELDS: Array<keyof QueryState> = ['categoryId', 'starred', 'status', 'range', 'from', 'to', 'timeField'];
+  const SCOPE_FIELDS: Array<keyof QueryState> = [
+    'categoryId',
+    'source',
+    'starred',
+    'status',
+    'range',
+    'from',
+    'to',
+    'timeField',
+  ];
   const patchQuery = useCallback(
     (patch: Partial<QueryState>) => {
       const prev = queryRef.current;
@@ -393,7 +405,7 @@ export default function App() {
       }
       setView('library');
       setActiveTag(null);
-      setQuery((q) => ({ ...q, categoryId: null, q: '', starred: false, status: 'active' }));
+      setQuery((q) => ({ ...q, categoryId: null, source: null, q: '', starred: false, status: 'active' }));
       beginScopeChange();
       setTags(null); // 标签目录属于上一个库，先清空（否则会显示别的库的标签）
       setTagsError(null);
@@ -416,6 +428,19 @@ export default function App() {
     [beginScopeChange, patchQuery]
   );
 
+  /** 侧栏「来源」段：与分类维正交（同时生效 = AND），切法与 selectCategory 一致 */
+  const selectSource = useCallback(
+    (src: string | null) => {
+      if (viewRef.current === 'tags' || queryRef.current.source !== src) {
+        beginScopeChange();
+      }
+      setView('library');
+      setActiveTag(null);
+      patchQuery({ source: src, starred: false, status: 'active' });
+    },
+    [beginScopeChange, patchQuery]
+  );
+
   const selectTagsView = useCallback(() => {
     setView('tags');
     setActiveTag(null);
@@ -431,18 +456,18 @@ export default function App() {
     const next =
       queryRef.current.status !== 'active'
         ? { ...queryRef.current, status: 'active' as const }
-        : { ...queryRef.current, status: 'archived' as const, categoryId: null, starred: false };
+        : { ...queryRef.current, status: 'archived' as const, categoryId: null, source: null, starred: false };
     beginScopeChange(); // 作用域变了：先清列表，别让旧卡片挂在新标题下面
     setQuery(next);
   }, [beginScopeChange]);
 
-  /** 侧栏「标星」：当前库内的一层筛选，打开时清掉分类与归档视图 */
+  /** 侧栏「标星」：当前库内的一层筛选，打开时清掉分类、来源与归档视图（全库口径） */
   const selectStarred = useCallback(() => {
     setView('library');
     setActiveTag(null);
     const next = queryRef.current.starred
       ? { ...queryRef.current, starred: false }
-      : { ...queryRef.current, starred: true, categoryId: null, status: 'active' as const };
+      : { ...queryRef.current, starred: true, categoryId: null, source: null, status: 'active' as const };
     beginScopeChange();
     setQuery(next);
   }, [beginScopeChange]);
@@ -816,6 +841,14 @@ export default function App() {
   const inTagResult = view === 'tags' && activeTag !== null;
   const inDirectory = view === 'tags' && activeTag === null;
   const curGroup = library?.groups.find((g) => g.id === collection) ?? null;
+  /** 分类+来源同时激活时的标题：拼成「来源 · 分类」——只显示一个会让人以为另一个没生效 */
+  const filterTitle = (() => {
+    const parts: string[] = [];
+    if (query.source) parts.push(query.source);
+    if (query.categoryId === 'uncategorized') parts.push('未分类');
+    else if (query.categoryId) parts.push(categoryName(query.categoryId) ?? '收藏');
+    return parts.length > 0 ? parts.join(' · ') : null;
+  })();
   // 组视图没有"当前库"的分类/字段概念，标题与计数全部走组聚合
   const headerTitle = inDirectory
     ? '标签'
@@ -827,11 +860,7 @@ export default function App() {
           ? '标星'
           : curGroup
             ? curGroup.name
-            : query.categoryId === 'uncategorized'
-              ? '未分类'
-              : query.categoryId
-                ? (categoryName(query.categoryId) ?? '收藏')
-                : (curInfo?.name ?? '收藏');
+            : (filterTitle ?? (curInfo?.name ?? '收藏'));
   const scopeCount = inDirectory
     ? (tags?.length ?? null)
     : inTagResult
@@ -842,11 +871,16 @@ export default function App() {
           ? (curInfo?.archived ?? null)
           : query.starred
             ? (curInfo?.starred ?? null)
-            : query.categoryId === 'uncategorized'
-              ? (curInfo?.uncategorized ?? null)
-              : query.categoryId
-                ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
-                : (curInfo?.active ?? null);
+            : // 两维同时激活时，任一维的计数都不等于它们的交集——改用查询返回的 total（数字不许和列表打架）
+              query.source && query.categoryId
+              ? total
+              : query.source
+                ? (curInfo?.sources.find((c) => c.id === query.source)?.count ?? null)
+                : query.categoryId === 'uncategorized'
+                  ? (curInfo?.uncategorized ?? null)
+                  : query.categoryId
+                    ? (curInfo?.categories.find((c) => c.id === query.categoryId)?.count ?? null)
+                    : (curInfo?.active ?? null);
 
   const bootLoading = !library && !libraryError;
   const emptyLibrary =
@@ -862,6 +896,7 @@ export default function App() {
         uncategorized: curGroup.uncategorized,
         starred: curGroup.starred,
         categories: [],
+        sources: [],
         extraFields: [],
       }
     : curInfo;
@@ -892,11 +927,13 @@ export default function App() {
         library={library}
         collection={collection}
         activeCategoryId={query.categoryId}
+        activeSource={query.source}
         tagsView={view === 'tags'}
         starredOnly={query.starred}
         archiveView={query.status !== 'active'}
         onSelectCollection={selectCollection}
         onSelectCategory={selectCategory}
+        onSelectSource={selectSource}
         onSelectTags={selectTagsView}
         onSelectStarred={selectStarred}
         onSelectArchive={selectArchive}
@@ -1113,7 +1150,12 @@ export default function App() {
           summary={detailSummary}
           categories={categoriesOf(infos, detailSummary.collection)}
           categoryRevision={library.categoryRevision}
-          showCategoryPicker={detailSummary.collection === 'rednote'}
+          sourceCategory={detailSummary.sourceCategory}
+          // 分类可编辑的范围与服务端 setCategory 一致：rednote 与 web 型（网页/微信公众号）
+          showCategoryPicker={(() => {
+            const t = collectionType(detailSummary.collection);
+            return t === 'rednote' || t === 'web';
+          })()}
           onCategoryChanged={onCategoryChanged}
           onCategoryError={onCategoryError}
           onToggleStar={() => void toggleStar(detailSummary)}

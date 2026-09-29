@@ -2,7 +2,7 @@
 // 规则本体在 server/services/classify.ts（单一事实来源），本脚本只负责读取索引、套规则、写 seed。
 // 用法：npx tsx scripts/classify.ts
 import fs from 'node:fs';
-import { classifyRednote, REDNOTE_CATEGORIES } from '../server/services/classify.js';
+import { classifyByRules, REDNOTE_CATEGORIES } from '../server/services/classify.js';
 
 const CAT_META: Record<string, { name: string; description: string }> = {
   shuhua: { name: '书画', description: '国画、书法与篆刻：作品欣赏、技法教程、临摹创作、文房装裱；兼收水彩、速写等绘画内容' },
@@ -31,7 +31,7 @@ const idx = {
 const results: Array<{ id: string; title: string; cat: string; rule: string }> = [];
 const fallback: Array<{ id: string; title: string; tags: string }> = [];
 for (const n of idx.notes) {
-  const hit = classifyRednote(n.id, String(n.title ?? ''), n.tags ?? []);
+  const hit = classifyByRules(n.id, String(n.title ?? ''), n.tags ?? []);
   if (hit) results.push({ id: n.id, title: n.title, cat: hit.categoryId, rule: hit.rationale });
   else fallback.push({ id: n.id, title: n.title, tags: (n.tags ?? []).join(',') });
 }

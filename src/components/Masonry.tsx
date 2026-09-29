@@ -169,6 +169,7 @@ export function Masonry({ items, categoryName, collectionType, onOpen, onToggleS
             <NoteCard
               note={note}
               categoryName={categoryName(note.categoryId ?? '')}
+              sourceName={note.sourceCategory}
               collectionType={collectionType(note.collection)}
               enterDelay={layout ? enterDelays[i] ?? 0 : 0}
               onOpen={onOpen}

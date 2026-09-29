@@ -6,7 +6,10 @@ import { IconGlobe, IconLayers, IconPlay, IconStar } from './Icons';
 
 interface Props {
   note: NoteSummary;
+  /** 分类维（主题）的展示名 */
   categoryName: string | null;
+  /** 来源维的展示名（仅网页/微信有值；缺图占位与角标回落时用） */
+  sourceName: string | null;
   /** 笔记所属收藏库的类型；'web' = 网页/微信公众号剪藏（按类型判定，不认 id——同类型可以有多个库） */
   collectionType: string | null;
   /** 入场动画延迟（毫秒），0 表示不播放入场动画 */
@@ -48,7 +51,9 @@ function coverStyle(note: NoteSummary): React.CSSProperties {
   return { aspectRatio: '4 / 3' };
 }
 
-export function NoteCard({ note, categoryName, collectionType, enterDelay = 0, onOpen, onToggleStar, registerEl }: Props) {
+export function NoteCard({ note, categoryName, sourceName, collectionType, enterDelay = 0, onOpen, onToggleStar, registerEl }: Props) {
+  // 角标只有一个位置：优先显示分类（主题），未分类时回落来源——不为第二个维度再加一枚角标
+  const chip = categoryName ?? sourceName;
   const [imgLoaded, setImgLoaded] = useState(false);
   // 网页剪藏封面三态（与 summary.webCover 的语义对应）：
   //   对象 = 服务端已有封面；null = 试过没有；undefined = 还没试过 → 这里按需探测一次
@@ -149,7 +154,7 @@ export function NoteCard({ note, categoryName, collectionType, enterDelay = 0, o
                   <span className="web-placeholder-icon" aria-hidden>
                     <IconGlobe size={26} />
                   </span>
-                  <span className="web-placeholder-label">{categoryName ?? '网页'}</span>
+                  <span className="web-placeholder-label">{sourceName ?? categoryName ?? '网页'}</span>
                 </div>
               )}
             </>
@@ -187,7 +192,7 @@ export function NoteCard({ note, categoryName, collectionType, enterDelay = 0, o
             {note.author.slice(0, 1)}
           </span>
           <span className="card-author-name">{note.author}</span>
-          {categoryName && <span className="card-cat">{categoryName}</span>}
+          {chip && <span className="card-cat">{chip}</span>}
           {/* 没有底片的卡片（日记居多）星标落在元信息行右端，避免压住标题 */}
           {!hasMedia && <StarButton starred={note.annotation.starred} onToggle={() => onToggleStar(note)} />}
         </div>

@@ -27,7 +27,7 @@ import { log } from '../log.js';
 import { scanVault } from '../reader/scan.js';
 import { sniffImageMime } from '../reader/image-size.js';
 import { PARSE_VERSION, type NoteRecord } from '../reader/parse.js';
-import { classifyRednote } from './classify.js';
+import { classifyByRules } from './classify.js';
 import { aiClassifyConfigFromEnv, classifyByAi } from './ai-classify.js';
 import {
   MediaTextService,
@@ -265,6 +265,25 @@ export class LibraryService {
     return g ? [...g.collections] : [scope];
   }
 
+  /** 分类口径由**类型**决定（按 type 不认 id，v0.14 的纪律）：rednote/web 走人工分类层
+   *  （override > initial），宝贝/日记走解析派生值。过滤/计数/摘要/导出共用这一处判断。 */
+  private isManagedCategory(collectionId: string): boolean {
+    const t = this.colMap.get(collectionId)?.type;
+    return t === 'rednote' || t === 'web';
+  }
+
+  /** 分类维（主题）的生效值：与 NoteSummary.categoryId 同一口径 */
+  private categoryOf(r: NoteRecord): string | null {
+    return this.isManagedCategory(r.collection)
+      ? this.categories.effective(r.id).categoryId
+      : (r.derivedCategory ?? null);
+  }
+
+  /** 来源维（仅 web 型）：值就是解析期的派生分类，换个位置露出，不动索引 */
+  private sourceCategoryOf(r: NoteRecord): string | null {
+    return this.colMap.get(r.collection)?.type === 'web' ? (r.derivedCategory ?? null) : null;
+  }
+
   query(params: NoteQuery): NoteListResult {
     const cid = params.collection || 'rednote';
     // 组查询 = 成员合集（点「剪藏」看小红书+网页的全部笔记，搜索天然跨库）
@@ -299,19 +318,16 @@ export class LibraryService {
       });
     }
 
+    // 分类维（主题）：rednote/web 走人工分类层，其余库按派生值；'uncategorized' 只作用于这一维
     if (params.categoryId === 'uncategorized') {
-      // rednote 走 seed/override；其它库按派生分类（无派生值 = 未分类）
-      items = items.filter((r) =>
-        r.collection === 'rednote'
-          ? this.categories.effective(r.id).categoryId === null
-          : !r.derivedCategory
-      );
+      items = items.filter((r) => this.categoryOf(r) === null);
     } else if (params.categoryId) {
-      items = items.filter((r) =>
-        r.collection === 'rednote'
-          ? this.categories.effective(r.id).categoryId === params.categoryId
-          : r.derivedCategory === params.categoryId
-      );
+      items = items.filter((r) => this.categoryOf(r) === params.categoryId);
+    }
+    // 来源维：与分类维正交（同时给 = AND）；非 web 型没有来源值，天然不命中
+    if (params.source) {
+      const src = params.source;
+      items = items.filter((r) => this.sourceCategoryOf(r) === src);
     }
 
     if (params.tag) {
@@ -411,7 +427,7 @@ export class LibraryService {
         };
       }
     }
-    const derived = r.collection !== 'rednote';
+    const managed = this.isManagedCategory(r.collection);
     const ann = this.annotations.effective(r.id);
     // 网页封面三态（JSON 里 undefined 键会消失，正好表达"还没试过"）：
     //   对象 = 已有封面；null = 试过、没有（别让卡片反复探测）；undefined = 还没试过（网页库卡片按需探测一次）
@@ -433,8 +449,9 @@ export class LibraryService {
       tags: r.tags,
       publishedAt: r.publishedAt,
       syncedAt: r.syncedAt,
-      categoryId: derived ? r.derivedCategory ?? null : eff.categoryId,
-      categorySource: derived ? 'derived' : eff.source,
+      categoryId: managed ? eff.categoryId : r.derivedCategory ?? null,
+      categorySource: managed ? eff.source : 'derived',
+      sourceCategory: this.sourceCategoryOf(r),
       mediaCount: r.media.filter((m) => m.kind === 'image').length,
       hasVideo: r.media.some((m) => m.kind === 'video'),
       cover,
@@ -463,7 +480,8 @@ export class LibraryService {
     const catMap = new Map<string, number>();
     let uncategorized = 0;
     const extraCount = new Map<string, number>();
-    if (cid === 'rednote') {
+    const managed = this.isManagedCategory(cid);
+    if (managed) {
       const { counts, uncategorized: u } = this.categories.countEffective(work.map((r) => r.id));
       for (const [k, v] of Object.entries(counts)) catMap.set(k, v);
       uncategorized = u;
@@ -479,15 +497,25 @@ export class LibraryService {
         for (const k of Object.keys(r.extra ?? {})) extraCount.set(k, (extraCount.get(k) ?? 0) + 1);
       }
     }
-    const categories: CollectionInfo['categories'] =
-      cid === 'rednote'
-        ? this.categories.categories
-            .slice()
-            .sort((a, b) => a.order - b.order)
-            .map((c) => ({ id: c.id, name: c.name, count: catMap.get(c.id) ?? 0 }))
-        : [...catMap.entries()]
-            .map(([name, count]) => ({ id: name, name, count }))
-            .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'));
+    const categories: CollectionInfo['categories'] = managed
+      ? this.categories.categories
+          .slice()
+          .sort((a, b) => a.order - b.order)
+          .map((c) => ({ id: c.id, name: c.name, count: catMap.get(c.id) ?? 0 }))
+      : [...catMap.entries()]
+          .map(([name, count]) => ({ id: name, name, count }))
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'));
+    // 来源维：只有 web 型有（值=解析期派生）；不给"无来源"留行——手写笔记本来就没有来源
+    const sourceCounts = new Map<string, number>();
+    if (def.type === 'web') {
+      for (const r of work) {
+        const src = r.derivedCategory;
+        if (src) sourceCounts.set(src, (sourceCounts.get(src) ?? 0) + 1);
+      }
+    }
+    const sources: CollectionInfo['sources'] = [...sourceCounts.entries()]
+      .map(([name, count]) => ({ id: name, name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'));
     const extraFields: ExtraFieldInfo[] = [...extraCount.entries()]
       .map(([key, count]) => ({ key, count }))
       .sort((a, b) => b.count - a.count);
@@ -504,6 +532,7 @@ export class LibraryService {
       uncategorized,
       starred,
       categories,
+      sources,
       extraFields,
     };
   }
@@ -550,12 +579,16 @@ export class LibraryService {
     }));
   }
 
-  private corpusCategoryOf(r: NoteRecord): { id: string | null; source: NoteSummary['categorySource'] } {
-    if (r.collection === 'rednote') {
+  private corpusCategoryOf(r: NoteRecord): {
+    id: string | null;
+    source: NoteSummary['categorySource'];
+    sourceCategory: string | null;
+  } {
+    if (this.isManagedCategory(r.collection)) {
       const eff = this.categories.effective(r.id);
-      return { id: eff.categoryId, source: eff.source };
+      return { id: eff.categoryId, source: eff.source, sourceCategory: this.sourceCategoryOf(r) };
     }
-    return { id: r.derivedCategory ?? null, source: 'derived' };
+    return { id: r.derivedCategory ?? null, source: 'derived', sourceCategory: null };
   }
 
   /**
@@ -1121,8 +1154,9 @@ export class LibraryService {
   ): Promise<{ revision: number; categoryId: string | null; source: 'override' | 'initial' | 'none' }> {
     const rec = this.byId.get(noteId);
     if (!rec) throw new NotFoundError(`未找到笔记 ${noteId}`);
-    if (rec.collection !== 'rednote') {
-      throw new ValidationError('仅小红书收藏支持在网页中修改分类（其它库的分类以 Obsidian 笔记为准）');
+    // rednote 与 web 型（网页/微信公众号）共用人工分类层；宝贝/日记的分类来自 Obsidian 笔记本身，不许在这里改
+    if (!this.isManagedCategory(rec.collection)) {
+      throw new ValidationError('该收藏库不支持在网页中修改分类（宝贝/日记的分类以 Obsidian 笔记为准）');
     }
     const revision = await this.categories.setOverride(noteId, categoryId, expectedRevision);
     const eff = this.categories.effective(noteId);
@@ -1252,22 +1286,26 @@ export class LibraryService {
   }
 
   /**
-   * 刷新后的自动分类：只补「无任何分类依据」的小红书笔记。
+   * 刷新后的自动分类：只补「无任何分类依据」的笔记（rednote 与 web 型——网页/微信公众号，
+   * v0.15.0 起两库共用同一份类目表与同一条管道；宝贝/日记的分类来自笔记本身，不参与）。
    * 规则（classify.ts，v0.3.0 人工沉淀的三层规则）优先，未命中且配置了 AI 时走 AI 兜底；
    * 都不行就保持未分类。全程只写 initialAssignments，人工覆盖（overrides.json）永不触碰。
    */
   private async autoClassify(notes: NoteRecord[], job?: InternalRefreshJob): Promise<string | null> {
-    const rednote = notes.filter((n) => n.collection === 'rednote' && n.sourceStatus === 'available');
-    if (rednote.length === 0) return null;
+    const targets = notes.filter((n) => {
+      const t = this.colMap.get(n.collection)?.type;
+      return (t === 'rednote' || t === 'web') && n.sourceStatus === 'available';
+    });
+    if (targets.length === 0) return null;
     const aiCfg = aiClassifyConfigFromEnv();
     const validIds = new Set(this.categories.categories.map((c) => c.id));
     let byRule = 0;
     let byAi = 0;
     let aiDeferred = 0;
     const result = await this.categories.ensureClassified(
-      rednote.map((n) => ({ id: n.id, title: n.title, tags: n.tags, excerpt: n.excerpt })),
+      targets.map((n) => ({ id: n.id, title: n.title, tags: n.tags, excerpt: n.excerpt })),
       async (item) => {
-        const rule = classifyRednote(item.id, item.title, item.tags);
+        const rule = classifyByRules(item.id, item.title, item.tags);
         if (rule) {
           byRule++;
           return rule;
@@ -1278,7 +1316,13 @@ export class LibraryService {
           aiDeferred++;
           return null;
         }
-        const hit = await classifyByAi(aiCfg, item, validIds);
+        const rec = this.byId.get(item.id);
+        const subject =
+          this.colMap.get(rec?.collection ?? '')?.type === 'web' ? '这条网页剪藏（文章）' : '这条小红书笔记';
+        const hit = await classifyByAi(aiCfg, item, validIds, {
+          subject,
+          categories: this.categories.categories,
+        });
         if (hit) byAi++;
         return hit;
       }

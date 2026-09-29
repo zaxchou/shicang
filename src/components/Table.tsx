@@ -25,7 +25,7 @@ interface Props {
   registerEl(id: string, el: HTMLElement | null): void;
 }
 
-type ColKind = 'title' | 'author' | 'category' | 'collection' | 'date' | 'tags' | 'extra' | 'remark';
+type ColKind = 'title' | 'author' | 'category' | 'source' | 'collection' | 'date' | 'tags' | 'extra' | 'remark';
 
 interface Col {
   key: string;
@@ -65,11 +65,12 @@ function buildColumns(info: CollectionInfo, opts: { group: boolean }): Col[] {
     ];
   }
   if (info.type === 'web') {
-    // 网页/微信公众号剪藏：来源分类 + 原文发布时间 + 剪藏时间（按类型判定，不认 id）
+    // 网页/微信公众号剪藏：**两个维度各一列**（分类=主题、来源=域名派生）+ 原文发布时间 + 剪藏时间
     return [
       { key: 'title', label: '标题', kind: 'title', minW: 320 },
       { key: 'author', label: '作者', kind: 'author', minW: 130 },
-      { key: 'category', label: '来源', kind: 'category', minW: 100 },
+      { key: 'category', label: '分类', kind: 'category', minW: 110 },
+      { key: 'source', label: '来源', kind: 'source', minW: 100 },
       { key: 'publishedAt', label: '发布时间', kind: 'date', minW: 110 },
       { key: 'syncedAt', label: '剪藏时间', kind: 'date', minW: 110 },
       { key: 'tags', label: '标签', kind: 'tags', minW: 180 },
@@ -111,6 +112,8 @@ function cellValue(note: NoteSummary, col: Col): string | number | null {
       return note.author;
     case 'category':
       return note.categoryId ? (note.categoryId as string) : '未分类';
+    case 'source':
+      return note.sourceCategory;
     case 'collection':
       return note.collection;
     case 'date': {
@@ -205,6 +208,10 @@ export function DataTable({
     if (col.kind === 'category') {
       const name = note.categoryId ? (categoryName(note.categoryId) ?? note.categoryId) : null;
       return name ? <span className="cell-cat">{name}</span> : <span className="cell-null">未分类</span>;
+    }
+    if (col.kind === 'source') {
+      // 来源是解析期派生的**名字**（id === name），直接展示；手写笔记没有来源 → 走上面的 null 分支显示 —
+      return note.sourceCategory ? <span className="cell-cat">{note.sourceCategory}</span> : null;
     }
     if (col.kind === 'collection') {
       const name = collectionName?.(note.collection) ?? note.collection;

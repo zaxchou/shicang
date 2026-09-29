@@ -87,7 +87,11 @@ export interface CorpusCollectionMeta {
 export interface CorpusBuildContext {
   /** 顺序即 catalog.md 的目录顺序 */
   collections: CorpusCollectionMeta[];
-  categoryIdOf(record: NoteRecord): { id: string | null; source: NoteSummary['categorySource'] };
+  categoryIdOf(record: NoteRecord): {
+    id: string | null;
+    source: NoteSummary['categorySource'];
+    sourceCategory: string | null;
+  };
   annotationOf(noteId: string): NoteAnnotation;
   /** OCR / 转录文本的来源（plan §18.2）。不提供 = 识别能力还没接，recognized 一律空数组 */
   recognizedOf?(noteId: string): RecognizedText[];
@@ -99,7 +103,17 @@ function sha256(text: string): string {
 
 type ContentHashInput = Pick<
   CorpusRecord,
-  'collection' | 'title' | 'author' | 'tags' | 'categoryId' | 'categoryName' | 'remark' | 'text' | 'extra' | 'recognized'
+  | 'collection'
+  | 'title'
+  | 'author'
+  | 'tags'
+  | 'categoryId'
+  | 'categoryName'
+  | 'sourceCategory'
+  | 'remark'
+  | 'text'
+  | 'extra'
+  | 'recognized'
 >;
 
 /** 语义内容 hash。用数组而非对象字面量：键顺序问题从根上不存在，同一内容必然同一 hash */
@@ -113,6 +127,7 @@ export function computeContentHash(rec: ContentHashInput): string {
       rec.tags,
       rec.categoryId,
       rec.categoryName,
+      rec.sourceCategory,
       rec.remark,
       rec.text,
       rec.extra,
@@ -148,6 +163,7 @@ export function buildCorpusRecords(
       categoryId: cat.id,
       categoryName: name,
       categorySource: cat.source,
+      sourceCategory: cat.sourceCategory,
       starred: ann.starred,
       status: ann.status,
       remark: ann.remark,

@@ -318,6 +318,56 @@ describe('多库集成（LibraryService）', () => {
     const tr = svc.query({ ...base, collection: 'treasures' } as never);
     await expect(svc.setCategory(tr.items[0]!.id, '茶器', 0)).rejects.toBeInstanceOf(ValidationError);
   });
+  // ---------- v0.15.0 双维度：分类（主题）与来源分开 ----------
+  it('双维度字段：web 的分类走人工分类层，来源单独一个字段且不是 derived', async () => {
+    const svc = await boot();
+    const ws = svc.query({ ...base, collection: 'web' } as never);
+    const bi = ws.items.find((i) => i.sourceCategory === '哔哩哔哩');
+    expect(bi).toBeTruthy(); // 来源仍在，只是搬到了独立字段
+    // 分类维：不再把来源当分类（categorySource 只会是 override/initial/none，绝不是 derived）
+    expect(bi!.categorySource).not.toBe('derived');
+    // 手写笔记没有来源，但仍可有分类维
+    const hand = ws.items.find((i) => i.id.endsWith('宿命论部分总结.md'))!;
+    expect(hand.sourceCategory).toBeNull();
+    // 宝贝/日记仍是单维：分类=派生值，来源恒 null
+    const tr = svc.query({ ...base, collection: 'treasures' } as never);
+    expect(tr.items[0]!.sourceCategory).toBeNull();
+    expect(tr.items[0]!.categorySource).toBe('derived');
+  });
+
+  it('?source= 按来源过滤，且与分类维正交（组合 = AND）', async () => {
+    const svc = await boot();
+    const only = svc.query({ ...base, collection: 'web', source: '哔哩哔哩' } as never);
+    expect(only.total).toBe(1);
+    expect(only.items.every((i) => i.sourceCategory === '哔哩哔哩')).toBe(true);
+    // 两维同时给：取那条 B 站笔记自己的分类值，交集里必须还有它
+    const bi = only.items[0]!;
+    const both = svc.query({
+      ...base,
+      collection: 'web',
+      categoryId: bi.categoryId ?? 'uncategorized',
+      source: '哔哩哔哩',
+    } as never);
+    expect(both.items.map((i) => i.id)).toContain(bi.id);
+    expect(both.items.every((i) => i.sourceCategory === '哔哩哔哩')).toBe(true);
+    // 非 web 库没有来源值 → 天然不命中
+    expect(svc.query({ ...base, collection: 'treasures', source: '哔哩哔哩' } as never).total).toBe(0);
+  });
+
+  it('collectionInfo 双计数：分类区=全类目表（含 0 计数），来源区=派生计数', async () => {
+    const svc = await boot();
+    const info = svc.collectionInfo('web')!;
+    // 与小红书同一份类目表（6 类），含 0 计数、按 order 排
+    expect(info.categories.length).toBe(6);
+    expect(info.categories.map((c) => c.id)).toEqual(['shuhua', 'maker-digital', 'language-learning', 'design-aigc', 'ai-programming', 'life']);
+    const src = new Map(info.sources.map((s) => [s.id, s.count]));
+    expect(src.get('哔哩哔哩')).toBe(1);
+    expect(src.get('微信公众号')).toBe(1);
+    // 来源区没有"无来源"行（手写笔记不进来源区）
+    expect(info.sources.every((s) => s.name.trim() !== '')).toBe(true);
+    expect(svc.collectionInfo('treasures')!.sources).toEqual([]);
+  });
+
 describe('剪藏分组（CollectionGroup）', () => {
   it('组查询 = 成员合集：小红书 + 网页一起返回，单库查询不受影响', async () => {
     const svc = await boot();
@@ -354,11 +404,20 @@ describe('剪藏分组（CollectionGroup）', () => {
     expect(svc.tagCounts('rednote').map((t) => t.tag)).toContain('测试');
   });
 
-  it('setCategory 仍只允许 rednote（组不改变这条纪律）', async () => {
+  it('组不改变可改分类的范围：web 放行（v0.15 双维度），组外的宝贝仍拒绝', async () => {
     const svc = await boot();
     const group = svc.query({ ...base, collection: 'clippings' } as never);
     const webNote = group.items.find((i) => i.collection === 'web')!;
-    await expect(svc.setCategory(webNote.id, '随便', 0)).rejects.toBeInstanceOf(ValidationError);
+    // web 走人工分类层：用类目表里的 id 能真的改成功，改完 override 压过自动分配
+    const out = await svc.setCategory(webNote.id, 'life', 0);
+    expect(out.categoryId).toBe('life');
+    expect(out.source).toBe('override');
+    expect(svc.query({ ...base, collection: 'web', categoryId: 'life' } as never).items.map((i) => i.id)).toContain(
+      webNote.id
+    );
+    // 只有 rednote/web 能改：同一次会话里换宝贝仍旧被拒（它们的分类以 Obsidian 笔记为准）
+    const tr = svc.query({ ...base, collection: 'treasures' } as never);
+    await expect(svc.setCategory(tr.items[0]!.id, 'life', 0)).rejects.toBeInstanceOf(ValidationError);
   });
 });
 });

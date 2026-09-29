@@ -58,25 +58,37 @@ export function parseAiCategory(
   }
 }
 
-const PROMPT_HEADER = `你是收藏内容的分类器。把这篇小红书笔记分入唯一类别，只输出 JSON：{"categoryId":"…","reason":"不超过20字"}。
-类别说明：
-- shuhua: 书画——国画/书法/篆刻的作品欣赏、技法教程、临摹创作、文房装裱；兼收水彩速写
-- maker-digital: 数码硬件——3D打印与拓竹、开源硬件(ESP32等)、数码评测开箱、桌搭家电
-- language-learning: 学习语言——英语日语、考试考研、留学申请、学术论文
-- design-aigc: 设计与创作——UI/视觉/平面设计、字体壁纸、摄影剪辑、AI 生图/AI 视频等创作玩法（含把名画古画做成 AI 视频）
-- ai-programming: AI 工具——AI/大模型工具、编程开发、Agent、知识管理(Obsidian/Notion)、效率软件与开源项目
-- life: 生活——茶器文玩、宠物、旅行、穿搭、健康心理、认知成长、日常杂谈`;
+/** 系统提示按**类目表动态生成**（类目说明的单一事实来源是 categories.json 的 description），
+ *  描述对象由调用方传入（小红书笔记 / 网页剪藏）——写死"这篇小红书笔记"会让网页文章按错的语境被分类，
+ *  写死类目清单则会在增删类目后与界面各说各话。 */
+export function buildSystemPrompt(
+  subject: string,
+  categories: ReadonlyArray<{ id: string; name: string; description?: string }>
+): string {
+  const lines = categories.map((c) => `- ${c.id}: ${c.name}——${c.description || c.name}`);
+  return [
+    `你是收藏内容的分类器。把${subject}分入唯一类别，只输出 JSON：{"categoryId":"…","reason":"不超过20字"}。`,
+    '类别说明：',
+    ...lines,
+  ].join('\n');
+}
 
 export async function classifyByAi(
   cfg: AiClassifyConfig,
   input: { title: string; tags: string[]; excerpt: string },
   validIds: ReadonlySet<string>,
+  ctx: {
+    /** 要分类的对象（如「这条小红书笔记」/「这条网页剪藏（文章）」） */
+    subject: string;
+    /** 全类目表（按 order 排好），说明取 categories.json 的 description */
+    categories: ReadonlyArray<{ id: string; name: string; description?: string }>;
+  },
   fetchImpl: typeof fetch = fetch
 ): Promise<{ categoryId: string; rationale: string } | null> {
   const body = {
     model: cfg.model,
     messages: [
-      { role: 'system', content: PROMPT_HEADER },
+      { role: 'system', content: buildSystemPrompt(ctx.subject, ctx.categories) },
       {
         role: 'user',
         content: `标题：${input.title}\n标签：${input.tags.join('、') || '（无）'}\n内容摘要：${(input.excerpt || '').slice(0, 400)}`,

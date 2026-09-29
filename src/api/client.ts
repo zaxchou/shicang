@@ -53,7 +53,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface QueryParams {
   collection?: string;
   q: string;
-  categoryId: string | null; // null=全部, 'uncategorized', 或分类 id
+  categoryId: string | null; // null=全部, 'uncategorized', 或分类 id（分类维=主题）
+  /** 来源维（web/微信）：与 categoryId 正交组合 */
+  source: string | null;
   tag?: string | null; // 精确标签过滤
   /** 只看已标星 */
   starred?: boolean;
@@ -75,6 +77,7 @@ export function buildQuery(p: QueryParams): string {
   if (p.collection) sp.set('collection', p.collection);
   if (p.q.trim()) sp.set('q', p.q.trim());
   if (p.categoryId) sp.set('category', p.categoryId);
+  if (p.source) sp.set('source', p.source);
   if (p.tag) sp.set('tag', p.tag);
   if (p.starred) sp.set('starred', 'true');
   sp.set('status', p.status ?? 'active');

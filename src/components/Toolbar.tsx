@@ -4,6 +4,8 @@ import { IconArrowLeft, IconChevronDown, IconClose, IconExport, IconGrid, IconLi
 export interface QueryState {
   q: string;
   categoryId: string | null;
+  /** 来源维（web/微信）：与 categoryId 正交组合（AND） */
+  source: string | null;
   timeField: 'published' | 'synced';
   range: 'all' | '7d' | '30d' | 'custom';
   from: string;
@@ -47,7 +49,8 @@ const isFiltered = (q: QueryState) =>
   q.range !== 'all' ||
   q.order !== 'desc' ||
   q.timeField !== 'published' ||
-  q.starred;
+  q.starred ||
+  q.source !== null;
 
 export function Toolbar({
   query,
@@ -257,7 +260,7 @@ export function Toolbar({
                 <button
                   className="link-clear"
                   onClick={() => {
-                    // 只清筛选，不动分类（分类是导航，不是筛选——保持原有行为）
+                    // 只清筛选（搜索/时间/标星/**来源**），不动分类——分类是导航，不是筛选（保持原有行为）
                     onChange({
                       q: '',
                       range: 'all',
@@ -266,6 +269,7 @@ export function Toolbar({
                       order: 'desc',
                       timeField: 'published',
                       starred: false,
+                      source: null,
                     });
                   }}
                 >

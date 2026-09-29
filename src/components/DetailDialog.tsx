@@ -19,6 +19,7 @@ import {
   IconCheck,
   IconClose,
   IconExternal,
+  IconGlobe,
   IconPen,
   IconPlay,
   IconScanText,
@@ -131,8 +132,10 @@ interface Props {
   summary: NoteSummary;
   categories: CategoryOption[];
   categoryRevision: number;
-  /** 仅 rednote 显示可编辑的分类选择；其它库显示只读派生分类 */
+  /** 显示可编辑的分类选择（rednote 与 web 型：网页/微信公众号）；宝贝/日记显示只读派生分类 */
   showCategoryPicker?: boolean;
+  /** 来源维（仅 web/微信有值）：只读展示，与可编辑的分类并排——两个维度不混为一谈 */
+  sourceCategory?: string | null;
   onCategoryChanged(noteId: string, categoryId: string | null, revision: number): void;
   onCategoryError(message: string): void;
   /** 标星开关（三个库都可标） */
@@ -155,6 +158,7 @@ export function DetailDialog({
   categories,
   categoryRevision,
   showCategoryPicker = true,
+  sourceCategory = null,
   onCategoryChanged,
   onCategoryError,
   onToggleStar,
@@ -724,6 +728,12 @@ export function DetailDialog({
                 </div>
                 ) : (
                   <span className="cat-static">{summary.categoryId ?? '未分类'}</span>
+                )}
+                {sourceCategory && (
+                  <span className="detail-source" title="来源：按正文链接的域名自动判定，不可手动改">
+                    <IconGlobe size={13} />
+                    {sourceCategory}
+                  </span>
                 )}
                 <span>发布：{formatShanghai(detail.publishedAt) ?? '未知'}</span>
                 <span>同步：{formatShanghai(detail.syncedAt) ?? '未知'}</span>

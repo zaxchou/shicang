@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { classifyRednote, REDNOTE_CATEGORIES } from '../server/services/classify.js';
-import { classifyByAi, parseAiCategory, type AiClassifyConfig } from '../server/services/ai-classify.js';
+import { classifyByRules, REDNOTE_CATEGORIES } from '../server/services/classify.js';
+import { buildSystemPrompt, classifyByAi, parseAiCategory, type AiClassifyConfig } from '../server/services/ai-classify.js';
 import { CategoriesService } from '../server/services/categories.js';
 
 const VALID = new Set(REDNOTE_CATEGORIES.map((c) => c.id));
 
-describe('规则分类（classifyRednote）', () => {
+describe('规则分类（classifyByRules，rednote 与 web 共用）', () => {
   it('2026-09-28 新增 8 篇：7 篇命中规则/人工表，1 篇留给 AI 兜底', () => {
     const cases: Array<[string, string, string[], string | null]> = [
       ['6ab49468', '中年男人下班后，深夜独自喝茶的快乐。', ['玩茶人', '茶生活', '夜茶时光'], 'life'],
@@ -22,21 +22,21 @@ describe('规则分类（classifyRednote）', () => {
       ['6aacad1a', 'AI驯化｜古画活起来教程', ['仇英', '琵琶行'], 'design-aigc'], // 人工表：同「名画变电影」先例
     ];
     for (const [id, title, tags, expected] of cases) {
-      const r = classifyRednote(id, title, tags);
+      const r = classifyByRules(id, title, tags);
       expect(r?.categoryId ?? null).toBe(expected);
     }
   });
 
   it(' rationale 记录命中依据，人工表条目使用人工说明', () => {
-    const byTag = classifyRednote('6aab22db', '笔墨迭代与重构（4）', ['张修安大写意']);
+    const byTag = classifyByRules('6aab22db', '笔墨迭代与重构（4）', ['张修安大写意']);
     expect(byTag?.rationale).toContain('标签含');
-    const manual = classifyRednote('6aacad1a', 'AI驯化｜古画活起来教程', []);
+    const manual = classifyByRules('6aacad1a', 'AI驯化｜古画活起来教程', []);
     expect(manual?.rationale).toContain('人工');
   });
 
   it('大小写敏感词不误伤（UI 只认大写）', () => {
-    expect(classifyRednote('aaaaaaaa', 'tailwind 主题配置', [])?.categoryId).not.toBe('design-aigc');
-    expect(classifyRednote('aaaaaaaa', '最近流行的 UI 风格', [])?.categoryId).toBe('design-aigc');
+    expect(classifyByRules('aaaaaaaa', 'tailwind 主题配置', [])?.categoryId).not.toBe('design-aigc');
+    expect(classifyByRules('aaaaaaaa', '最近流行的 UI 风格', [])?.categoryId).toBe('design-aigc');
   });
 });
 
@@ -94,7 +94,7 @@ describe('刷新时的批量补分类（ensureClassified）', () => {
       async (item) => {
         if (item.id === 'ai-1') return null;
         if (item.id === 'bad-1') return { categoryId: '不存在的类', rationale: 'x' };
-        return classifyRednote(item.id, item.title, item.tags);
+        return classifyByRules(item.id, item.title, item.tags);
       }
     );
     expect(assigned).toBe(1);
@@ -118,7 +118,7 @@ describe('刷新时的批量补分类（ensureClassified）', () => {
     await svc.init(null);
     await svc.ensureClassified(
       [{ id: 'n-1', title: 'ESP32 做了一个桌面摆件', tags: ['乐鑫'], excerpt: '' }],
-      async (it) => classifyRednote(it.id, it.title, it.tags)
+      async (it) => classifyByRules(it.id, it.title, it.tags)
     );
     const reloaded = new CategoriesService(dir, path.join(dir, 'bak'));
     await reloaded.init(null);
@@ -149,7 +149,7 @@ describe('classifyByAi：请求形态与失败翻译', () => {
       });
     }) as typeof fetch;
 
-    const hit = await classifyByAi(cfg, input, new Set(['life']), stub);
+    const hit = await classifyByAi(cfg, input, new Set(['life']), { subject: '这条小红书笔记', categories: [{ id: 'life', name: '生活', description: '茶器文玩、宠物旅行' }] }, stub);
     expect(hit?.categoryId).toBe('life');
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe('https://classify.example/v1/chat/completions');
@@ -161,14 +161,26 @@ describe('classifyByAi：请求形态与失败翻译', () => {
     expect(new Headers(calls[0]!.init.headers).get('Authorization')).toBe('Bearer k');
   });
 
+  it('系统提示按传入主题与类目表生成（不再写死"小红书"与固定类目）', () => {
+    const p = buildSystemPrompt('这条网页剪藏（文章）', [
+      { id: 'ai-programming', name: 'AI 工具', description: 'AI 工具与大模型' },
+      { id: 'life', name: '生活' },
+    ]);
+    expect(p).toContain('这条网页剪藏（文章）');
+    expect(p).not.toContain('小红书');
+    expect(p).toContain('- ai-programming: AI 工具——AI 工具与大模型');
+    // 没写 description 时回落用类目名，不让"——"后面空着
+    expect(p).toContain('- life: 生活——生活');
+  });
+
   it('HTTP 401 / 网络抛错 / 响应非 JSON 都返回 null（刷新不被 AI 卡死）', async () => {
     const bad401 = (async () => new Response('denied', { status: 401 })) as typeof fetch;
-    expect(await classifyByAi(cfg, input, new Set(), bad401)).toBeNull();
+    expect(await classifyByAi(cfg, input, new Set(), { subject: '这条小红书笔记', categories: [{ id: 'life', name: '生活', description: '茶器文玩、宠物旅行' }] }, bad401)).toBeNull();
     const netErr = (async () => {
       throw new TypeError('fetch failed');
     }) as typeof fetch;
-    expect(await classifyByAi(cfg, input, new Set(), netErr)).toBeNull();
+    expect(await classifyByAi(cfg, input, new Set(), { subject: '这条小红书笔记', categories: [{ id: 'life', name: '生活', description: '茶器文玩、宠物旅行' }] }, netErr)).toBeNull();
     const notJson = (async () => new Response('oops', { status: 200 })) as typeof fetch;
-    expect(await classifyByAi(cfg, input, new Set(), notJson)).toBeNull();
+    expect(await classifyByAi(cfg, input, new Set(), { subject: '这条小红书笔记', categories: [{ id: 'life', name: '生活', description: '茶器文玩、宠物旅行' }] }, notJson)).toBeNull();
   });
 });

@@ -83,6 +83,35 @@ function stubNet(opts: { apiOk?: boolean; pic?: string; duration?: number; image
   return { fake: fake as unknown as typeof fetch, calls };
 }
 
+/** 重定向路由桩：按 URL 查表返回响应；redirect 未显式设为 'manual' 时**自行跟随**
+ *（模拟原生 fetch 的默认行为——自动跟随正是评审 R3 的漏洞面），每次请求记进 hits。 */
+function redirectNet(routes: Record<string, { status: number; location?: string; body?: Buffer; contentType?: string }>) {
+  const hits: string[] = [];
+  const fake = (async (url: string | URL | Request, init?: RequestInit) => {
+    const redirect = init?.redirect ?? 'follow';
+    let cur = String(url);
+    for (let i = 0; i < 30; i++) {
+      hits.push(cur);
+      const r = routes[cur];
+      if (!r) return new Response('not found', { status: 404 });
+      if (r.status >= 300 && r.status < 400 && r.location) {
+        if (redirect === 'manual') {
+          return new Response(null, { status: r.status, headers: { Location: r.location } });
+        }
+        if (redirect === 'error') throw new TypeError('redirect denied');
+        cur = new URL(r.location, cur).href; // follow：无条件跟随（含私网目标）
+        continue;
+      }
+      return new Response(r.body ?? new Uint8Array(), {
+        status: r.status,
+        headers: { 'Content-Type': r.contentType ?? 'image/jpeg' },
+      });
+    }
+    return new Response('too many', { status: 508 });
+  }) as unknown as typeof fetch;
+  return { fake, hits };
+}
+
 describe('bvidFromUrl / publicHttpUrl / firstRemoteImage', () => {
   it('BV 号提取：带查询串/纯路径都行，非视频链接返回 null', () => {
     expect(bvidFromUrl('https://www.bilibili.com/video/BV1s6pgzLE3y/?spm_id_from=333.1387')).toBe('BV1s6pgzLE3y');
@@ -154,6 +183,52 @@ describe('WebCoverService：抓取、缓存、负缓存、回退', () => {
     const e2 = await svc.ensure(badNote, fake);
     expect(e2).toBeNull();
     expect(svc.get(badNote.id)?.failedAt).toBeTruthy();
+  });
+
+  // fetch 默认 redirect:'follow' 会把公网 302 直接带到内网目标，绕过 publicHttpUrl 的
+  // 字面私网检查（评审 R3）——必须手动跟随、逐跳过闸、跳数封顶。
+  it('公网 302 指向内网时拒绝跟随（内网零请求）；合法公网跳转仍可用；跳数有上限', async () => {
+    // 场景 1：重定向目标是内网 → 一个请求都不发给内网，封面失败进负缓存
+    const a = tmpBase();
+    const s1 = new WebCoverService(a.dataDir, a.backupDir);
+    await s1.init();
+    const evil = mkNote({ id: 'Clippings/evil.md', bodyHtml: '<img src="https://public.example/x.jpg"/>' });
+    const r1 = redirectNet({
+      'https://public.example/x.jpg': { status: 302, location: 'http://127.0.0.1:18080/secret.png' },
+      'http://127.0.0.1:18080/secret.png': { status: 200, body: IMG_BYTES, contentType: 'image/png' },
+    });
+    expect(await s1.ensure(evil, r1.fake)).toBeNull();
+    expect(r1.hits.filter((u) => u.startsWith('http://127.0.0.1'))).toHaveLength(0);
+    expect(r1.hits.filter((u) => u === 'https://public.example/x.jpg')).toHaveLength(1); // 每跳只请求一次
+    expect(s1.get(evil.id)?.failedAt).toBeTruthy();
+
+    // 场景 2：公网 → 公网的合法跳转照常可用（http→https、CDN 302 都靠它）
+    const b = tmpBase();
+    const s2 = new WebCoverService(b.dataDir, b.backupDir);
+    await s2.init();
+    const okNote = mkNote({ id: 'Clippings/ok.md', bodyHtml: '<img src="https://public.example/x.jpg"/>' });
+    const r2 = redirectNet({
+      'https://public.example/x.jpg': { status: 302, location: 'https://cdn.example/y.jpg' },
+      'https://cdn.example/y.jpg': { status: 200, body: IMG_BYTES, contentType: 'image/jpeg' },
+    });
+    expect(await s2.ensure(okNote, r2.fake)).toMatchObject({ contentType: 'image/jpeg', failedAt: null });
+    expect(r2.hits).toEqual(['https://public.example/x.jpg', 'https://cdn.example/y.jpg']);
+
+    // 场景 3：重定向链超限（>3 跳）→ 放弃，不把下载变成无界跳转
+    const c = tmpBase();
+    const s3 = new WebCoverService(c.dataDir, c.backupDir);
+    await s3.init();
+    const loopNote = mkNote({ id: 'Clippings/loop.md', bodyHtml: '<img src="https://public.example/a.jpg"/>' });
+    const r3 = redirectNet({
+      'https://public.example/a.jpg': { status: 302, location: 'https://public.example/b.jpg' },
+      'https://public.example/b.jpg': { status: 302, location: 'https://public.example/c.jpg' },
+      'https://public.example/c.jpg': { status: 302, location: 'https://public.example/d.jpg' },
+      'https://public.example/d.jpg': { status: 302, location: 'https://public.example/e.jpg' },
+      'https://public.example/e.jpg': { status: 200, body: IMG_BYTES, contentType: 'image/jpeg' },
+    });
+    expect(await s3.ensure(loopNote, r3.fake)).toBeNull();
+    expect(r3.hits.length).toBeLessThanOrEqual(4); // 初始请求 + 最多 3 跳
+    expect(s3.get(loopNote.id)?.failedAt).toBeTruthy();
   });
 
   it('抓取失败（无来源 / 图错了 / 太大 / 非图片类型）都进负缓存，且 6 小时内不再重试', async () => {
@@ -277,5 +352,54 @@ describe('HTTP：GET /api/web-cover/:id 与摘要合并', () => {
     const missing = await fetch(`${base}/api/web-cover/${encodeURIComponent('Clippings/没有这篇.md')}`);
     expect(missing.status).toBe(404);
     expect(((await missing.json()) as { error: { code: string } }).error.code).toBe('NOTE_NOT_FOUND');
+  });
+
+  // 摘要三态里，"试过没有"必须带上 6 小时负缓存的时钟：过期后要回到 undefined（可重探），
+  // 否则失败条目被钉死成 null，刷新页面/重启都不会再走 ensure 的重试路径（评审 R5）。
+  it('负缓存过期的失败条目回到可探测态（undefined）；未过期仍是 null', async () => {
+    const noteId = 'Clippings/陈天奇播客.md';
+    const writeFailedCover = (failedAt: string) => {
+      fs.writeFileSync(
+        path.join(fx.dataDir, 'web-covers.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          revision: 1,
+          entries: {
+            [noteId]: {
+              noteId,
+              file: 'probe.jpg',
+              contentType: 'image/jpeg',
+              durationSec: null,
+              source: 'first-image',
+              at: '2020-01-01T00:00:00Z',
+              failedAt,
+            },
+          },
+        }),
+        'utf8'
+      );
+    };
+    const q = {
+      q: '',
+      categoryId: null,
+      timeField: 'published' as const,
+      range: 'all' as const,
+      order: 'desc' as const,
+      offset: 0,
+      limit: 10,
+      collection: 'web',
+    };
+
+    // 刚失败（未过期）→ null：卡片不得反复探测
+    writeFailedCover(new Date().toISOString());
+    const s1 = new LibraryService(makeCfg(fx));
+    await s1.init();
+    expect(s1.query(q).items[0]!.webCover).toBeNull();
+
+    // 过期失败（2020 年）→ undefined：允许重新探测，走 ensure 的重试
+    writeFailedCover('2020-01-01T00:00:00Z');
+    const s2 = new LibraryService(makeCfg(fx));
+    await s2.init();
+    expect(s2.query(q).items[0]!.webCover).toBeUndefined();
   });
 });

@@ -42,25 +42,10 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate
 echo "[4/4] 健康检查"
 PORT=$(grep -E '^MYINFOBASE_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' ')
 PORT=${PORT:-4317}
-i=0
-while [ $i -lt 90 ]; do
-  BODY=$(wget -qO- "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
-  case "$BODY" in
-    *'"ready":true'*)
-      case "$BODY" in
-        *"\"version\":\"$VER\""*)
-          echo "完成：健康检查通过，版本 $VER 已上线（http://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
-          exit 0
-          ;;
-        *)
-          echo "错误：health 版本与 $VER 不一致：$BODY" >&2
-          exit 2
-          ;;
-      esac
-      ;;
-  esac
-  i=$((i + 1))
-  sleep 2
-done
-echo "错误：健康检查超时（3 分钟），查看日志：docker logs myinfobase" >&2
-exit 2
+# 探针独立成脚本（每次请求自带超时 + 单调整体截止，评审 R6），失败时保持本脚本原有的 exit 2
+if ! sh "$PROJ/deploy/health-wait.sh" "$PORT" "$VER" 180; then
+  echo "错误：健康检查未通过，查看日志：docker logs myinfobase" >&2
+  exit 2
+fi
+echo "完成：健康检查通过，版本 $VER 已上线（http://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
+exit 0

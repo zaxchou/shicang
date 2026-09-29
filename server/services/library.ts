@@ -430,12 +430,14 @@ export class LibraryService {
     const managed = this.isManagedCategory(r.collection);
     const ann = this.annotations.effective(r.id);
     // 网页封面三态（JSON 里 undefined 键会消失，正好表达"还没试过"）：
-    //   对象 = 已有封面；null = 试过、没有（别让卡片反复探测）；undefined = 还没试过（网页库卡片按需探测一次）
+    //   对象 = 已有封面；null = 试过、没有（负缓存期内，别让卡片反复探测）；
+    //   undefined = 还没试过**或负缓存已过期**（网页库卡片按需探测一次——过期失败若仍钉死成 null，
+    //   刷新页面/重启都不会再走 ensure 的重试，六小时 TTL 形同虚设，评审 R5）
     const wc = this.webCover.get(r.id);
     let webCover: NoteSummary['webCover'];
     if (wc && !wc.failedAt) {
       webCover = { url: `/api/web-cover/${encodeURIComponent(r.id)}`, durationSec: wc.durationSec };
-    } else if (wc) {
+    } else if (wc && wc.failedAt && !this.webCover.negativeExpired(wc.failedAt)) {
       webCover = null;
     } else {
       webCover = undefined;
@@ -1301,6 +1303,7 @@ export class LibraryService {
     const validIds = new Set(this.categories.categories.map((c) => c.id));
     let byRule = 0;
     let byAi = 0;
+    let aiAttempted = 0;
     let aiDeferred = 0;
     const result = await this.categories.ensureClassified(
       targets.map((n) => ({ id: n.id, title: n.title, tags: n.tags, excerpt: n.excerpt })),
@@ -1311,11 +1314,13 @@ export class LibraryService {
           return rule;
         }
         if (!aiCfg) return null;
-        // 上限保护：超出后不再调用接口，保持未分类，下次刷新继续
-        if (byAi + aiDeferred >= aiCfg.maxPerRefresh) {
+        // 上限保护按「发出的请求」计数，失败也占额度——失败响应同样发过请求（可能已计费），
+        // 不占额度的话模型持续返回无效/供应商故障时，一次刷新会把全部待分类笔记都打出去
+        if (aiAttempted >= aiCfg.maxPerRefresh) {
           aiDeferred++;
           return null;
         }
+        aiAttempted++;
         const rec = this.byId.get(item.id);
         const subject =
           this.colMap.get(rec?.collection ?? '')?.type === 'web' ? '这条网页剪藏（文章）' : '这条小红书笔记';
@@ -1327,9 +1332,11 @@ export class LibraryService {
         return hit;
       }
     );
-    if (result.assigned === 0 && aiDeferred === 0) return null;
+    const aiFailed = aiAttempted - byAi;
+    if (result.assigned === 0 && aiDeferred === 0 && aiFailed === 0) return null;
     const deferred = aiDeferred > 0 ? `；AI 本次上限 ${aiCfg?.maxPerRefresh} 次，剩余 ${aiDeferred} 篇留待下次刷新` : '';
-    const msg = `自动分类 ${result.assigned} 篇（规则 ${byRule}${aiCfg ? ` / AI ${byAi}` : ''}），未分类 ${result.unclassified.length} 篇${deferred}`;
+    const failed = aiFailed > 0 ? `，AI 无效响应 ${aiFailed} 次` : '';
+    const msg = `自动分类 ${result.assigned} 篇（规则 ${byRule}${aiCfg ? ` / AI ${byAi}` : ''}），未分类 ${result.unclassified.length} 篇${failed}${deferred}`;
     log.info(msg);
     if (job) job.diagnostics.push(msg);
     return msg;

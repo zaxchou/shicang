@@ -4,7 +4,8 @@
 // 四条纪律：
 //   · **解析器绝不联网**（parse.ts 保持纯函数）——封面是**按需**拉取：卡片渲染时请求
 //     `GET /api/web-cover/:noteId`，命中缓存秒回，未命中才抓一次；
-//   · **防内网探测**：只允许公网 http(s)（拒 localhost/.local/字面私网 IP/IPv6 字面量）；
+//   · **防内网探测**：只允许公网 http(s)（拒 localhost/.local/字面私网 IP/IPv6 字面量），
+//     重定向**手动跟随、逐跳过同一道闸**（fetch 默认 follow 会让公网 302 直接带到内网，评审 R3）；
 //     DNS 解析后才落私网的情形属已知残余风险（不做二次解析，记录在文档里）；
 //   · **有闸**：连接/读取超时 12s、下载体积 ≤6MB、Content-Type 必须是 image/*；
 //   · **失败进负缓存**（6 小时内不再重试），列表与详情永不因抓封面报错——卡片拿不到图就不显示图。
@@ -89,6 +90,33 @@ export function firstRemoteImage(bodyHtml: string): string | null {
   return null;
 }
 
+/** 手动跟随重定向的跳数上限（初始请求之外最多再跟 3 跳） */
+const MAX_REDIRECTS = 3;
+
+/**
+ * 带重定向纪律的 fetch：`redirect:'manual'` + 逐跳把 Location 解析后过 `publicHttpUrl`。
+ * 直接用默认 follow 的话，字面私网检查只验第一个 URL，公网 302 一跳就进了内网（评审 R3）。
+ * 返回 null 表示"拒绝跟随或跳数超限"；其余返回最后一跳的响应（包括 3xx 本身——调用方按 !ok 处理）。
+ */
+async function fetchGuarded(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Response | null> {
+  let cur = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const res = await fetchImpl(cur, { ...init, redirect: 'manual' });
+    if (res.status < 300 || res.status >= 400) return res;
+    const loc = res.headers.get('location');
+    if (!loc) return res;
+    let next: URL | null;
+    try {
+      next = publicHttpUrl(new URL(loc, cur).href);
+    } catch {
+      return res; // Location 畸形：当作失败，不跟随
+    }
+    if (!next) return null; // 私网/非 http(s) 目标：拒绝跟随
+    cur = next.href;
+  }
+  return null; // 跳数超限
+}
+
 function validateDoc(data: unknown): WebCoverDoc | null {
   if (typeof data !== 'object' || data === null) return null;
   const d = data as WebCoverDoc;
@@ -169,6 +197,13 @@ export class WebCoverService {
     return this.doc.entries[noteId] ?? null;
   }
 
+  /** 负缓存是否已过期：过期（或时间戳损坏）后应允许重新探测/抓取。
+   *  ensure 与摘要三态共用这一个判断——两处各写一套时钟正是"过期了却探不了"这类 bug 的温床（评审 R5）。 */
+  negativeExpired(failedAt: string): boolean {
+    const t = Date.parse(failedAt);
+    return !Number.isFinite(t) || Date.now() - t >= NEGATIVE_TTL_MS;
+  }
+
   /** 可用条目（有文件且不在负缓存期）的绝对路径；不存在返回 null */
   filePathOf(noteId: string): string | null {
     const e = this.doc.entries[noteId];
@@ -181,7 +216,7 @@ export class WebCoverService {
   async ensure(note: NoteRecord, fetchImpl: typeof fetch = fetch): Promise<WebCoverEntry | null> {
     const cur = this.doc.entries[note.id];
     if (cur && !cur.failedAt) return cur;
-    if (cur?.failedAt && Date.now() - Date.parse(cur.failedAt) < NEGATIVE_TTL_MS) return null;
+    if (cur?.failedAt && !this.negativeExpired(cur.failedAt)) return null;
     const flight = this.flights.get(note.id);
     if (flight) return flight;
     const p = this.fetchAndStore(note, fetchImpl).finally(() => this.flights.delete(note.id));
@@ -269,11 +304,11 @@ export class WebCoverService {
     if (bvid) {
       const api = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`;
       try {
-        const res = await fetchImpl(api, {
+        const res = await fetchGuarded(fetchImpl, api, {
           headers: { 'User-Agent': UA, Referer: 'https://www.bilibili.com/' },
           signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
-        if (res.ok) {
+        if (res && res.ok) {
           const j = (await res.json()) as {
             code?: number;
             data?: { pic?: unknown; duration?: unknown };
@@ -310,11 +345,11 @@ export class WebCoverService {
     const u = publicHttpUrl(rawUrl);
     if (!u) return null;
     try {
-      const res = await fetchImpl(u.href, {
+      const res = await fetchGuarded(fetchImpl, u.href, {
         headers: { 'User-Agent': UA, Referer: referer, Accept: 'image/*,*/*;q=0.5' },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
-      if (!res.ok) return null;
+      if (!res || !res.ok) return null;
       const ct = (res.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
       if (!ct.startsWith('image/')) return null;
       const len = Number(res.headers.get('content-length') ?? '0');

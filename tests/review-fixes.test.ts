@@ -1,9 +1,11 @@
-// 深度审查（2026-09-28）修掉的问题的回归用例。
+// 深度审查（2026-09-28）与 2026-09-29 评审修掉的问题的回归用例。
 // 每条都对应一个**先复现过**的真实缺陷，写下来是为了不让它们悄悄回来。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import http from 'node:http';
 import { apiRouter } from '../server/routes/api';
@@ -588,5 +590,170 @@ describe('标注：__proto__ 这种键必须落成自己的属性', () => {
     };
     expect(Object.hasOwn(raw2.entries, '__proto__')).toBe(true);
     expect(Object.hasOwn(raw2.entries, 'other-note')).toBe(true);
+  });
+});
+
+// ---------- 2026-09-29 评审：发布脚本 ----------
+
+// -SkipChecks 只该跳类型检查与测试。跳过构建的话，旧 dist 配上按当前 package.json 写的 VERSION
+// 照样过健康门——"版本 9.9.9 已上线"背后跑的却是旧逻辑（评审 R4）。
+// 假项目 + 真脚本：build 往 dist 写新哨兵，断言发布包里是新产物而不是预放的旧文件。
+describe('release.ps1 -SkipChecks（评审 R4）', () => {
+  it.skipIf(process.platform !== 'win32')(
+    '-SkipChecks 下仍现场构建：发布包含的是新构建产物，不是旧 dist',
+    () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rel-probe-'));
+      try {
+        for (const sub of ['scripts', 'deploy', 'dist/server', 'dist/web', 'server']) {
+          fs.mkdirSync(path.join(tmp, sub), { recursive: true });
+        }
+        fs.copyFileSync(
+          fileURLToPath(new URL('../scripts/release.ps1', import.meta.url)),
+          path.join(tmp, 'scripts', 'release.ps1')
+        );
+        fs.copyFileSync(
+          fileURLToPath(new URL('../deploy/Dockerfile', import.meta.url)),
+          path.join(tmp, 'deploy', 'Dockerfile')
+        );
+        fs.writeFileSync(
+          path.join(tmp, 'package.json'),
+          // pretty 输出：release.ps1 按 '"version": "x.y.z"'（冒号后带空格）计数，紧凑 JSON 匹配不上
+          JSON.stringify(
+            {
+              name: 'release-probe',
+              version: '9.9.9',
+              engines: { node: '>=22' },
+              scripts: {
+                // 假构建：往 dist 写新哨兵；-SkipChecks 下它也必须执行
+                build:
+                  `node -e "require('fs').writeFileSync('dist/server/index.js','// NEW_BUILD_SENTINEL');` +
+                  `require('fs').writeFileSync('dist/web/index.html','<p>NEW_BUILD_SENTINEL</p>')"`,
+                typecheck: 'node -e ""',
+                test: 'node -e ""',
+              },
+            },
+            null,
+            2
+          )
+        );
+        // 版本归一断言依赖这个结构：根 1 次 + packages[""] 1 次
+        fs.writeFileSync(
+          path.join(tmp, 'package-lock.json'),
+          JSON.stringify({ version: '9.9.9', packages: { '': { version: '9.9.9' } } }, null, 2)
+        );
+        fs.writeFileSync(path.join(tmp, 'dist', 'server', 'index.js'), '// OLD_BUILD_SENTINEL');
+        fs.writeFileSync(path.join(tmp, 'dist', 'web', 'index.html'), '<p>OLD_BUILD_SENTINEL</p>');
+        fs.writeFileSync(path.join(tmp, 'server', 'index.ts'), '// NEW_SOURCE_SENTINEL');
+
+        const r = spawnSync(
+          'powershell.exe',
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(tmp, 'scripts', 'release.ps1'), '-SkipChecks'],
+          { cwd: tmp, encoding: 'utf8', timeout: 120_000 }
+        );
+        expect(r.status, `发布脚本未成功：${r.stderr ?? ''}${r.stdout ?? ''}`).toBe(0);
+        const packed = fs.readFileSync(path.join(tmp, 'releases', '9.9.9', 'dist', 'server', 'index.js'), 'utf8');
+        expect(packed).toContain('NEW_BUILD_SENTINEL');
+        expect(packed).not.toContain('OLD_BUILD_SENTINEL');
+        const ver = fs.readFileSync(path.join(tmp, 'releases', '9.9.9', 'VERSION'), 'utf8').trim();
+        expect(ver).toBe('9.9.9');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+    180_000
+  );
+});
+
+// ---------- 2026-09-29 评审：部署健康检查 ----------
+
+// "90 次 × 2 秒 = 三分钟"的前提是每次 wget 都很快返回；服务连上但不回包时，单次请求无限阻塞，
+// 计数器不推进、承诺的截止时间失效，人工回滚判断被拖延（评审 R6）。
+// 探针必须：每次请求自带超时 + 单调整体截止时间。
+describe('deploy/health-wait.sh（评审 R6）', () => {
+  const shAvailable = !spawnSync('sh', ['-c', 'exit 0'], { encoding: 'utf8' }).error;
+  const script = fileURLToPath(new URL('../deploy/health-wait.sh', import.meta.url));
+
+  function listen(srv: http.Server): Promise<number> {
+    return new Promise((resolve) => {
+      srv.listen(0, '127.0.0.1', () => resolve((srv.address() as { port: number }).port));
+    });
+  }
+
+  it.skipIf(!shAvailable)(
+    '服务连上但不回包时探针按时退出；就绪即成功；版本不符立刻 exit 2',
+    async () => {
+      // 必须异步 spawn：spawnSync 会阻塞事件循环，本进程里的测试服务器就永远无法响应，
+      // "正常服务"场景会假失败成超时。
+      const run = (port: number, ver: string, total: number) =>
+        new Promise<{ status: number | null; stderr: string; timedOut: boolean; elapsed: number }>((resolve) => {
+          const t0 = Date.now();
+          const child = spawn('sh', [script, String(port), ver, String(total)], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+          let stderr = '';
+          let timedOut = false;
+          const timer = setTimeout(() => {
+            timedOut = true;
+            child.kill();
+          }, 30_000);
+          child.stderr.on('data', (d: Buffer) => {
+            stderr += String(d);
+          });
+          const done = (status: number | null, err?: string) => {
+            clearTimeout(timer);
+            resolve({ status, stderr: stderr + (err ?? ''), timedOut, elapsed: Date.now() - t0 });
+          };
+          child.on('error', (e) => done(null, String(e)));
+          child.on('close', (code) => done(code));
+        });
+
+      // 场景 1：挂起服务（收到请求但永不响应）→ 探针必须自己在截止时间内退出，而不是被 test timeout 杀掉
+      const socks: Array<{ destroy(): void }> = [];
+      const hang = http.createServer(() => undefined);
+      hang.on('connection', (s) => {
+        socks.push(s);
+        s.setTimeout(120_000, () => s.destroy());
+      });
+      const hangPort = await listen(hang);
+      const r1 = await run(hangPort, '9.9.9', 6);
+      socks.forEach((s) => s.destroy());
+      await new Promise<void>((r) => hang.close(() => r()));
+      expect(r1.timedOut, '探针应自己退出，而不是挂到被杀掉').toBe(false);
+      expect(r1.status).not.toBe(0);
+      expect(r1.elapsed, `挂起场景耗时 ${r1.elapsed}ms`).toBeLessThan(15_000); // 截止 6s + 余量
+
+      // 场景 2：正常就绪 → exit 0
+      const ok = http.createServer((_req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ready: true, version: '9.9.9' }));
+      });
+      const okPort = await listen(ok);
+      const r2 = await run(okPort, '9.9.9', 10);
+      await new Promise<void>((r) => ok.close(() => r()));
+      expect(r2.status, r2.stderr).toBe(0);
+      expect(r2.elapsed).toBeLessThan(8_000);
+
+      // 场景 3：就绪但版本不符 → 立刻 exit 2（这是"旧容器没换成功"的事故信号，不该等到超时）
+      const wrong = http.createServer((_req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ready: true, version: '1.0.0' }));
+      });
+      const wrongPort = await listen(wrong);
+      const r3 = await run(wrongPort, '9.9.9', 10);
+      await new Promise<void>((r) => wrong.close(() => r()));
+      expect(r3.status).toBe(2);
+    },
+    90_000
+  );
+
+  it('两种抓取工具都带请求超时（wget 与 curl 分支各自的短选项都在）', () => {
+    const text = fs.readFileSync(script, 'utf8');
+    // GNU wget 与 BusyBox wget 同形：-T 单次超时、-t 只试一次
+    expect(text).toMatch(/wget.*-T \d+/);
+    expect(text).toMatch(/wget.*-t 1/);
+    // curl 分支（没有 wget 的开发机走它）：-m 单次最大时长
+    expect(text).toMatch(/curl.*-m \d+/);
+    // 单调整体截止：以剩余时间控制循环，而不是固定次数
+    expect(text).toMatch(/date \+%s/);
   });
 });

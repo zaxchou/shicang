@@ -183,8 +183,14 @@ export async function scanVault(
 
   // 完整枚举成功后：旧索引中已消失的文件标记 missing（保留记录与分类）。
   // 有意跳过的文件除外——它们不是"消失"，而是不再算库内条目。
+  // ID 已被新路径接管的也除外（改名/移动：resourceId 不随路径变，新记录就是同一篇笔记）——
+  // 否则同 ID 会出现 available + missing 两条，rebuildMaps 后写覆盖先写，详情会指向旧路径（评审 R2）。
   for (const [rel, rec] of existingByPath) {
     if (byPath.has(rel) || intentionalSkips.has(rel)) continue;
+    if (idOwner.has(rec.id)) {
+      diagnostics.push(`${rel}: 源文件已消失，但 ID 已由新路径接管（改名/移动），不补 missing`);
+      continue;
+    }
     const missing: NoteRecord = { ...rec, sourceStatus: 'missing' };
     byPath.set(rel, missing);
     records.push(missing);

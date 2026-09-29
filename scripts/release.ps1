@@ -28,18 +28,20 @@ if (Test-Path $relDir) {
   Write-Error "releases\$Version 已存在，先删除或换版本号"
 }
 
-# 预检：类型 + 测试 + **现场构建 dist**。发布包直接携带 dist（Dockerfile 已不再编译），
-# 所以必须在这里重新构建——否则打包的可能是上一版源码留下的旧产物。
+# 预检：类型 + 测试。-SkipChecks 只跳过这两项。
 if (-not $SkipChecks) {
   Write-Host "== 预检：typecheck + 测试 ==" -ForegroundColor Cyan
   npm run typecheck
   if ($LASTEXITCODE -ne 0) { Write-Error "typecheck 未通过，已中止发布（确需跳过用 -SkipChecks）" }
   npm test
   if ($LASTEXITCODE -ne 0) { Write-Error "测试未通过，已中止发布（确需跳过用 -SkipChecks）" }
-  Write-Host "== 构建 dist（server + web）==" -ForegroundColor Cyan
-  npm run build
-  if ($LASTEXITCODE -ne 0) { Write-Error "构建失败，已中止发布" }
 }
+# 构建**不参与** -SkipChecks：发布包直接携带 dist（Dockerfile 已不再编译），
+# 跳过检查时若沿用旧产物，会把旧逻辑贴上按当前 package.json 写的新版本号并通过健康门
+# （评审 R4 实测复现）。-SkipChecks 的语义只是"不跑类型检查和测试"，不是"允许发旧包"。
+Write-Host "== 构建 dist（server + web）==" -ForegroundColor Cyan
+npm run build
+if ($LASTEXITCODE -ne 0) { Write-Error "构建失败，已中止发布" }
 # dist 不完整 = 镜像里没有程序。即便 -SkipChecks 也不放行（跳过检查不等于允许发空包）
 if (-not (Test-Path "$projectRoot\dist\server\index.js") -or -not (Test-Path "$projectRoot\dist\web\index.html")) {
   Write-Error "dist 缺失或不完整（需要 dist\server\index.js 与 dist\web\index.html）；先跑 npm run build"

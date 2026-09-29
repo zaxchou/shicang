@@ -118,6 +118,46 @@ describe('扫描完整性', () => {
     fs.rmSync(fx.root, { recursive: true, force: true });
   });
 
+  // 改名 = 新路径接管同一稳定 ID：旧路径的 missing 副本不能再进索引，
+  // 否则 rebuildMaps 后写覆盖先写，详情会指向旧路径/源缺失（评审 R2）。
+  it('改名后同 ID 只留一条且详情指向新路径；再刷与重启都不复发', async () => {
+    const fx = createFixture('myinfobase-scan');
+    fx.writeNote({ id: 'stable-note-1', title: '旧标题', fileName: 'old.md', images: 0 });
+    const svc = await boot(makeCfg(fx));
+    expect(svc.libraryInfo().total).toBe(1);
+
+    fs.renameSync(
+      path.join(fx.sourceRoot, 'Bookmarks', 'old.md'),
+      path.join(fx.sourceRoot, 'Bookmarks', 'new.md')
+    );
+    const job = await refresh(svc);
+    expect(job.state).toBe('completed'); // 改名不是错误
+    expect(job.errors).toBe(0);
+
+    const rows = JSON.parse(fs.readFileSync(path.join(fx.dataDir, 'library-index.json'), 'utf8')).notes as Array<{
+      id: string;
+      sourceRelativePath: string;
+      sourceStatus: string;
+    }>;
+    const same = rows.filter((n) => n.id === 'stable-note-1');
+    expect(same).toHaveLength(1);
+    expect(same[0]!.sourceRelativePath).toContain('new.md');
+    expect(same[0]!.sourceStatus).toBe('available');
+    expect(svc.detail('stable-note-1').sourceRelativePath).toContain('new.md');
+    expect(svc.detail('stable-note-1').sourceStatus).toBe('available');
+    expect(svc.libraryInfo().total).toBe(1);
+
+    // 再刷一次（幂等）与重启（重新加载落盘索引）都不复发
+    const again = await refresh(svc);
+    expect(again.state).toBe('completed');
+    expect(svc.libraryInfo().total).toBe(1);
+    const reloaded = await boot(makeCfg(fx));
+    expect(reloaded.libraryInfo().total).toBe(1);
+    expect(reloaded.detail('stable-note-1').sourceStatus).toBe('available');
+    expect(reloaded.detail('stable-note-1').sourceRelativePath).toContain('new.md');
+    fs.rmSync(fx.root, { recursive: true, force: true });
+  });
+
   it('全部源文件消失：记录以 missing 保留（分类不丢），并给出醒目提示', async () => {
     const fx = createFixture('myinfobase-scan');
     fx.writeNote({ id: 'id-0001', title: '一' });
@@ -305,6 +345,66 @@ describe('AI 分类兜底的上限保护', () => {
     } finally {
       globalThis.fetch = realFetch;
       fs.rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  // 预算必须按「发出的请求数」计，不按「成功数」计：失败响应同样发出过请求（可能已计费），
+  // 不占额度的话，模型/供应商持续出错时一次刷新会把全部待分类笔记都打出去（评审 R1）。
+  it('AI 返回无效类目 / 401 / 网络错误时，请求次数仍不超过上限', async () => {
+    const modes: Array<[string, () => Promise<Response>]> = [
+      [
+        '无效类目',
+        async () =>
+          new Response(JSON.stringify({ choices: [{ message: { content: '{"categoryId":"不存在的类","reason":"x"}' } }] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ],
+      ['HTTP 401', async () => new Response('denied', { status: 401 })],
+      [
+        '网络抛错',
+        async () => {
+          throw new TypeError('fetch failed');
+        },
+      ],
+    ];
+    for (const [label, stub] of modes) {
+      const fx = createFixture('myinfobase-scan');
+      for (const id of ['id-0001', 'id-0002', 'id-0003']) {
+        fx.writeNote({ id, title: 'qqq', fileName: `${id}.md` });
+      }
+      fs.writeFileSync(
+        path.join(fx.dataDir, 'categories.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          categories: [{ id: 'life', name: '生活', description: '', order: 1 }],
+          initialAssignments: {},
+        }),
+        'utf8'
+      );
+      process.env.AI_CLASSIFY_API_KEY = 'test-key';
+      process.env.AI_CLASSIFY_MODEL = 'test-model';
+      process.env.AI_CLASSIFY_MAX_PER_REFRESH = '1';
+
+      let calls = 0;
+      const realFetch = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        calls++;
+        return stub();
+      }) as typeof fetch;
+
+      try {
+        const svc = await boot(makeCfg(fx));
+        expect(calls, `模式「${label}」首扫请求数`).toBe(1);
+        expect(svc.libraryInfo().uncategorized, `模式「${label}」应全部未分类`).toBe(3);
+        const job = await refresh(svc);
+        expect(job.state).toBe('completed');
+        expect(calls, `模式「${label}」刷新后累计请求数`).toBe(2); // 每次刷新重新给 1 次预算
+        expect(svc.libraryInfo().uncategorized).toBe(3);
+      } finally {
+        globalThis.fetch = realFetch;
+        fs.rmSync(fx.root, { recursive: true, force: true });
+      }
     }
   });
 

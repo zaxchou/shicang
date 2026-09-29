@@ -162,6 +162,8 @@ export class LibraryService {
   private job: InternalRefreshJob | null = null;
   /** 扫描串行链：初始扫描与手动刷新互斥，避免并发全盘扫描 */
   private scanChain: Promise<void> = Promise.resolve();
+  /** 本次启动 init() 是否已做过全量扫描（冷启动/指纹失效/缓存全 missing）——启动自刷据此去重（评审 R1） */
+  private scannedDuringBoot = false;
   private bootDiagnostics: string[] = [];
 
   private colMap = new Map<string, CollectionDef>();
@@ -264,6 +266,9 @@ export class LibraryService {
         this.bootDiagnostics = diagnostics;
       }
       await this.runScan('initial');
+      // 记录"本次启动已扫描"：启动入口据此跳过自刷（评审 2026-09-30 R1）——
+      // 否则冷启动会连扫两轮，autoClassify 带着全新预算把上一轮失败残留的笔记再打一遍
+      this.scannedDuringBoot = true;
     }
   }
 
@@ -1161,7 +1166,9 @@ export class LibraryService {
     } else {
       const line = parts.fmLines?.find((l) => fmKeyLineRe(fmKey).test(l));
       const rawVal = line ? (fmKeyLineRe(fmKey).exec(line)![1] ?? '').trim() : '';
-      title = rawVal ? unquoteYaml(rawVal) : rec.title;
+      // 多行 YAML 块标量（title: >- 之类）的"值"不在这一行上：显示回落到记录标题（gray-matter 折行后的全文）
+      const blockScalar = /^[|>][+-]?\d*\s*$/.test(rawVal);
+      title = rawVal && !blockScalar ? unquoteYaml(rawVal) : rec.title;
       bodyLines = parts.contentLines;
     }
     return {
@@ -1210,16 +1217,31 @@ export class LibraryService {
       let contentLines: string[];
 
       if (titleMode === 'h1') {
-        // H1 从标题字段重建，正文=用户编辑内容（去掉开头空行后接在 H1 下）
+        // H1 **原位**重建（与解析 extractH1 同口径：H1 可在正文任意位置）——
+        // H1 之前的段落必须原样保留（自查发现：取 slice(h1Idx+1) 会让保存丢掉前文）；
+        // H1 与正文之间的原有空行数也保留；无 H1 时才在顶部补一行。
+        const h1Idx = parts.contentLines.findIndex((l) => /^#\s+\S/.test(l));
+        const preamble = h1Idx >= 0 ? parts.contentLines.slice(0, h1Idx) : [];
+        const after = h1Idx >= 0 ? parts.contentLines.slice(h1Idx + 1) : [];
+        let blanks = 0;
+        while (blanks < after.length && after[blanks]!.trim() === '') blanks++;
         const bodyLines = dropLeadingBlank(input.body.split(parts.eol));
-        contentLines = ['', `# ${title}`, '', ...bodyLines];
+        contentLines = [...preamble, `# ${title}`, ...after.slice(0, blanks), ...bodyLines];
       } else {
         const keyRe = fmKeyLineRe(fmKey);
         const hasKey = fmLines.some((l) => keyRe.test(l));
         const rawVal = hasKey ? (keyRe.exec(fmLines.find((l) => keyRe.test(l))!)![1] ?? '').trim() : '';
-        const originalTitle = rawVal ? unquoteYaml(rawVal) : rec.title;
-        // 标题没变且键本来就不存在 → 不往用户手写的 frontmatter 里插行
-        if (hasKey || title !== originalTitle) {
+        const blockScalar = /^[|>][+-]?\d*\s*$/.test(rawVal);
+        // 块标量的真实标题在 gray-matter 折行后的记录标题里，不在这行上
+        const originalTitle = blockScalar ? rec.title : rawVal ? unquoteYaml(rawVal) : rec.title;
+        const titleChanged = title !== originalTitle;
+        if (hasKey && blockScalar && titleChanged) {
+          // 块标量的值不在这一行上，单行替换会留下孤儿行弄坏 frontmatter——拒绝改标题，正文不受影响
+          throw new ValidationError('这个笔记的标题是多行 YAML 块标量写法，暂不支持在拾藏里改标题；正文可以照常编辑保存');
+        }
+        // 只有标题真的变了才动 frontmatter；没变就逐字保留（含块标量、无引号等一切手写形态）——
+        // 此前 `hasKey ||` 让"没变也重写"，普通笔记无感，块标量却被写成单行留下孤儿续行（实测抓到）
+        if (titleChanged) {
           const quoted = `"${title.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
           fmLines = hasKey
             ? fmLines.map((l) => l.replace(keyRe, `${fmKey}: ${quoted}`))
@@ -1485,9 +1507,10 @@ export class LibraryService {
   // ---------- 刷新 ----------
 
   /** 启动时自动刷一次（AUTO_REFRESH_ON_BOOT，默认开）：与手动刷新共用同一条单飞/任务/落盘链路，
-   *  只是触发者是启动流程——关闭开关返回 null，不建 job。 */
+   *  只是触发者是启动流程。两种情况返回 null 不建 job：开关关闭；init() 已做过全量扫描
+   * （评审 R1——再刷一轮会让 autoClassify 带全新预算把失败残留的笔记重新打一遍）。 */
   startBootRefresh(): RefreshJobInfo | null {
-    if (!this.cfg.autoRefreshOnBoot) return null;
+    if (!this.cfg.autoRefreshOnBoot || this.scannedDuringBoot) return null;
     return this.startRefresh();
   }
 

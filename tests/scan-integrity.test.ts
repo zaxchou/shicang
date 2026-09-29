@@ -428,8 +428,11 @@ describe('启动时自动刷一次（startBootRefresh，v0.16）', () => {
     fx.writeNote({ id: 'id-0001', title: '一' });
     const baseCfg = makeCfg(fx);
 
+    // 先用一个实例建立有效索引——冷启动场景由下方"启动扫描去重"测试单独覆盖
+    const builder = new LibraryService(baseCfg);
+    await builder.init();
     const svc = new LibraryService({ ...baseCfg, autoRefreshOnBoot: true });
-    await svc.init();
+    await svc.init(); // 只加载缓存，未扫描 → 启动自刷应触发
     const job = svc.startBootRefresh();
     expect(job).not.toBeNull();
     expect(job!.state).toBe('running');
@@ -453,6 +456,85 @@ describe('启动时自动刷一次（startBootRefresh，v0.16）', () => {
     const svc2 = new LibraryService({ ...baseCfg, autoRefreshOnBoot: false });
     await svc2.init();
     expect(svc2.startBootRefresh()).toBeNull();
+    fs.rmSync(fx.root, { recursive: true, force: true });
+  });
+});
+
+// 启动扫描去重（评审 2026-09-30 R1）：冷启动/索引失效时 init() 已经跑过一次全量扫描，
+// 启动入口若再追加自刷，autoClassify 会带着全新预算把上一轮失败残留的笔记再打一遍——
+// 一次启动烧两轮预算。init 扫过就不再追加；只有"加载了有效缓存"的启动才自刷（源新增仍自动导入）。
+describe('启动扫描去重（评审 R1）', () => {
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  function makeInvalidAiStub(calls: { n: number }) {
+    return (async () => {
+      calls.n++;
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"categoryId":"不存在的类","reason":"x"}' } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }) as typeof fetch;
+  }
+
+  it('冷启动（首扫已跑）：startBootRefresh 返回 null，AI 总请求数停在单轮预算内', async () => {
+    const fx = createFixture('myinfobase-scan');
+    for (const id of ['id-0001', 'id-0002']) {
+      fx.writeNote({ id, title: 'qqq', fileName: `${id}.md` });
+    }
+    fs.writeFileSync(
+      path.join(fx.dataDir, 'categories.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        categories: [{ id: 'life', name: '生活', description: '', order: 1 }],
+        initialAssignments: {},
+      }),
+      'utf8'
+    );
+    process.env.AI_CLASSIFY_API_KEY = 'test-key';
+    process.env.AI_CLASSIFY_MODEL = 'test-model';
+    process.env.AI_CLASSIFY_MAX_PER_REFRESH = '1';
+
+    const calls = { n: 0 };
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = makeInvalidAiStub(calls);
+    try {
+      const svc = new LibraryService({ ...makeCfg(fx), autoRefreshOnBoot: true });
+      await svc.init(); // 冷启动：init 里已跑 initial 扫描 + 自动分类（预算 1 次全花掉且无效）
+      expect(calls.n).toBe(1);
+      expect(svc.startBootRefresh()).toBeNull(); // 刚扫过 → 不追加第二轮
+      expect(calls.n).toBe(1); // 总请求数 = 单轮预算，不是 2
+      expect(svc.libraryInfo().uncategorized).toBe(2);
+    } finally {
+      globalThis.fetch = realFetch;
+      fs.rmSync(fx.root, { recursive: true, force: true });
+    }
+  });
+
+  it('有效缓存启动：startBootRefresh 正常触发（源新增仍自动导入）', async () => {
+    const fx = createFixture('myinfobase-scan');
+    fx.writeNote({ id: 'id-0001', title: '一' });
+    const cfg = { ...makeCfg(fx), autoRefreshOnBoot: true };
+    const first = new LibraryService(cfg);
+    await first.init(); // 建立有效索引
+
+    const second = new LibraryService(cfg);
+    await second.init(); // 只加载缓存，没有扫描
+    const job = second.startBootRefresh();
+    expect(job).not.toBeNull();
+    let done = job!;
+    for (let i = 0; i < 200; i++) {
+      const cur = second.getRefreshJob(job!.jobId);
+      if (cur && cur.state !== 'running') {
+        done = cur;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(done.state).toBe('completed');
+    expect(done.added).toBe(0); // 没有新文件 → 快路径
     fs.rmSync(fx.root, { recursive: true, force: true });
   });
 });

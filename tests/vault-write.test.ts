@@ -289,4 +289,64 @@ describe('编辑写回 vault（v0.17）', () => {
       await new Promise<void>((r) => server.close(() => r()));
     }
   });
+
+  // 自查（2026-09-30 第三轮后）：解析器的 extractH1 是全文任意位置匹配、只删那一行、
+  // 保留 H1 之前的段落；编辑器若只取 H1 之后的内容，保存就会把前文删掉——写回是破坏性操作，必须同口径。
+  it('H1 前有其它文字：编辑不丢前文（H1 原位重建）', async () => {
+    const { svc, root } = await boot();
+    const p = path.join(root, 'RedNote', 'Bookmarks', '带前文.md');
+    fs.writeFileSync(
+      p,
+      '---\nresourceId: "ridpre"\n---\n\n前言一句，不能丢。\n\n# 原题\n\n正文。\n',
+      'utf8'
+    );
+    // 让新文件进索引（增量刷新）
+    const job = await refresh(svc);
+    expect(job.state).toBe('completed');
+
+    const src = await svc.noteSource('ridpre');
+    expect(src.title).toBe('原题');
+    expect(src.body).not.toContain('前言一句'); // 编辑器里只有 H1 之后的内容（与现有形态一致）
+
+    await svc.saveNoteContent('ridpre', { title: '新题', body: '\n正文改。', baseHash: src.baseHash });
+    const raw = fs.readFileSync(p, 'utf8');
+    expect(raw).toContain('前言一句，不能丢。'); // 前文原样保留
+    expect(raw).toContain('# 新题'); // H1 原位替换
+    expect(raw).toContain('正文改。');
+    expect(raw.indexOf('前言一句')).toBeLessThan(raw.indexOf('# 新题')); // 前文仍在 H1 之前
+  });
+
+  it('fm 标题是多行 YAML 块标量：改标题被拒（正文可编辑），未改标题的保存不受影响', async () => {
+    const { svc, root } = await boot();
+    const p = path.join(root, '我的收藏品', '块标量标题.md');
+    fs.writeFileSync(
+      p,
+      '---\n收藏分类: 茶器\nCSV标题: >-\n  茶壶长题第一行\n  茶壶长题第二行\n价格: 100\n---\n\n茶壶正文。\n',
+      'utf8'
+    );
+    const job = await refresh(svc);
+    expect(job.state).toBe('completed');
+
+    const src = await svc.noteSource('我的收藏品/块标量标题.md');
+    expect(src.editable).toBe(true);
+
+    await expect(
+      svc.saveNoteContent('我的收藏品/块标量标题.md', {
+        title: '换成单行',
+        body: src.body,
+        baseHash: src.baseHash,
+      })
+    ).rejects.toThrow(/多行/);
+    expect(fs.readFileSync(p, 'utf8')).toContain('CSV标题: >-'); // 盘上未动
+
+    // 只改正文、标题留着 → 正常保存（块标量原样保留）
+    await svc.saveNoteContent('我的收藏品/块标量标题.md', {
+      title: src.title,
+      body: '\n茶壶新正文。',
+      baseHash: src.baseHash,
+    });
+    const raw = fs.readFileSync(p, 'utf8');
+    expect(raw).toContain('CSV标题: >-');
+    expect(raw).toContain('茶壶新正文。');
+  });
 });

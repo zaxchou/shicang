@@ -8,6 +8,7 @@ import { DetailDialog } from './components/DetailDialog';
 import { TagsDirectory } from './components/TagsDirectory';
 import { DataTable } from './components/Table';
 import { IconArchive, IconRefresh } from './components/Icons';
+import { bootPollDelayMs } from './lib/boot-poll';
 
 const PAGE_SIZE = 60;
 const TABLE_LIMIT = 1000;
@@ -322,17 +323,18 @@ export default function App() {
     collection,
   ]);
 
-  // 库就绪轮询：首扫/重建期间（indexStatus 为 scanning 或 empty）每 2s 拉一次；
-  // 真空库/持续失败也靠 150 次上限兜底，不会永远每 2s 一次。
+  // 库就绪轮询：首扫/重建期间（indexStatus 为 scanning 或 empty）每 2s 拉一次。
+  // 节奏决策抽成纯函数 bootPollDelayMs（评审 2026-09-30 R2）：scanning 期间陪到底（150 次后退避 5s），
+  // 真空库/持续失败保留 150 次兜底——否则长扫描把页面永久卡死在"刷新中"且刷新入口禁用。
   const bootPollsRef = useRef(0);
   const prevIndexStatusRef = useRef<string | null>(null);
   useEffect(() => {
-    if (library && library.indexStatus === 'ready' && libraryError === null) return;
-    if (bootPollsRef.current >= 150) return;
+    const delay = bootPollDelayMs(library?.indexStatus, bootPollsRef.current);
+    if (delay === null) return;
     const t = window.setInterval(() => {
       bootPollsRef.current += 1;
       void loadLibrary();
-    }, 2000);
+    }, delay);
     return () => window.clearInterval(t);
   }, [library, libraryError, loadLibrary]);
 

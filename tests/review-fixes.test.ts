@@ -600,8 +600,16 @@ describe('标注：__proto__ 这种键必须落成自己的属性', () => {
 // -SkipChecks 只该跳类型检查与测试。跳过构建的话，旧 dist 配上按当前 package.json 写的 VERSION
 // 照样过健康门——"版本 9.9.9 已上线"背后跑的却是旧逻辑（评审 R4）。
 // 假项目 + 真脚本：build 往 dist 写新哨兵，断言发布包里是新产物而不是预放的旧文件。
+// 有些环境（如审查用的最小化 shell）没有 Get-FileHash cmdlet，release.ps1 的 manifest 步会挂——
+// 那是环境问题不是代码问题，探测不到就跳过，别让别的环境误报。
+const psHasGetFileHash =
+  spawnSync(
+    'powershell.exe',
+    ['-NoProfile', '-Command', 'if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }'],
+    { encoding: 'utf8' }
+  ).status === 0;
 describe('release.ps1 -SkipChecks（评审 R4）', () => {
-  it.skipIf(process.platform !== 'win32')(
+  it.skipIf(process.platform !== 'win32' || !psHasGetFileHash)(
     '-SkipChecks 下仍现场构建：发布包含的是新构建产物，不是旧 dist',
     () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rel-probe-'));
@@ -673,7 +681,7 @@ describe('release.ps1 -SkipChecks（评审 R4）', () => {
   // 版本归一必须结构感知：依赖也可能恰好是同一个版本号（v0.17.0 实测撞上 react-refresh 0.17.0，
   // 裸字符串计数会把依赖版本一起归零、断言拦停发布）。夹具里放一个同版本号的假依赖，
   // 断言打包后根版本归零而依赖版本原样。
-  it.skipIf(process.platform !== 'win32')(
+  it.skipIf(process.platform !== 'win32' || !psHasGetFileHash)(
     '版本归一不误伤同版本号的依赖（结构感知）',
     () => {
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rel-probe-dep-'));

@@ -186,3 +186,33 @@ failure mode leaves the *new* (bad) container running.
 [ ] if semantics changed but the version constant cannot move again: force-delete the derived cache
 [ ] recorded the build duration — it is your signal for whether caching still holds
 ```
+
+---
+
+## Old image cleanup (2026-09-30, the NAS filled up once)
+
+Every rebuild turns the previous image's layers into `<none>` dangling images. One afternoon of
+frequent deploys piled up **26 dangling images (~2 GB)** on the shared NAS, plus three exited
+test containers (`docker run` without `--rm`) pinning more. Fix shipped in myinfobase
+`deploy/nas-update.sh` (runs after the health gate, before the final "done" line — the deploy
+poll matches the last line, don't reorder), and it is **non-fatal**:
+
+```sh
+KEEP_OLD=2   # keep current + 2 most recent tags — rollback needs those tags
+docker image prune -f >/dev/null 2>&1 || true
+OLD_TAGS=$(docker images <your-image-name> --format '{{.Tag}}' 2>/dev/null \
+  | grep -v '^<none>' | grep -vx "$VER" | tail -n +"$((KEEP_OLD + 1))")
+for t in $OLD_TAGS; do docker rmi "<your-image-name>:$t" >/dev/null 2>&1 || true; done
+```
+
+Rules learned the hard way:
+
+- `docker image prune -f` cannot remove a dangling image that a **stopped container** still
+  references — random-named exited test containers silently pin ~300 MB each. Ad-hoc test runs
+  on the NAS should use `docker run --rm`; to reclaim, remove the exited container first, then prune.
+- Keep a couple of old **tagged** images: rollback is `docker image inspect <name>:<old-tag>`
+  and a container recreate — delete the tags and you lose the cheap rollback path.
+- Never `docker rmi -f` / `docker system prune -a` on this NAS: it hosts unrelated services
+  (mt-photos, jellyfin, fast-note-sync…). Dangling-only prune and your own image name only.
+- Cleanup output must come **before** the final success line, or a last-line-matching deploy
+  poll will spin until timeout.

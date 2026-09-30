@@ -47,5 +47,20 @@ if ! sh "$PROJ/deploy/health-wait.sh" "$PORT" "$VER" 180; then
   echo "错误：健康检查未通过，查看日志：docker logs myinfobase" >&2
   exit 2
 fi
+
+# 旧镜像自动清理（放在"完成"输出之前——部署轮询按最后一行判完成）。
+# 每次重建镜像后旧层会变成 <none> 悬空镜像（实测一次能堆 20+ 个、约 2GB+），直接 prune 回收；
+# 带 tag 的旧版本是回滚的本钱（nas-rollback.sh 按镜像秒级切回），保留最近 KEEP_OLD 个，更旧的删除。
+# 全程 || true：清理失败不影响"已上线"的结论，下个版本部署时会再试。
+KEEP_OLD=2
+docker image prune -f >/dev/null 2>&1 || true
+OLD_TAGS=$(docker images myinfobase --format '{{.Tag}}' 2>/dev/null \
+  | grep -v '^<none>' | grep -vx "$VER" | tail -n +"$((KEEP_OLD + 1))")
+for t in $OLD_TAGS; do
+  if docker rmi "myinfobase:$t" >/dev/null 2>&1; then
+    echo "已清理旧镜像 myinfobase:$t"
+  fi
+done
+
 echo "完成：健康检查通过，版本 $VER 已上线（http://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
 exit 0

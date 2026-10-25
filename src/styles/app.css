@@ -8,6 +8,11 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  /* 应用是满屏壳子，滚动只发生在内部容器（.results / .sidebar-nav / 弹层）。
+     不锁死的话，缩放/取整带来的亚像素溢出会让窗口间歇性长出一条经典滚动条
+     （Windows 占约 17px 布局宽），整幅布局跟着时宽时窄——用户实测
+     "有时一条滚动条有时两条、最右侧跳动"。锁死后外层滚动条永久不可能出现。 */
+  overflow: hidden;
 }
 body {
   background: var(--ambient);
@@ -105,7 +110,9 @@ img {
 .app {
   display: flex;
   gap: var(--gap-panel);
-  height: 100vh;
+  /* 用 100% 而不是 100vh：html→body→#root 都是 100%，一路百分比解出来不会和
+     vh 因缩放取整差出半像素；那半像素正是"窗口滚动条时有时无"的源头之一。 */
+  height: 100%;
   padding: var(--gap-outer);
 }
 .sidebar {

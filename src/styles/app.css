@@ -1069,10 +1069,12 @@ img {
 .note-card.enter {
   animation: cardIn 420ms var(--ease-out) both;
 }
+/* 入场只有淡入+上浮，**不带 scale**——缩放会让新追加的卡片在错峰窗口内"由窄变宽"
+ * （247px 卡 ≈ 3.7px），与图片加载同时发生，看起来就像缩略图加载后把宽度撑变了（用户实测反馈）。 */
 @keyframes cardIn {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.985);
+    transform: translateY(10px);
   }
 }
 /* 无封面的卡片（日记居多）没有 .card-media，焦点环画在文字块上，否则 Tab 过去毫无反馈 */
@@ -1095,7 +1097,8 @@ img {
   height: auto;
   object-fit: cover;
   opacity: 0;
-  transform: scale(1.002);
+  /* 淡入不配微缩放：0.2% 的 scale 在加载瞬间也是一次可见的宽度闪动；
+     transform 的 transition 留给 hover 放大用 */
   transition: opacity 380ms ease, transform 480ms var(--ease-out);
 }
 .card-media img.loaded {

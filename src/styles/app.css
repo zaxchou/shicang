@@ -145,6 +145,7 @@ img {
   flex: 1;
   overflow-y: auto;
   padding: 2px 12px 12px;
+  scrollbar-gutter: stable; /* 同 .results：导航条目多少变化时滚动条出现/消失不再挤压文字 */
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar) transparent;
 }
@@ -785,6 +786,9 @@ img {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* 常驻滚动条槽位：内容跨越"是否需要滚动条"的阈值时（分页加载/筛选/切库），
+     Windows 上滚动条占 10px 布局宽，不预留的话整体内容宽度会跟着跳（用户实测反馈的抖动） */
+  scrollbar-gutter: stable;
   /* 线下方：12px 正好容纳投影的渐隐带（内容不被压住） */
   padding: 12px var(--main-pad) 34px;
   scrollbar-width: thin;

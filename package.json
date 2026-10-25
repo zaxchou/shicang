@@ -1,7 +1,7 @@
 {
   "name": "myinfobase",
   "private": true,
-  "version": "0.17.3",
+  "version": "0.17.4",
   "type": "module",
   "engines": {
     "node": ">=22"

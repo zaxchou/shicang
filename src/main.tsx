@@ -4,6 +4,7 @@ import App from './App';
 import { applyTheme } from './theme';
 import './styles/tokens.css';
 import './styles/app.css';
+import './styles/mobile.css';
 
 applyTheme();
 

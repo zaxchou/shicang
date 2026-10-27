@@ -48,7 +48,7 @@ export function TagsDirectory({ tags, loading, error, onRetry, onSelect }: Props
       {!error && tags && filtered.length === 0 && (
         <div className="results-state">
           <div className="state-title">没有匹配的标签</div>
-          <div>{filter ? `不含“${filter.trim()}”的标签` : '收藏笔记暂无标签'}</div>
+          <div>{filter ? `没有包含“${filter.trim()}”的标签` : '收藏笔记暂无标签'}</div>
         </div>
       )}
       {!error && tags && filtered.length > 0 && (

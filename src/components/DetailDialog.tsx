@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import '../styles/detail-mobile.css';
 import {
   MAX_REMARK,
   type NoteDetail,
@@ -94,7 +95,7 @@ function OcrText({
  * 局域网 http 访问时 `navigator.clipboard` 不存在（非安全上下文），所以必须留 execCommand 一路，
  * 两路都不行时返回 false，由界面提示"手动选中复制"——不能假装复制成功了。
  */
-async function copyToClipboard(text: string): Promise<boolean> {
+async function copyToClipboard(text: string, container: HTMLElement): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
@@ -110,14 +111,16 @@ async function copyToClipboard(text: string): Promise<boolean> {
     ta.style.position = 'fixed';
     ta.style.top = '-1000px';
     ta.style.opacity = '0';
-    document.body.appendChild(ta);
+    const previousFocus = document.activeElement;
+    container.appendChild(ta);
     try {
       ta.select();
       return document.execCommand('copy');
     } finally {
       // 中途抛错（超长文本的 select 在个别浏览器会抛）也必须把临时节点摘掉，
       // 否则几 KB~几十 KB 的识别文本节点永久留在 document.body 上（深审发现）
-      document.body.removeChild(ta);
+      ta.remove();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     }
   } catch {
     return false;
@@ -204,6 +207,7 @@ export function DetailDialog({
   const [playerOpen, setPlayerOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const closingRef = useRef(false);
@@ -398,18 +402,34 @@ export function DetailDialog({
   );
 
   const copyMediaText = useCallback(async (text: string) => {
-    const ok = await copyToClipboard(text);
+    if (!panelRef.current) return;
+    const ok = await copyToClipboard(text, panelRef.current);
     setOcrMsg(ok ? '已复制到剪贴板' : '复制失败（这个地址下浏览器不允许），请手动选中文字复制');
-  }, []);
-
-  // 打开时聚焦关闭按钮（只跑一次：下面的 Esc 监听依赖 menuOpen，别让它顺带抢焦点）
-  useEffect(() => {
-    closeBtnRef.current?.focus();
   }, []);
 
   // Esc 关闭；分类菜单开着时先关菜单——菜单和整个详情一起消失不是常规预期（深审发现）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        const panel = panelRef.current;
+        if (!panel) return;
+        // Recompute after async content, menus, and editors change the tab order.
+        const targets = Array.from(panel.querySelectorAll<HTMLElement>(
+          'a[href], button, input, textarea, select, [tabindex], [contenteditable="true"], iframe, audio[controls], video[controls]'
+        )).filter((el) => el.tabIndex >= 0 && !el.matches(':disabled, [inert], [inert] *') && el.getClientRects().length > 0);
+        const first = targets[0];
+        const last = targets[targets.length - 1];
+        const active = document.activeElement;
+        if (!first || !last) {
+          e.preventDefault();
+          panel.focus();
+        } else if (!panel.contains(active) || active === panel ||
+          (e.shiftKey ? active === first : active === last)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        }
+        return;
+      }
       if (e.key !== 'Escape') return;
       if (menuOpen) {
         e.stopPropagation();
@@ -418,13 +438,28 @@ export function DetailDialog({
       }
       beginClose();
     };
+    const containFocus = (e: FocusEvent) => {
+      const panel = panelRef.current;
+      if (panel && !panel.contains(e.target as Node)) closeBtnRef.current?.focus();
+    };
+    const previousOverflow = document.body.style.overflow;
     document.addEventListener('keydown', onKey);
+    document.addEventListener('focusin', containFocus);
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      document.removeEventListener('focusin', containFocus);
+      document.body.style.overflow = previousOverflow;
     };
   }, [beginClose, menuOpen]);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    closeBtnRef.current?.focus();
+    return () => {
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, []);
 
   // 远程视频播放失败时给出可理解的反馈（含监听前已失败的情况）
   useEffect(() => {
@@ -590,7 +625,9 @@ export function DetailDialog({
       role="presentation"
     >
       <div
+        ref={panelRef}
         className="detail-panel"
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={summary.title}
@@ -684,13 +721,14 @@ export function DetailDialog({
                 查看原文
               </a>
             )}
-            <button ref={closeBtnRef} className="btn-icon" onClick={beginClose} aria-label="关闭详情">
+            <button ref={closeBtnRef} type="button" className="btn-icon detail-close" onClick={beginClose} aria-label="关闭详情">
               <IconClose size={16} />
             </button>
           </div>
         </div>
 
-        {remarkOpen && (
+        <div className="detail-body" ref={bodyRef}>
+          {remarkOpen && (
           <div className="detail-remark-panel">
             <div className="remark-head">
               <span className="remark-label">备注</span>
@@ -733,9 +771,9 @@ export function DetailDialog({
               <span className="ann-hint">⌘/Ctrl + Enter 保存 · 只存在拾藏里，不写回 Obsidian</span>
             </div>
           </div>
-        )}
+          )}
 
-        <div className="detail-body" ref={bodyRef}>
+          {editError && !editing && <div className="edit-error detail-inner" role="alert">{editError}</div>}
           {error && (
             <div className="detail-state">
               <div className="state-title" style={{ color: 'var(--text-secondary)' }}>详情加载失败</div>
@@ -991,6 +1029,18 @@ export function DetailDialog({
                 </section>
               )}
 
+              {detail.media.some((media) => media.kind === 'video') && (
+                <button
+                  className="btn-link detail-video-jump"
+                  onClick={() => {
+                    const video = bodyRef.current?.querySelector('video');
+                    video?.scrollIntoView({ block: 'start', behavior: 'instant' });
+                    video?.focus({ preventScroll: true });
+                  }}
+                >
+                  定位视频
+                </button>
+              )}
               <div className="detail-article" dangerouslySetInnerHTML={{ __html: detail.bodyHtml }} />
 
               {detail.tags.length > 0 && (
@@ -1039,7 +1089,7 @@ export function DetailDialog({
                       spellCheck={false}
                       aria-label="正文（Markdown 源码）"
                     />
-                    {editError && <div className="edit-error">{editError}</div>}
+                    {editError && <div className="edit-error" role="alert">{editError}</div>}
                     <div className="edit-actions">
                       <button
                         className="btn-edit-save"

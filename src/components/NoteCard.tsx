@@ -46,7 +46,7 @@ function StarButton({ starred, onToggle }: { starred: boolean; onToggle(): void 
 function coverStyle(note: NoteSummary): React.CSSProperties {
   const c = note.cover;
   if (c?.width && c?.height) {
-    return { aspectRatio: `${c.width} / ${c.height}`, maxHeight: 520 };
+    return { aspectRatio: `${c.width} / ${c.height}`, maxHeight: 'var(--card-cover-max, 520px)' };
   }
   return { aspectRatio: '4 / 3' };
 }

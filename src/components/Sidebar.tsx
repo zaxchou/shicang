@@ -3,6 +3,7 @@ import type { CollectionInfo, LibraryInfo } from '../../shared/types';
 import {
   IconArchive,
   IconBook,
+  IconClose,
   IconChevronDown,
   IconExport,
   IconGlobe,
@@ -20,6 +21,8 @@ import {
 import { ThemeToggle } from './ThemeToggle';
 
 interface Props {
+  mobileOpen: boolean;
+  onCloseMobile(): void;
   library: LibraryInfo | null;
   /** 当前作用域：收藏库 id 或分组 id（如 clippings=剪藏） */
   collection: string;
@@ -54,6 +57,8 @@ const GROUP_ICON = IconLayers;
 const managedCategoryTypes = new Set(['rednote', 'web']);
 
 export function Sidebar({
+  mobileOpen,
+  onCloseMobile,
   library,
   collection,
   activeCategoryId,
@@ -72,6 +77,36 @@ export function Sidebar({
   onSelectStarred,
   onSelectArchive,
 }: Props) {
+  const panelRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    panelRef.current?.querySelector<HTMLButtonElement>('.sidebar-close')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (panelRef.current?.querySelector('.settings-menu')) return;
+        e.preventDefault();
+        onCloseMobile();
+      }
+      if (e.key !== 'Tab') return;
+      const buttons = [...(panelRef.current?.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), a[href], input, select, [tabindex="0"]'
+      ) ?? [])].filter((el) => el.getClientRects().length > 0);
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last?.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [mobileOpen, onCloseMobile]);
+
   const infos = library?.collections ?? [];
   const groups = library?.groups ?? [];
   const curGroup = groups.find((g) => g.id === collection) ?? null;
@@ -153,10 +188,20 @@ export function Sidebar({
   };
 
   return (
-    <aside className="sidebar glass-surface">
+    <aside
+      id="library-navigation"
+      ref={panelRef}
+      className={`sidebar glass-surface${mobileOpen ? ' mobile-open' : ''}`}
+      role={mobileOpen ? 'dialog' : undefined}
+      aria-modal={mobileOpen ? true : undefined}
+      aria-label="收藏库导航"
+    >
       <div className="sidebar-brand">
         <img src="/icon-96.png" alt="" className="brand-icon" aria-hidden />
         <span>拾藏</span>
+        <button className="sidebar-close btn-icon" onClick={onCloseMobile} aria-label="关闭导航">
+          <IconClose size={19} />
+        </button>
       </div>
       <nav className="sidebar-nav" aria-label="收藏库与分类">
         <div className="nav-section">收藏库</div>

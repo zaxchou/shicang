@@ -21,6 +21,12 @@ function base(size: number | undefined, className: string | undefined) {
   };
 }
 
+export const IconMenu = ({ size, className }: IconProps) => (
+  <svg {...base(size, className)}>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+);
+
 export const IconSearch = ({ size, className }: IconProps) => (
   <svg {...base(size, className)}>
     <circle cx="10.8" cy="10.8" r="6.8" />

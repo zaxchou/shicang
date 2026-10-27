@@ -239,6 +239,7 @@ export function DataTable({
         <thead>
           <tr>
             <th className="th-sel">
+              <label className="table-selection-target">
               <input
                 ref={selectAllRef}
                 type="checkbox"
@@ -246,6 +247,7 @@ export function DataTable({
                 checked={allChecked}
                 onChange={(e) => onToggleSelectAll(e.target.checked)}
               />
+              </label>
             </th>
             <th className="th-act" title="标星 / 归档（点一下即可，不用进详情）">
               <span>标注</span>
@@ -294,12 +296,14 @@ export function DataTable({
               }}
             >
               <td className="td-sel" onClick={(e) => e.stopPropagation()}>
+                <label className="table-selection-target">
                 <input
                   type="checkbox"
                   aria-label={`选择「${note.title}」`}
                   checked={selected.has(note.id)}
                   onChange={(e) => onToggleSelect(note.id, e.target.checked)}
                 />
+                </label>
               </td>
               <td className="td-act" onClick={(e) => e.stopPropagation()}>
                 <button

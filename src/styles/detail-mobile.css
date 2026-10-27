@@ -1,0 +1,233 @@
+/* Keep remarks in the reading scroll region, including while editing. */
+.detail-body .detail-remark-panel {
+  max-width: 720px;
+  margin: 0 auto 24px;
+  border-radius: 14px;
+}
+
+.detail-video-jump { display: none; }
+
+@media (max-width: 900px) {
+  .detail-panel .detail-video-jump { display: inline-flex; margin-bottom: 16px; }
+  .detail-panel .detail-article video { max-height: 60dvh; }
+  .detail-panel .detail-title { overflow-wrap: anywhere; }
+  .detail-overlay[role='presentation'] {
+    padding: 0;
+    height: 100vh;
+    height: 100dvh;
+    align-items: stretch;
+  }
+
+  .detail-overlay .detail-panel {
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .detail-panel .detail-header {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    height: auto;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  }
+
+  .detail-panel .detail-author {
+    min-height: 44px;
+    padding-right: 52px;
+  }
+
+  .detail-panel .detail-header-actions {
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .detail-panel button,
+  .detail-panel .btn-link,
+  .detail-panel input,
+  .detail-panel select {
+    min-width: 44px;
+    min-height: 44px;
+    height: auto;
+  }
+
+  .detail-panel .detail-header .btn-icon,
+  .detail-panel .detail-header .btn-star {
+    width: 44px;
+    height: 44px;
+  }
+
+  .detail-panel .detail-header .detail-close {
+    position: absolute;
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .detail-panel .btn-link {
+    padding: 8px 12px;
+  }
+
+  .detail-panel .detail-body {
+    min-width: 0;
+    padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+
+  .detail-panel .detail-inner {
+    min-width: 0;
+    max-width: 640px;
+  }
+
+  .detail-panel input,
+  .detail-panel textarea,
+  .detail-panel select {
+    font-size: 16px;
+  }
+
+  .detail-panel .detail-remark-panel {
+    padding: 12px;
+  }
+
+  .detail-panel .remark-input {
+    max-height: 40vh;
+    max-height: 40dvh;
+    overflow-y: auto;
+  }
+
+  .detail-panel .remark-actions,
+  .detail-panel .edit-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .detail-panel .ann-hint {
+    flex-basis: 100%;
+  }
+
+  .detail-panel .edit-body-input {
+    min-height: 240px;
+  }
+
+  .detail-panel .detail-extras {
+    grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  }
+
+  .detail-panel .detail-meta {
+    gap: 8px 12px;
+  }
+
+  .detail-panel .detail-meta > *,
+  .detail-panel .detail-tag,
+  .detail-panel .extra-value,
+  .detail-panel .ocr-item-label,
+  .detail-panel .ocr-msg,
+  .detail-panel .edit-error {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .detail-panel .extra-value {
+    overflow: visible;
+  }
+
+  .detail-panel .detail-source,
+  .detail-panel .cat-static {
+    height: auto;
+    min-height: 29px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  .detail-panel svg {
+    flex-shrink: 0;
+  }
+
+  .detail-panel .cat-picker {
+    flex-basis: 100%;
+  }
+
+  .detail-panel .cat-picker-btn {
+    max-width: 100%;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    text-align: left;
+  }
+
+  /* Flow positioning keeps the menu inside the body's scrollable space. */
+  .detail-panel .cat-menu {
+    position: static;
+    width: min(320px, 100%);
+    min-width: 0;
+    max-width: 100%;
+    max-height: 40vh;
+    max-height: 40dvh;
+    margin-top: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .detail-panel .cat-menu-item > span:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .detail-panel .ocr-section {
+    padding: 12px;
+  }
+
+  .detail-panel .ocr-head,
+  .detail-panel .ocr-toggle-btn,
+  .detail-panel .ocr-item-head,
+  .detail-panel .ocr-item-actions {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .detail-panel .ocr-head,
+  .detail-panel .ocr-item-head,
+  .detail-panel .ocr-item-actions {
+    gap: 4px 8px;
+  }
+
+  .detail-panel .ocr-item {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .detail-panel .ocr-content {
+    flex: 1 1 160px;
+  }
+
+  .detail-panel .ocr-text,
+  .detail-panel .detail-article {
+    overflow-wrap: anywhere;
+  }
+
+  /* Wide Markdown tables scroll locally rather than widening the dialog. */
+  .detail-panel .detail-article table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+
+  .detail-panel .detail-article audio,
+  .detail-panel .detail-article iframe {
+    max-width: 100%;
+  }
+}

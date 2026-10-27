@@ -47,6 +47,14 @@ function writeViewMode(cid: string, v: ViewMode): void {
 export default function App() {
   const [library, setLibrary] = useState<LibraryInfo | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const closeNavigation = useCallback(() => setNavigationOpen(false), []);
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 901px)');
+    const closeOnDesktop = () => { if (desktop.matches) setNavigationOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
 
   // 收藏库与视图
   const [collection, setCollection] = useState<string>('rednote');
@@ -69,6 +77,8 @@ export default function App() {
   const [exporting, setExporting] = useState(false);
   /** 表格里勾选的条目（批量归档用）；换筛选/视图/库就清空 */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchPending, setBatchPending] = useState(false);
+  const batchPendingRef = useRef(false);
   const [detailSummary, setDetailSummary] = useState<NoteSummary | null>(null);
   const [toast, setToast] = useState<{
     id: number;
@@ -761,6 +771,9 @@ export default function App() {
   /** 批量归档 / 取回：一次请求写盘，撤销就是把同一批改回去 */
   const applyBatch = useCallback(
     async (ids: string[], status: NoteStatus, prev?: NoteStatus) => {
+      if (batchPendingRef.current) return;
+      batchPendingRef.current = true;
+      setBatchPending(true);
       try {
         const out = await api.setAnnotationMany(ids, { status: status === 'active' ? null : status });
         setSelectedIds(new Set());
@@ -773,6 +786,9 @@ export default function App() {
         }
       } catch (e) {
         showToast(e instanceof ApiError ? e.message : '批量操作失败', 'error');
+      } finally {
+        batchPendingRef.current = false;
+        setBatchPending(false);
       }
     },
     [loadLibrary, reload, showToast]
@@ -935,7 +951,12 @@ export default function App() {
 
   return (
     <div className="app">
+      {navigationOpen && (
+        <div className="navigation-scrim" onClick={closeNavigation} aria-hidden="true" />
+      )}
       <Sidebar
+        mobileOpen={navigationOpen}
+        onCloseMobile={closeNavigation}
         library={library}
         collection={collection}
         activeCategoryId={query.categoryId}
@@ -947,16 +968,18 @@ export default function App() {
         exporting={exporting}
         onRefresh={() => void startRefresh()}
         onExportCorpus={() => void startExport()}
-        onSelectCollection={selectCollection}
-        onSelectCategory={selectCategory}
-        onSelectSource={selectSource}
-        onSelectTags={selectTagsView}
-        onSelectStarred={selectStarred}
-        onSelectArchive={selectArchive}
+        onSelectCollection={(id) => { selectCollection(id); closeNavigation(); }}
+        onSelectCategory={(id) => { selectCategory(id); closeNavigation(); }}
+        onSelectSource={(id) => { selectSource(id); closeNavigation(); }}
+        onSelectTags={() => { selectTagsView(); closeNavigation(); }}
+        onSelectStarred={() => { selectStarred(); closeNavigation(); }}
+        onSelectArchive={() => { selectArchive(); closeNavigation(); }}
       />
 
-      <main className="main glass-surface">
+      <main className="main glass-surface" inert={navigationOpen || !!detailSummary}>
         <Toolbar
+          navigationOpen={navigationOpen}
+          onOpenNavigation={() => setNavigationOpen(true)}
           query={query}
           onChange={patchQuery}
           title={headerTitle}
@@ -1092,9 +1115,10 @@ export default function App() {
               {showNotes && showTableView && tableInfo && (
                 <>
                   {selectedIds.size > 0 && (
-                    <div className="bulk-bar" role="region" aria-label="批量操作">
-                      <span className="bulk-count">已选 {selectedIds.size} 条</span>
+                    <div className="bulk-bar" role="region" aria-label="批量操作" aria-busy={batchPending}>
+                      <span className="bulk-count">{batchPending ? '处理中…' : `已选 ${selectedIds.size} 条`}</span>
                       <button
+                        disabled={batchPending}
                         className="btn-refresh"
                         onClick={() =>
                           void applyBatch(
@@ -1107,7 +1131,7 @@ export default function App() {
                         <IconArchive size={14} />
                         {query.status === 'archived' ? '取回' : '归档'}
                       </button>
-                      <button className="link-clear" onClick={() => setSelectedIds(new Set())}>
+                      <button className="link-clear" disabled={batchPending} onClick={() => setSelectedIds(new Set())}>
                         取消选择
                       </button>
                     </div>

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { shanghaiDateDaysAgo } from '../../shared/time';
-import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconSearch, IconStar } from './Icons';
+import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconMenu, IconSearch, IconSettings, IconStar } from './Icons';
 
 export interface QueryState {
   q: string;
@@ -18,6 +19,8 @@ export interface QueryState {
 }
 
 interface Props {
+  onOpenNavigation(): void;
+  navigationOpen: boolean;
   query: QueryState;
   onChange(patch: Partial<QueryState>): void;
   /** 标题与范围计数由 App 计算传入（库视图 / 标签结果视图） */
@@ -48,6 +51,8 @@ const isFiltered = (q: QueryState) =>
   q.source !== null;
 
 export function Toolbar({
+  onOpenNavigation,
+  navigationOpen,
   query,
   onChange,
   title,
@@ -66,6 +71,9 @@ export function Toolbar({
   viewMode,
   onViewMode,
 }: Props) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterCount = Number(query.starred) + Number(query.range !== 'all') +
+    Number(query.timeField !== 'published') + Number(query.order !== 'desc') + Number(query.source !== null);
   const onRangeChange = (range: QueryState['range']) => {
     if (range !== 'custom') {
       onChange({ range, from: '', to: '' });
@@ -78,6 +86,15 @@ export function Toolbar({
   return (
     <div className="main-header">
       <div className="header-row">
+        <button
+          className="mobile-nav-toggle btn-icon"
+          onClick={onOpenNavigation}
+          aria-label="打开收藏库导航"
+          aria-controls="library-navigation"
+          aria-expanded={navigationOpen}
+        >
+          <IconMenu size={20} />
+        </button>
         <h1 className="main-title">
           {showBack && onBack && (
             <button className="btn-back" onClick={onBack} aria-label="返回标签目录">
@@ -92,10 +109,9 @@ export function Toolbar({
       </div>
 
       {showViewToggle && (
-        <div className="view-toggle" role="tablist" aria-label="展示模式">
+        <div className="view-toggle" role="group" aria-label="展示模式">
           <button
-            role="tab"
-            aria-selected={viewMode === 'masonry'}
+            aria-pressed={viewMode === 'masonry'}
             className={viewMode === 'masonry' ? 'active' : ''}
             onClick={() => onViewMode?.('masonry')}
             title="瀑布流"
@@ -104,8 +120,7 @@ export function Toolbar({
             瀑布流
           </button>
           <button
-            role="tab"
-            aria-selected={viewMode === 'table'}
+            aria-pressed={viewMode === 'table'}
             className={viewMode === 'table' ? 'active' : ''}
             onClick={() => onViewMode?.('table')}
             title="列表（表格）"
@@ -138,7 +153,21 @@ export function Toolbar({
             </div>
           </div>
 
-          <div className="filter-row">
+          <div className="mobile-filter-summary">
+            <button
+              className={`pill-toggle${filterCount ? ' on' : ''}`}
+              aria-expanded={filtersOpen}
+              aria-controls="collection-filters"
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              <IconSettings size={15} />
+              筛选{filterCount ? ` · ${filterCount}` : ''}
+              <IconChevronDown size={12} />
+            </button>
+            {listError ? <button className="link-clear" onClick={onRetry}>加载失败，重试</button> :
+              <span>当前结果 {resultCount ?? '…'} 篇</span>}
+          </div>
+          <div id="collection-filters" className={`filter-row${filtersOpen ? ' filters-open' : ''}`}>
             {/* 标星开关放在筛选行：它是一层筛选，必须和「当前结果 N 篇」在一起，
                 否则列表变短的唯一线索就只剩侧栏那个入口 */}
             <button

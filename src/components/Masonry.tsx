@@ -85,8 +85,11 @@ export function Masonry({ items, categoryName, collectionType, onOpen, onToggleS
     if (!el) return;
     const w = el.clientWidth;
     if (w <= 0) return;
-    const cols = Math.max(1, Math.floor((w + COL_GAP) / (TARGET_CARD_W + COL_GAP)));
-    const cardW = (w - (cols - 1) * COL_GAP) / cols;
+    const mobile = window.matchMedia('(max-width: 900px)').matches;
+    const gap = mobile ? 12 : COL_GAP;
+    const cols = mobile ? (w >= 600 ? 3 : w >= 300 ? 2 : 1) :
+      Math.max(1, Math.floor((w + gap) / (TARGET_CARD_W + gap)));
+    const cardW = (w - (cols - 1) * gap) / cols;
     const prevCardW = prevCardWRef.current;
     const colHeights = new Array<number>(cols).fill(0);
     const positions = new Map<string, Position>();
@@ -103,7 +106,7 @@ export function Masonry({ items, categoryName, collectionType, onOpen, onToggleS
       for (let i = 1; i < cols; i++) {
         if ((colHeights[i] ?? 0) < (colHeights[col] ?? 0) - 0.5) col = i; // 同高从左到右
       }
-      positions.set(item.id, { x: col * (cardW + COL_GAP), y: colHeights[col] ?? 0 });
+      positions.set(item.id, { x: col * (cardW + gap), y: colHeights[col] ?? 0 });
       colHeights[col] = (colHeights[col] ?? 0) + h + ROW_GAP;
     }
     prevCardWRef.current = cardW;

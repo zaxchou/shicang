@@ -30,7 +30,7 @@
   --surface-raised-hover: rgba(255, 255, 255, 0.17);
   --surface-sunken: rgba(0, 0, 0, 0.50);
   --surface-sunken-2: rgba(0, 0, 0, 0.24);
-  --surface-solid: rgba(40, 42, 55, 0.96); /* 需要遮住下层时用（如表头，不叠加 backdrop-filter） */
+  --surface-solid: rgb(40, 42, 55); /* 需要遮住下层时用（如表头，不叠加 backdrop-filter） */
   --hover-soft: rgba(255, 255, 255, 0.055);
 
   /* 光影层级 */
@@ -107,7 +107,7 @@
   --surface-raised-hover: #f4f5f9;
   --surface-sunken: rgba(24, 32, 60, 0.07);
   --surface-sunken-2: rgba(24, 32, 60, 0.045);
-  --surface-solid: rgba(255, 255, 255, 0.96);
+  --surface-solid: #ffffff;
   --hover-soft: rgba(24, 32, 60, 0.05);
 
   --elev-1: 0 1px 2px rgba(32, 42, 78, 0.08);

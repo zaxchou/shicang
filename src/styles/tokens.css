@@ -64,6 +64,9 @@
   --star: #ffc857;
   --star-soft: rgba(255, 200, 87, 0.18);
   --star-on-media: #ffc857;
+  /* 金色徽标（筛选生效数）：底/字分开定义，11px 小字也要过 4.5:1 */
+  --star-badge-bg: #ffc857;
+  --star-badge-fg: #1b1b1f;
 
   --overlay: rgba(6, 7, 11, 0.46);
   --skeleton-a: rgba(255, 255, 255, 0.05);
@@ -136,6 +139,8 @@
   --star: #a8760a;
   --star-soft: rgba(168, 118, 10, 0.16);
   --star-on-media: #ffc857;
+  --star-badge-bg: #7a5500;
+  --star-badge-fg: #ffffff;
 
   --overlay: rgba(22, 26, 44, 0.30);
   --skeleton-a: rgba(24, 32, 60, 0.05);

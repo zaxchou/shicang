@@ -88,7 +88,11 @@ export function Toolbar({
   };
 
   return (
-    <div ref={headerRef} className={`main-header${headerHidden ? ' header-hidden' : ''}`}>
+    <div
+      ref={headerRef}
+      className={`main-header${headerHidden ? ' header-hidden' : ''}`}
+      inert={headerHidden || undefined}
+    >
       <div className="header-row">
         <button
           className="mobile-nav-toggle btn-icon"

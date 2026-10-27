@@ -209,8 +209,19 @@ export function DetailDialog({
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const remarkRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const closingRef = useRef(false);
+
+  /** 备注面板移到正文滚动区顶部后，正文滚到中段时点「备注」会出现在视野之外；
+   *  编辑区同理（渲染在正文末尾）。打开时把它滚进视野，否则看起来像"点了没反应"。 */
+  useEffect(() => {
+    if (remarkOpen) remarkRef.current?.scrollIntoView({ block: 'start' });
+  }, [remarkOpen]);
+  useEffect(() => {
+    if (editing) editorRef.current?.scrollIntoView({ block: 'start' });
+  }, [editing, srcLoading]);
 
   /** 先播退出动画，动画结束再真正卸载 */
   const closeFallbackRef = useRef<number | null>(null);
@@ -729,7 +740,7 @@ export function DetailDialog({
 
         <div className="detail-body" ref={bodyRef}>
           {remarkOpen && (
-          <div className="detail-remark-panel">
+          <div className="detail-remark-panel" ref={remarkRef}>
             <div className="remark-head">
               <span className="remark-label">备注</span>
               {remarkDirty && <span className="remark-dirty">未保存</span>}
@@ -1056,7 +1067,7 @@ export function DetailDialog({
           )}
           {detail && editing && (
             <div className="detail-inner">
-              <div className="detail-editor">
+              <div className="detail-editor" ref={editorRef}>
                 {srcLoading && <div className="detail-state">读取原文中…</div>}
                 {!srcLoading && src && (
                   <>

@@ -103,8 +103,8 @@
     height: 16px;
     padding: 0 4px;
     border-radius: 999px;
-    background: var(--star);
-    color: #1b1b1f;
+    background: var(--star-badge-bg);
+    color: var(--star-badge-fg);
     font-size: 11px;
     font-weight: 650;
     line-height: 16px;

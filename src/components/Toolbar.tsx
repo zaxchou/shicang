@@ -112,60 +112,72 @@ export function Toolbar({
         <div className="view-toggle" role="group" aria-label="展示模式">
           <button
             aria-pressed={viewMode === 'masonry'}
+            aria-label="瀑布流"
             className={viewMode === 'masonry' ? 'active' : ''}
             onClick={() => onViewMode?.('masonry')}
             title="瀑布流"
           >
             <IconGrid size={14} />
-            瀑布流
+            <span className="view-toggle-label">瀑布流</span>
           </button>
           <button
             aria-pressed={viewMode === 'table'}
+            aria-label="列表"
             className={viewMode === 'table' ? 'active' : ''}
             onClick={() => onViewMode?.('table')}
             title="列表（表格）"
           >
             <IconList size={14} />
-            列表
+            <span className="view-toggle-label">列表</span>
           </button>
         </div>
       )}
 
       {showFilters && (
         <>
-          <div className="search-row">
-            <div className="search-box">
-              <IconSearch size={15} />
-              <input
-                type="text"
-                value={query.q}
-                placeholder={searchPlaceholder ?? '搜索标题、正文、作者、标签或备注…'}
-                onChange={(e) => onChange({ q: e.target.value })}
-                onCompositionStart={onCompositionStart}
-                onCompositionEnd={onCompositionEnd}
-                aria-label="搜索收藏"
-              />
-              {query.q !== '' && (
-                <button className="search-clear" onClick={() => onChange({ q: '' })} aria-label="清空搜索">
-                  <IconClose size={13} />
-                </button>
-              )}
+          <div className="search-filter-row">
+            <div className="search-row">
+              <div className="search-box">
+                <IconSearch size={15} />
+                <input
+                  type="text"
+                  value={query.q}
+                  placeholder={searchPlaceholder ?? '搜索标题、正文、作者、标签或备注…'}
+                  onChange={(e) => onChange({ q: e.target.value })}
+                  onCompositionStart={onCompositionStart}
+                  onCompositionEnd={onCompositionEnd}
+                  aria-label="搜索收藏"
+                />
+                {query.q !== '' && (
+                  <button className="search-clear" onClick={() => onChange({ q: '' })} aria-label="清空搜索">
+                    <IconClose size={13} />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="mobile-filter-summary">
-            <button
-              className={`pill-toggle${filterCount ? ' on' : ''}`}
-              aria-expanded={filtersOpen}
-              aria-controls="collection-filters"
-              onClick={() => setFiltersOpen((open) => !open)}
-            >
-              <IconSettings size={15} />
-              筛选{filterCount ? ` · ${filterCount}` : ''}
-              <IconChevronDown size={12} />
-            </button>
-            {listError ? <button className="link-clear" onClick={onRetry}>加载失败，重试</button> :
-              <span>当前结果 {resultCount ?? '…'} 篇</span>}
+            {/* 手机把结果数与筛选并到搜索同一行（v0.18.1）：原先标题/视图/搜索/筛选各占一行，
+                光顶部就吃掉约 1/3 屏。这里只在手机显示，桌面仍是 .filter-row 里的完整统计 */}
+            <div className="mobile-filter-summary">
+              {listError ? (
+                <button className="link-clear" onClick={onRetry}>失败，重试</button>
+              ) : (
+                <span className="mobile-result-count">
+                  <span className="mobile-result-prefix">结果 </span>
+                  {resultCount ?? '…'}
+                </span>
+              )}
+              <button
+                className={`filter-toggle${filterCount ? ' on' : ''}`}
+                aria-label={filterCount ? `筛选，已启用 ${filterCount} 项` : '筛选'}
+                aria-expanded={filtersOpen}
+                aria-controls="collection-filters"
+                onClick={() => setFiltersOpen((open) => !open)}
+              >
+                <IconSettings size={15} />
+                {filterCount > 0 && <span className="filter-badge">{filterCount}</span>}
+              </button>
+            </div>
           </div>
           <div id="collection-filters" className={`filter-row${filtersOpen ? ' filters-open' : ''}`}>
             {/* 标星开关放在筛选行：它是一层筛选，必须和「当前结果 N 篇」在一起，

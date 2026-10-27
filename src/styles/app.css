@@ -726,10 +726,15 @@ img {
 .pill-toggle:active {
   transform: scale(0.985);
 }
-/* 开启态：金色文字 + 一圈柔光晕，单靠"更高一点"的投影读不出"已按下" */
+/* 开启态：金色图标 + 一圈柔光晕，单靠"更高一点"的投影读不出"已按下"。
+   文字用主文字色：金色 12.5px 文字在浮起表面上实测只有 3.99:1（低于 4.5），
+   金色留给图标（图形只需 3:1） */
 .pill-toggle.on {
-  color: var(--star);
+  color: var(--text-primary);
   box-shadow: var(--elev-2), var(--inset-top), 0 0 0 3px var(--star-soft);
+}
+.pill-toggle.on svg {
+  color: var(--star);
 }
 .filter-custom-dates {
   display: inline-flex;

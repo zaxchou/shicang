@@ -2032,3 +2032,12 @@ console 0 错误。教训两条记入记忆：**上次的验证只测宽度是�
 另核对：抽屉/详情打开时 `<main>` 为 `inert`；桌面表格选择列包 `<label>` 后表头宽度 50px、
 复选框位置未变；`overflow: clip` 下头部无滚动条。`typecheck` 通过、301 用例全绿。
 过程证据（各尺寸截图/评审报告）在 `.local/mobile-design/`，属本地过程文件，已随清理删除。
+
+### v0.18.5 折返修正
+
+线上实测发现：点过视图切换后按钮仍持有焦点，`header.contains(activeElement)` 会一直判为"头部忙"，
+触摸用户的顶部从此收不起来（0.18.3 的 `inert` 还让这层更明显）。改为只在这三种情况保留头部：
+头部内的文本输入聚焦、头部内的 `:focus-visible` 键盘焦点、筛选面板展开。实测：鼠标点视图切换后下滑
+正常收起；Tab 到工具栏（`focus-visible=true`）下滑不收起；点搜索框输入时下滑不收起；失焦后正常收起。
+行尾问题同轮修好：上轮 Python 写入把 `DetailDialog.tsx`/`mobile.css`/`tokens.css`/`design-language.md`
+转成 CRLF（diff 虚高 1600 行），已还原 LF 并在 v0.18.4 发布。

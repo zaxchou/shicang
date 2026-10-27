@@ -524,8 +524,20 @@ export default function App() {
     measure();
     let last = scroller.scrollTop;
     let acc = 0;
-    const headerBusy = () =>
-      header.contains(document.activeElement) || !!header.querySelector('.filter-row.filters-open');
+    // 只在"正在输入 / 键盘焦点在头部 / 筛选面板展开"时保留头部。
+    // 不能一律用 header.contains(activeElement)：点过视图切换后按钮仍持有焦点，
+    // 触摸用户会因此永远收不起顶部（线上实测）。
+    const headerBusy = () => {
+      const ae = document.activeElement;
+      if (ae instanceof HTMLElement) {
+        const typing =
+          ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable;
+        if (typing && header.contains(ae)) return true;
+        // 键盘用户（:focus-visible）的焦点留在头部时不隐藏，避免焦点落进看不见的元素
+        if (ae.matches(':focus-visible') && header.contains(ae)) return true;
+      }
+      return !!header.querySelector('.filter-row.filters-open');
+    };
     const onScroll = () => {
       const y = scroller.scrollTop;
       const dy = y - last;

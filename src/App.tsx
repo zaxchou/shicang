@@ -506,6 +506,56 @@ export default function App() {
 
   // 触底自动加载（仅瀑布流）
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  /** 手机滚动时收起顶部（Gmail 式）：内容上滑隐藏、下滑或回到顶部再露出。
+   *  桌面不参与（CSS 只在 ≤900px 生效，这里顺手把状态清掉避免遗留）。 */
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const scroller = resultsRef.current;
+    const header = headerRef.current;
+    if (!scroller || !header) return;
+    const mq = window.matchMedia('(max-width: 900px)');
+    const setH = (hidden: boolean) => setHeaderHidden((prev) => (prev === hidden ? prev : hidden));
+    // 头高用 offsetHeight（不含 ::after 那 12px 投影），面板展开/收起时同步
+    const measure = () => header.style.setProperty('--header-h', `${header.offsetHeight}px`);
+    const ro = new ResizeObserver(measure);
+    ro.observe(header);
+    measure();
+    let last = scroller.scrollTop;
+    let acc = 0;
+    const headerBusy = () =>
+      header.contains(document.activeElement) || !!header.querySelector('.filter-row.filters-open');
+    const onScroll = () => {
+      const y = scroller.scrollTop;
+      const dy = y - last;
+      last = y;
+      if (!mq.matches || y <= 8) {
+        acc = 0;
+        setH(false);
+        return;
+      }
+      if (dy > 0) {
+        acc = Math.max(0, acc + dy);
+        if (acc > 32 && !headerBusy()) {
+          acc = 0;
+          setH(true);
+        }
+      } else if (dy < 0) {
+        acc = Math.min(0, acc + dy);
+        if (acc < -8) {
+          acc = 0;
+          setH(false);
+        }
+      }
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      scroller.removeEventListener('scroll', onScroll);
+      ro.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     if (viewMode === 'table') return;
     const el = sentinelRef.current;
@@ -978,6 +1028,8 @@ export default function App() {
 
       <main className="main glass-surface" inert={navigationOpen || !!detailSummary}>
         <Toolbar
+          headerRef={headerRef}
+          headerHidden={headerHidden}
           navigationOpen={navigationOpen}
           onOpenNavigation={() => setNavigationOpen(true)}
           query={query}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { shanghaiDateDaysAgo } from '../../shared/time';
 import { IconArrowLeft, IconChevronDown, IconClose, IconGrid, IconList, IconMenu, IconSearch, IconSettings, IconStar } from './Icons';
 
@@ -19,6 +19,8 @@ export interface QueryState {
 }
 
 interface Props {
+  headerRef?: RefObject<HTMLDivElement | null>;
+  headerHidden?: boolean;
   onOpenNavigation(): void;
   navigationOpen: boolean;
   query: QueryState;
@@ -51,6 +53,8 @@ const isFiltered = (q: QueryState) =>
   q.source !== null;
 
 export function Toolbar({
+  headerRef,
+  headerHidden,
   onOpenNavigation,
   navigationOpen,
   query,
@@ -84,7 +88,7 @@ export function Toolbar({
   };
 
   return (
-    <div className="main-header">
+    <div ref={headerRef} className={`main-header${headerHidden ? ' header-hidden' : ''}`}>
       <div className="header-row">
         <button
           className="mobile-nav-toggle btn-icon"

@@ -1997,3 +1997,21 @@ console 0 错误。教训两条记入记忆：**上次的验证只测宽度是�
 - 可读性：开启态「标星」胶囊原用金色 12.5px 文字（实测 3.99:1）→ 文字改主文字色、金色只留给图标
   （图形 3:1 即可）；截图工具可读性提示清零。
 - `npm run typecheck` 通过，`npm test` 301 用例全绿。
+
+## 手机顶部：去掉内部滚动条 + 上滑收起（2026-10-27，v0.18.2）
+
+用户反馈两件事：顶部多了一根竖向滚动条（很丑）；希望上滑时像 Gmail 一样收起标题栏。
+
+- **滚动条真因**：`.main-header` 用了 `overflow-y:auto`，而它的 `::after` 分界投影比盒子低 12px
+  （`top:100%; height:12px`）——头部永远"溢出 12px"，于是常驻一根细滚动条。实测
+  `scrollHeight 121 / clientHeight 108` 正是这 12px。改为 `overflow: clip` +
+  `overflow-clip-margin: 16px`：不再产生任何滚动条，投影仍完整。
+- **上滑收起**：监听 `.results` 滚动（被动监听）。累计下滑 >32px 且焦点/筛选面板不在头部时，
+  整条头部以负 `margin-top`（由 ResizeObserver 写入的 `--header-h`）+ 透明度收起；累计上滑 >8px
+  或回到顶部即露出。收起用负 margin 而不是 height——height 由 CSS 变量驱动会反过来约束
+  ResizeObserver 的测量（跨断点后停在旧高度，实测过 224/549/810 三种错误值）。
+- 实测：390×844 顶部 108px → 下滑后 `results` 顶端 9px（等于外壳内边距），上滑 100px 完全露出；
+  筛选面板展开时下滑**不**收起（结果区仍可见 221px 起）；搜索框聚焦时下滑**不**收起，失焦后正常收起；
+  桌面 1440 滚动永不收起（225px 原样）；1440→390 改变宽度后 `--header-h` 重新量到 108px。
+- 截图：`.local/mobile-design/scroll-header/hidden-live.png`（收起态，内容占满屏）。
+- `npm run typecheck` 通过；`npm test` 301 用例全绿。
